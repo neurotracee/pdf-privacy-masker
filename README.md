@@ -85,7 +85,7 @@ https://github.com/neurotracee/pdf-privacy-masker
 
 点「生成打码 PDF」时先问你要存到哪个文件夹，两个勾选决定以后还问不问：
 
-![保存位置](docs/img/保存位置.png)
+![保存位置](docs/img/保存位置.jpg)
 
 也能随时在右上角「设置」里用勾选的方式改回来，不用记命令、不用改配置：
 
