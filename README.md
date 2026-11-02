@@ -1,3 +1,23 @@
+# PDF Privacy Masker
+
+[![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
+[![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-green.svg)](requirements.txt)
+[![Platform](https://img.shields.io/badge/platform-Windows-blue.svg)](https://github.com/neurotracee/pdf-privacy-masker/releases)
+
+**English** | [中文](#pdf-隐私打码工具)
+
+Offline PDF privacy redaction tool. Drag a PDF in, it automatically detects phone numbers, ID card numbers, bank card numbers, emails, names, addresses, dates of birth and gender/age, then covers them with **irreversible pixel mosaic** while stripping the underlying text layer, and saves as a new file.
+
+Parts it can't auto-detect — scanned documents, text inside images, conservative misses — can be manually boxed and redacted with the mouse, also pixel-level irreversible.
+
+Runs entirely on your own machine. No network, no upload, original file untouched. You choose where the redacted file is saved.
+
+![Before / After comparison](docs/img/效果对比.png)
+
+> Left is the original document, right is the redacted result. Surnames are kept, given names and all numbers are covered by mosaic; meeting dates, amounts, license plates, tracking numbers and other ordinary info are preserved.
+
+---
+
 # PDF 隐私打码工具
 
 本地离线运行的 PDF 隐私信息自动打码工具。把 PDF 拖进去，自动认出手机号、身份证号、银行卡号、邮箱、姓名、座机、地址、出生日期、性别年龄，用**不可还原的马赛克**盖掉，同时把底层的文字层一并抹除，另存为一个新文件。
@@ -16,15 +36,15 @@
 
 ## 这个项目是谁做的
 
-- **指导作者：项目创作时为初中生** 需求、识别规则的设计、验收测试全部由本人完成。
+- **指导作者：一名初中生。** 需求、识别规则的设计、验收测试全部由本人完成。
 - **开发：腾讯 WorkBuddy × DeepSeek-V4.1-Flash。** 在指导作者的指令与反复验收下实现代码。
-- **维护状态：低频维护。** 作者不会持续跟进，可能隔几个月才会看一次 Issue、修一次明显的 bug。不保证响应速度，也不保证修——有 bug 你自己 fork 改最快。代码全部公开，欢迎任何人 fork 自行改进，不必询问。
+- **维护状态：发布后不再维护。** 作者还在上学，没有精力持续跟进。代码全部公开，欢迎任何人 fork 自行改进，不必询问。
 - **开源协议：GNU AGPL-3.0-or-later。** 详见 [LICENSE](LICENSE)，另附 [ADDITIONAL-TERMS.md](ADDITIONAL-TERMS.md)。
 
 ## 关于署名（二次开发或商用前请先看这一段）
 
 本项目**允许商用，也允许二次开发**，不需要付钱、不需要申请、不需要等作者批准
-（作者低频维护，可能几个月才看一次，别指望快速回应）。
+（作者已经说了不维护，等也等不到）。
 
 但下面**三条是硬要求**，属于 [ADDITIONAL-TERMS.md](ADDITIONAL-TERMS.md) 中
 依据 AGPL-3.0 第 7 条 (b) 项声明的附加条款，删掉任何一条都不合规：
@@ -75,7 +95,8 @@ https://github.com/neurotracee/pdf-privacy-masker
 - **换个名字**：程序名「PDF 隐私打码工具」与图标不在授权范围内（第 7 条 (e) 项），
   fork 请改名换图标，避免别人误认。
 
-需要闭源商用？那必须同时取得**本项目作者的豁免**（作者低频维护，可能几个月才看一次，不要指望快速回应）和**PyMuPDF 版权方 Artifex 的商业许可**。（见 [NOTICE.md](NOTICE.md)）。两条缺一不可。
+需要闭源商用？那必须**同时**取得本项目作者的豁免（作者不维护，大概率不会回应，请不要指望）
+**和** PyMuPDF 版权方 Artifex 的商业许可（见 [NOTICE.md](NOTICE.md)）。两条缺一不可。
 
 ---
 
@@ -85,7 +106,7 @@ https://github.com/neurotracee/pdf-privacy-masker
 
 点「生成打码 PDF」时先问你要存到哪个文件夹，两个勾选决定以后还问不问：
 
-![保存位置](docs/img/保存位置.jpg)
+![保存位置](docs/img/保存位置.png)
 
 也能随时在右上角「设置」里用勾选的方式改回来，不用记命令、不用改配置：
 
