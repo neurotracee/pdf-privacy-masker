@@ -1,0 +1,22 @@
+# 构建产物
+build/
+dist/
+*.spec.bak
+
+# 运行时与临时文件
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# 编辑器
+.vscode/
+.idea/
+*.swp
+
+# 本地测试输出（不进入仓库）
+test/
+_shots/
+dev/_ui/
+*.log
