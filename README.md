@@ -22,12 +22,12 @@ Runs entirely on your own machine. No network, no upload, original file untouche
 
 - **Lead author: a junior high school student.** Requirements, detection rule design, and acceptance testing were all done by the author.
 - **Development: Tencent WorkBuddy × DeepSeek-V4.1-Flash.** Code was written under the author's direction and repeated acceptance reviews.
-- **Maintenance: unmaintained after release.** The author is still in school and has no bandwidth to follow up. Code is fully open; anyone is welcome to fork and improve it, no need to ask.
+- **Maintenance: very low frequency.** The author is still in school and checks the project roughly once every 1–2 months. Code is fully open; anyone is welcome to fork and improve it, no need to ask.
 - **License: GNU AGPL-3.0-or-later.** See [LICENSE](LICENSE), and [ADDITIONAL-TERMS.md](ADDITIONAL-TERMS.md) for extra terms.
 
 ## About attribution (read this before forking or commercial use)
 
-This project **allows commercial use and forks**, no payment, no application, no approval needed (the author is unmaintained, so don't wait for a response).
+This project **allows commercial use and forks**, no payment, no application, no approval needed (the author checks the project roughly once every 1–2 months, so responses may be slow).
 
 But the **three hard requirements below** are part of [ADDITIONAL-TERMS.md](ADDITIONAL-TERMS.md) declared under AGPL-3.0 Section 7(b). Removing any of them is non-compliant:
 
@@ -73,7 +73,7 @@ This prevents people from mistaking a modified version as the original author's 
 - **Don't add stricter restrictions**: you can't change it to "no commercial use" or "no modification" — that conflicts with AGPL-3.0 and won't take effect.
 - **Rename it**: the program name "PDF Privacy Masker" and icon are not covered by the license (Section 7(e)). Forks must rename and rebrand to avoid confusion.
 
-Need closed-source commercial use? You must **both** get an exemption from the project author (unlikely, don't count on it) **and** a commercial license from Artifex, the PyMuPDF copyright holder (see [NOTICE.md](NOTICE.md)). Both are required.
+Need closed-source commercial use? You must **both** get an exemption from the project author (response may take weeks, so don't count on it) **and** a commercial license from Artifex, the PyMuPDF copyright holder (see [NOTICE.md](NOTICE.md)). Both are required.
 
 ---
 
@@ -225,13 +225,13 @@ by the Free Software Foundation, either version 3 of the License, or
 
 - **指导作者：一名初中生。** 需求、识别规则的设计、验收测试全部由本人完成。
 - **开发：腾讯 WorkBuddy × DeepSeek-V4.1-Flash。** 在指导作者的指令与反复验收下实现代码。
-- **维护状态：发布后不再维护。** 作者还在上学，没有精力持续跟进。代码全部公开，欢迎任何人 fork 自行改进，不必询问。
+- **维护状态：极低频率维护。** 作者还在上学，大约一两个月会查看一次项目。代码全部公开，欢迎任何人 fork 自行改进，不必询问。
 - **开源协议：GNU AGPL-3.0-or-later。** 详见 [LICENSE](LICENSE)，另附 [ADDITIONAL-TERMS.md](ADDITIONAL-TERMS.md)。
 
 ## 关于署名（二次开发或商用前请先看这一段）
 
 本项目**允许商用，也允许二次开发**，不需要付钱、不需要申请、不需要等作者批准
-（作者已经说了不维护，等也等不到）。
+（作者大约一两个月查看一次项目，回复可能很慢）。
 
 但下面**三条是硬要求**，属于 [ADDITIONAL-TERMS.md](ADDITIONAL-TERMS.md) 中
 依据 AGPL-3.0 第 7 条 (b) 项声明的附加条款，删掉任何一条都不合规：
@@ -282,7 +282,7 @@ https://github.com/neurotracee/pdf-privacy-masker
 - **换个名字**：程序名「PDF 隐私打码工具」与图标不在授权范围内（第 7 条 (e) 项），
   fork 请改名换图标，避免别人误认。
 
-需要闭源商用？那必须**同时**取得本项目作者的豁免（作者不维护，大概率不会回应，请不要指望）
+需要闭源商用？那必须**同时**取得本项目作者的豁免（回复可能需要等几周，请不要指望快速回应）
 **和** PyMuPDF 版权方 Artifex 的商业许可（见 [NOTICE.md](NOTICE.md)）。两条缺一不可。
 
 ---
