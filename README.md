@@ -12,9 +12,198 @@ Parts it can't auto-detect — scanned documents, text inside images, conservati
 
 Runs entirely on your own machine. No network, no upload, original file untouched. You choose where the redacted file is saved.
 
-![Before / After comparison](docs/img/效果对比.png)
+![Before / After comparison](docs/img/comparison.png)
 
 > Left is the original document, right is the redacted result. Surnames are kept, given names and all numbers are covered by mosaic; meeting dates, amounts, license plates, tracking numbers and other ordinary info are preserved.
+
+---
+
+## Who made this
+
+- **Lead author: a junior high school student.** Requirements, detection rule design, and acceptance testing were all done by the author.
+- **Development: Tencent WorkBuddy × DeepSeek-V4.1-Flash.** Code was written under the author's direction and repeated acceptance reviews.
+- **Maintenance: unmaintained after release.** The author is still in school and has no bandwidth to follow up. Code is fully open; anyone is welcome to fork and improve it, no need to ask.
+- **License: GNU AGPL-3.0-or-later.** See [LICENSE](LICENSE), and [ADDITIONAL-TERMS.md](ADDITIONAL-TERMS.md) for extra terms.
+
+## About attribution (read this before forking or commercial use)
+
+This project **allows commercial use and forks**, no payment, no application, no approval needed (the author is unmaintained, so don't wait for a response).
+
+But the **three hard requirements below** are part of [ADDITIONAL-TERMS.md](ADDITIONAL-TERMS.md) declared under AGPL-3.0 Section 7(b). Removing any of them is non-compliant:
+
+### ① Keep the author attribution
+
+Keep these two lines verbatim, don't replace with someone else's name:
+
+```
+Lead author: a junior high school student
+Developed by Tencent WorkBuddy × DeepSeek-V4.1-Flash
+```
+
+This is based on AGPL-3.0 Section 5 (preserve copyright notices); Section 7(b) explicitly allows the copyright holder to require attribution.
+
+### ② Show the original project URL in the program
+
+```
+https://github.com/neurotracee/pdf-privacy-masker
+```
+
+**Must be visible to users** — in the About window, footer, help menu, or `--about` output, pick any one. Writing it only in `LICENSE` or a source comment hundreds of lines away **doesn't count**, because users won't see it during normal operation.
+
+How this project does it (you can copy it directly):
+
+| Location | Content |
+| --- | --- |
+| Footer | `Original project: https://github.com/neurotracee/pdf-privacy-masker` (click to copy) |
+| About window | `Original project` line, blue dashed clickable |
+| CLI | `python pdfmask.py --about` prints attribution and URL |
+
+### ③ State clearly if your version is modified
+
+Unless you're distributing the original unmodified, add a prominent notice in the program:
+
+> This program is based on https://github.com/neurotracee/pdf-privacy-masker, modified, not released by the original author.
+
+This prevents people from mistaking a modified version as the original author's — especially when your version has bugs, privacy risks, or starts charging.
+
+### Beyond AGPL-3.0 itself
+
+- **Open source alongside distribution**: when distributing the exe, provide the complete source code that builds it (Sections 4–6).
+- **Network services also need source**: if you make a modified version into a website for others, you must give those users a way to get the source (Section 13).
+- **Don't add stricter restrictions**: you can't change it to "no commercial use" or "no modification" — that conflicts with AGPL-3.0 and won't take effect.
+- **Rename it**: the program name "PDF Privacy Masker" and icon are not covered by the license (Section 7(e)). Forks must rename and rebrand to avoid confusion.
+
+Need closed-source commercial use? You must **both** get an exemption from the project author (unlikely, don't count on it) **and** a commercial license from Artifex, the PyMuPDF copyright holder (see [NOTICE.md](NOTICE.md)). Both are required.
+
+---
+
+## Interface
+
+![Interface](docs/img/interface.png)
+
+When you click "Generate Redacted PDF", it first asks which folder to save to, with two checkboxes deciding whether to ask again:
+
+![Save location](docs/img/save-location.jpg)
+
+You can also change this anytime in the Settings panel in the top-right corner — no command line, no config file editing:
+
+![Settings](docs/img/settings.png)
+
+## What it can detect
+
+| Type | Description | Redaction |
+| --- | --- | --- |
+| Phone numbers | Supports `138****`, `+86 138` formats | Full coverage |
+| ID card numbers | 18-digit and 15-digit, with checksum and country/region code validation | Full coverage |
+| Bank card numbers | 16–19 digits, Luhn check to avoid redacting ordinary numbers | Full coverage |
+| Emails | Common email formats | Full coverage |
+| Landline numbers | `area-code-number`, `area-code number` | Full coverage |
+| Addresses | Province/city/district + street, including "XX Road XX No. XX Room" | Full coverage |
+| Birth dates | Only dates with "born / birthday / born on" context | Full coverage |
+| Gender / age | `Gender: female`, `, female,`, `30 years old` patterns | Covered |
+| Names | Keep surname, redact given name: `陈嘉豪` → `陈██` | Surname kept |
+
+**Ordinary dates (meetings, contracts, signing), amounts, license plates, tracking numbers, employee IDs, model numbers are NOT redacted.** Number types are validated, so noise info is preserved.
+
+## Beyond auto-detection, manual tools
+
+| Feature | Description |
+| --- | --- |
+| Manual box redaction | Click "Box redaction" in the toolbar, drag a box on the page, release to finish. For scanned documents, text inside images, or conservative misses |
+| Per-item confirmation | Each detection result has a checkbox; uncheck what you don't want redacted. Click an item to jump to the page and highlight it |
+| Custom save location | Click "Generate" and it pops up a folder picker first; optionally check "default to this path" and "don't ask again" |
+| Change anytime in Settings | Top-right "Settings" panel with checkboxes: default save path, whether to ask each time. No config file, no CLI arguments |
+| Zero changes to original | Only reads the original PDF, saves as a new file; auto-numbers to avoid overwriting |
+
+## How to use
+
+### Option 1: Use the packaged exe (recommended)
+
+1. Go to [Releases](../../releases) and download `PDF隐私打码工具.exe`.
+2. Double-click to run. **No Python install needed, no network needed.**
+3. First launch takes 1–2 seconds (single-file app self-extracts to temp dir), that's normal.
+4. If Windows shows "Windows protected your PC", click "More info → Run anyway" — the app has no code signing certificate, but it works fine.
+
+The UI opens automatically in your browser at a random `127.0.0.1` port. Close the app by clicking "Exit" in the top-right corner.
+
+### Where are the redacted files saved
+
+First time you click "Generate Redacted PDF", it pops up a folder picker. Pick a folder and click "OK". Two checkboxes in the window:
+
+- **Default to this path next time**: future launches stay in this folder
+- **Don't ask again**: save directly here without popping up
+
+You can change these anytime in the top-right "Settings". If nothing is set, dragged-in files go to the system "Downloads" folder, and double-clicked PDFs go next to the original file.
+
+The picker is the native Windows folder dialog; you can also paste a path directly. If the folder doesn't exist, the app creates it. The original PDF is always read-only, never modified or overwritten.
+
+### Option 2: Run from source
+
+```bash
+pip install -r requirements.txt
+python pdfmask.py
+```
+
+Requires Python 3.10+.
+
+### Option 3: CLI batch mode
+
+```bash
+python pdfmask.py --cli input.pdf output.pdf
+```
+
+Prints a JSON listing every detection result's page and coordinates.
+
+## Build your own exe
+
+```bash
+pip install -r requirements.txt
+pyinstaller pdfmask.spec --noconfirm --clean
+```
+
+Output is `dist/PDF隐私打码工具.exe`, about 34 MB, single-file, no install needed.
+`version_info.txt` contains the exe's file properties (copyright, product name), adjust as needed.
+
+## Known limitations
+
+- **No support for scanned PDFs.** Scanned PDFs are full-page images with no text layer, so auto-detection can't work — this is shown in red in the top-left corner. Use "Box redaction" to manually draw boxes; result is equally irreversible. If some scanned pages are mixed in a normal PDF, the app tells you which pages.
+- **Encrypted PDFs need password removed first.**
+- **Chinese numeral numbers** (like "一三八零零") are not detected.
+- **Names ending in 镇/苑/道/路/村/庄** are skipped because they're indistinguishable from place names — better to miss than to mis-redact.
+- **Names split across line breaks** (surname at end of line, given name at start of next) may be missed.
+- **Uncertain names** are listed as orange "suspected" items, unchecked by default, requiring you to manually check. This avoids mis-redacting ordinary nouns in the text.
+
+## Dependencies & License
+
+| Dependency | Version | License |
+| --- | --- | --- |
+| [PyMuPDF](https://pymupdf.readthedocs.io/) / MuPDF | 1.28.x | **AGPL-3.0** or Artifex commercial license |
+| [Pillow](https://python-pillow.org/) | 13.x | HPND (similar to MIT) |
+| [PyInstaller](https://pyinstaller.org/) | 6.x | GPL-2.0-or-later with packaging exception |
+
+This project chooses AGPL-3.0 precisely because the core PDF library PyMuPDF is dual-licensed under AGPL-3.0: **distributing the packaged app means the whole application must be AGPL-3.0 open source.** See [NOTICE.md](NOTICE.md).
+
+## Privacy notes
+
+- The app only listens on `127.0.0.1`, no external ports.
+- Processing happens entirely in local memory and temp files; temp files are cleaned on exit.
+- Output PDF metadata is stripped — no tool name, no timestamp written.
+- The only file written is: your specified output path.
+- The app stores a preference file at `%APPDATA%\PDF隐私打码工具\settings.json` — only "default save path" and two toggles, no document content, no personal info. Delete it to reset.
+
+## License
+
+GNU Affero General Public License v3.0 or later, see [LICENSE](LICENSE).
+Extra terms under Section 7(b), see [ADDITIONAL-TERMS.md](ADDITIONAL-TERMS.md) — the core is one sentence: **fork or commercial use must keep the author attribution and original project URL in the program.**
+
+```
+Copyright (C) 2026 a junior high school student
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published
+by the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+```
 
 ---
 
@@ -26,11 +215,9 @@ Runs entirely on your own machine. No network, no upload, original file untouche
 
 全程在你自己的电脑上跑，不联网、不上传，原文件不动。打码后的文件存到哪个文件夹由你决定，不硬塞进某个固定位置。
 
-![打码前后对比](docs/img/效果对比.png)
+![打码前后对比](docs/img/comparison.png)
 
 > 左侧是原始文档，右侧是打码后的结果。姓氏保留，名字与所有号码被马赛克覆盖；会议日期、金额、车牌、快递单号等普通信息原样保留。
-
-
 
 ---
 
@@ -102,15 +289,15 @@ https://github.com/neurotracee/pdf-privacy-masker
 
 ## 界面
 
-![界面](docs/img/界面.png)
+![界面](docs/img/interface.png)
 
 点「生成打码 PDF」时先问你要存到哪个文件夹，两个勾选决定以后还问不问：
 
-![保存位置](docs/img/保存位置.pjpg
+![保存位置](docs/img/save-location.jpg)
 
 也能随时在右上角「设置」里用勾选的方式改回来，不用记命令、不用改配置：
 
-![设置](docs/img/设置.png)
+![设置](docs/img/settings.png)
 
 ## 能识别什么
 
