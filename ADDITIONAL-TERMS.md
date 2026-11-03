@@ -14,7 +14,7 @@
 下面两句原文保留，不得删除、不得改写、不得替换成其他人的名字：
 
 ```
-指导作者：一名初中生
+指导作者：项目创作时为初中生
 由 腾讯 WorkBuddy × DeepSeek-V4.1-Flash 开发
 ```
 
@@ -67,8 +67,8 @@ https://github.com/neurotracee/pdf-privacy-masker
   必须向这些使用者提供**完整对应源代码**的获取方式；
 - AGPL-3.0 第 6 条：分发 exe 时，必须一并提供可编译出该 exe 的源代码。
 
-想闭源商用？那需要**同时**做两件事：向本项目的作者取得豁免（作者已声明不再维护，
-大概率不会回应，请不要指望），以及向 PyMuPDF 的版权方 Artifex 购买商业许可
+想闭源商用？那需要**同时**做两件事：向本项目的作者取得豁免（作者维护频率很低，
+一两个月才看一次，大概率不会回应，请不要指望），以及向 PyMuPDF 的版权方 Artifex 购买商业许可
 （这是硬约束，见 `NOTICE.md`）。不要试图绕过。
 
 ---
@@ -86,8 +86,7 @@ https://github.com/neurotracee/pdf-privacy-masker
 
 写这条不是为了找谁的麻烦，就是为了**留个名**。
 
-作者是一名初中生，做完这个项目就要回去上课了，发布后不再维护，
-也不会去追着谁打官司——没有那个时间，也没有那个精力。
+作者平时没有充足的时间和精力，大约一两个月才上来看一两次，也不会去追着谁打官司——没那个功夫。
 
 所以这条款的实际意义是：
 
@@ -106,7 +105,7 @@ This project is licensed under **AGPL-3.0-or-later**, with additional terms
 under **Section 7(b)** of that license:
 
 1. You must preserve the author attribution:
-   `Project mentor: a middle-school student` and
+   `Advisor: was a junior high school student when this project was created` and
    `Developed by Tencent WorkBuddy × DeepSeek-V4.1-Flash`.
 2. You must display the original project URL
    `https://github.com/neurotracee/pdf-privacy-masker`

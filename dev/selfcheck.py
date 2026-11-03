@@ -268,8 +268,8 @@ def main():
 
     # --- 9. 纯段落无标签（刁难文档 2.0：一整段叙述 + 隐私与干扰混排） ---
     print("\n[9] 纯段落 · 隐私与干扰混排")
-        subprocess.run([sys.executable, os.path.join(HERE, "make_hard2_pdf.py")],
-                            check=True, capture_output=True)
+    subprocess.run([sys.executable, os.path.join(HERE, "make_hard2_pdf.py")],
+                   check=True, capture_output=True)
     r2 = subprocess.run([sys.executable, os.path.join(HERE, "test_hard2.py")],
                         capture_output=True, text=True,
                         encoding="utf-8", errors="replace")

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 # SPDX-License-Identifier: AGPL-3.0-or-later
-# Copyright (C) 2026 一名初中生（项目指导作者）
+# Copyright (C) 2026 项目创作时为初中生
 #
 # This file is part of PDF 隐私打码工具 (PDF Privacy Masker).
 #
@@ -19,7 +19,7 @@
 # 附加条款（AGPL-3.0 第 7 条 b 项）· Additional terms
 #
 # 二次开发或商用必须保留下列内容，详见 ADDITIONAL-TERMS.md：
-#   1. 作者署名：指导作者 一名初中生 / 由 腾讯 WorkBuddy × DeepSeek-V4.1-Flash 开发
+#   1. 作者署名：指导作者「项目创作时为初中生」 / 由 腾讯 WorkBuddy × DeepSeek-V4.1-Flash 开发
 #   2. 原项目地址，且必须让使用者看得见（「关于」窗口 / 页脚 / --about 输出）
 #   3. 修改过的版本必须注明「本程序基于 <原项目地址> 修改，非原作者发布」
 # 程序名称「PDF 隐私打码工具」与图标不在授权范围内（AGPL-3.0 第 7 条 e 项）。
@@ -35,8 +35,8 @@ PDF 隐私打码工具  (本地离线 · 单文件运行)
 
 作者 / Authors
 -------------
-指导作者  : 一名初中生 —— 需求、规则设计、验收测试全部由本人完成
-            本项目发布后不再维护（作者学业繁忙），欢迎任何人 fork 自行改进
+指导作者  : 项目创作时为初中生 —— 需求、识别规则的设计、验收测试全部由本人完成
+            维护频率很低（作者时间精力有限，约一两个月看一次），欢迎任何人 fork 改进
 开发      : 腾讯 WorkBuddy × DeepSeek-V4.1-Flash（在指导作者的指令与验收下实现）
 
 许可 / License
@@ -60,15 +60,23 @@ import uuid
 import pymupdf
 from PIL import Image
 
+from thanks_asset import QR_PNG_B64  # 赞赏码图片（base64 内嵌，单文件打包不丢）
+
 APP_NAME = "PDF 隐私打码工具"
-VERSION = "1.3.0"
+VERSION = "1.4.0"
 
 # ---- 署名信息（开源后请勿删除，AGPL-3.0 第 5 条要求保留版权声明） ----
-AUTHOR = "一名初中生"
+AUTHOR = "项目创作时为初中生"
 AUTHOR_ROLE = "项目指导作者"
 DEVELOPER = "腾讯 WorkBuddy × DeepSeek-V4.1-Flash"
 LICENSE_NAME = "AGPL-3.0-or-later"
 PROJECT_URL = "https://github.com/neurotracee/pdf-privacy-masker"
+
+# ---- 检查更新（只读一个版本号，不上传任何本地内容） ----
+RELEASES_URL = PROJECT_URL + "/releases/latest"
+RELEASES_API = "https://api.github.com/repos/neurotracee/pdf-privacy-masker/releases?per_page=20"
+UPDATE_ASSET_SUFFIX = ".exe"          # 这个平台看 .exe 资产
+UPDATE_TIMEOUT = 8                    # 秒，超时就当失败，界面自己给兜底
 
 CREDIT_LINE = "指导作者：%s · 由 %s 开发 · %s 开源" % (
     AUTHOR, DEVELOPER, LICENSE_NAME)
@@ -88,7 +96,17 @@ SETTINGS_PATH = os.path.join(SETTINGS_DIR, "settings.json")
 # saveDir    : 默认保存目录（空 = 跟随原 PDF 所在目录，临时文件则为「下载」）
 # rememberDir: 记住上一次选择的目录，下次作为默认值
 # noAsk      : 不再每次都问，直接存到 saveDir
-DEFAULT_SETTINGS = {"saveDir": "", "rememberDir": True, "noAsk": False}
+# lang       : 界面语言 zh / en
+DEFAULT_SETTINGS = {"saveDir": "", "rememberDir": True, "noAsk": False, "lang": "zh"}
+
+
+def _L(zh, en):
+    """后端要回给界面的提示，按当前语言选一条"""
+    try:
+        return en if _get_settings().get("lang") == "en" else zh
+    except Exception:
+        return zh
+
 
 # 马赛克渲染倍率：4 倍 ≈ 288 DPI，放大后仍是清晰方块
 MOSAIC_ZOOM = 4.0
@@ -1725,6 +1743,7 @@ def _load_settings():
                 out["saveDir"] = raw["saveDir"].strip().strip('"')
             out["rememberDir"] = bool(raw.get("rememberDir", True))
             out["noAsk"] = bool(raw.get("noAsk", False))
+            out["lang"] = "en" if raw.get("lang") == "en" else "zh"
     except Exception:
         pass
     return out
@@ -1756,6 +1775,125 @@ def _update_settings(**kw):
         cfg = dict(SETTINGS)
     _save_settings(cfg)
     return cfg
+
+
+# ---------------------------------------------------------------------------
+# 检查更新：只去 GitHub 读一个版本号，不发送任何本地文件或个人信息
+# ---------------------------------------------------------------------------
+
+def _ver_tuple(text):
+    """把 v1.4.0 / 1.4 / 1.4.0-beta 之类统一成 (1,4,0)，取不出数字就返回 None"""
+    nums = re.findall(r"\d+", text or "")
+    if not nums:
+        return None
+    t = [int(x) for x in nums[:3]]
+    while len(t) < 3:
+        t.append(0)
+    return tuple(t)
+
+
+def _asset_ver(name):
+    """从文件名里抠版本：PDFPrivacyMasker-1.4.0.exe → (1,4,0)"""
+    m = re.search(r"(\d+\.\d+(?:\.\d+)?)", name or "")
+    return _ver_tuple(m.group(1)) if m else None
+
+
+def _fetch_releases():
+    """取 releases 列表。先直连，失败再放宽证书校验试一次（个别电脑装了抓包/加速软件会拦证书）。"""
+    import ssl
+    import urllib.request
+
+    last = ""
+    for relaxed in (False, True):
+        try:
+            ctx = None
+            if relaxed:
+                ctx = ssl.create_default_context()
+                ctx.check_hostname = False
+                ctx.verify_mode = ssl.CERT_NONE
+            req = urllib.request.Request(RELEASES_API, headers={
+                "User-Agent": "PDFPrivacyMasker/" + VERSION,
+                "Accept": "application/vnd.github+json",
+            })
+            with urllib.request.urlopen(req, timeout=UPDATE_TIMEOUT, context=ctx) as r:
+                return json.loads(r.read().decode("utf-8", "replace")), ""
+        except Exception as e:
+            last = "%s: %s" % (e.__class__.__name__, str(e)[:120])
+    return None, last
+
+
+def _parse_releases(data):
+    """从 releases 里挑出本平台能用的最新版本。
+
+    优先用资产文件名里的版本（每个平台各自一个文件，最准）；
+    资产名里没有版本号时退回 tag_name（例如 v1.4.0）。
+    """
+    if isinstance(data, dict):
+        data = [data]
+    if not isinstance(data, list):
+        return None
+    best = None      # (ver, url, asset)
+    tag_only = None  # (ver, page, tag)
+    for rel in data:
+        if not isinstance(rel, dict) or rel.get("draft"):
+            continue
+        page = rel.get("html_url") or RELEASES_URL
+        tag = (rel.get("tag_name") or "").strip()
+        tv = _ver_tuple(tag)
+        if tv and (tag_only is None or tv > tag_only[0]):
+            tag_only = (tv, page, tag)
+        for a in rel.get("assets") or []:
+            name = a.get("name") or ""
+            if not name.lower().endswith(UPDATE_ASSET_SUFFIX):
+                continue
+            v = _asset_ver(name)
+            if not v:
+                continue
+            if best is None or v > best[0]:
+                best = (v, a.get("browser_download_url") or page, name)
+    if best:
+        return {"ver": best[0], "url": best[1], "asset": best[2], "source": "asset"}
+    if tag_only:
+        return {"ver": tag_only[0], "url": tag_only[1], "asset": "", "source": "tag"}
+    return None
+
+
+def check_update():
+    """返回给界面的字典。任何失败都转成 ok=False + 兜底链接，绝不让界面卡住。"""
+    cur = _ver_tuple(VERSION) or (0, 0, 0)
+    data, err = _fetch_releases()
+    if data is None:
+        return {
+            "ok": False,
+            "current": VERSION,
+            "error": _L("连不上 GitHub，可能是网络、代理或安全软件拦住了。",
+                        "Cannot reach GitHub — network, proxy or security software may be blocking it."),
+            "detail": err or "",
+            "url": RELEASES_URL,
+            "releasesUrl": RELEASES_URL,
+        }
+    got = _parse_releases(data)
+    if not got:
+        return {
+            "ok": False,
+            "current": VERSION,
+            "error": _L("仓库里还没有适用于本平台的安装包，可以去发布页手动看看。",
+                        "No build for this platform in the releases yet — have a look at the releases page."),
+            "detail": "",
+            "url": RELEASES_URL,
+            "releasesUrl": RELEASES_URL,
+        }
+    latest = "%d.%d.%d" % got["ver"]
+    return {
+        "ok": True,
+        "current": VERSION,
+        "latest": latest,
+        "hasUpdate": got["ver"] > cur,
+        "url": got["url"],
+        "asset": got["asset"],
+        "source": got["source"],
+        "releasesUrl": RELEASES_URL,
+    }
 
 
 _USER_DIRS_CACHE = []
@@ -1847,6 +1985,8 @@ def _settings_payload(src_path=None):
         "effectiveDir": saved or hint,
         "configured": bool(saved),
         "settingsPath": SETTINGS_PATH,
+        "lang": cfg.get("lang", "zh"),
+        "version": VERSION,
     }
 
 
@@ -2178,7 +2318,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 "__LICENSE__", LICENSE_NAME).replace(
                 "__URL__", PROJECT_URL).replace(
                 "__CREDIT__", CREDIT_LINE).replace(
-                "__URLSHORT__", URL_SHORT)
+                "__URLSHORT__", URL_SHORT).replace(
+                "__THANKS__", QR_PNG_B64)
             self._send(200, html, "text/html; charset=utf-8")
             return
         if u.path == "/favicon.ico":
@@ -2276,9 +2417,22 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     kw["rememberDir"] = bool(data["rememberDir"])
                 if "noAsk" in data:
                     kw["noAsk"] = bool(data["noAsk"])
+                if data.get("lang") in ("zh", "en"):
+                    kw["lang"] = data["lang"]
                 cfg = _update_settings(**kw)
                 return self._json({"ok": True, "settings": cfg,
                                    "path": SETTINGS_PATH})
+            if u.path == "/api/check_update":
+                # 只读 GitHub 上的版本号；用户主动点「检查更新」才会走到这里
+                return self._json(check_update())
+            if u.path == "/api/openurl":
+                data = json.loads(self._body() or b"{}")
+                link = (data.get("url") or "").strip()
+                if not link.startswith(("http://", "https://")):
+                    return self._err("链接无效")
+                _browser_open(link)
+                return self._json({"ok": True, "url": link})
+
             if u.path == "/api/copyout":
                 data = json.loads(self._body() or b"{}")
                 p = OUTS.get(data.get("token", ""))
@@ -2388,6 +2542,11 @@ header{height:66px;flex:0 0 66px;display:flex;align-items:center;justify-content
 .about-box dd.url{cursor:pointer;color:var(--accent);border-bottom:1px dashed rgba(47,107,255,.4);
   display:inline-block;max-width:100%}
 .about-box dd.url:hover{color:#1a4fd6}
+.about-thanks{margin:14px 0 0;padding:14px;border:1px solid var(--line);border-radius:12px}
+.about-thanks b{display:block;font-size:12.5px;color:var(--ink);margin-bottom:6px}
+.about-thanks p{margin:0 0 10px;font-size:11.5px;line-height:1.65;color:var(--ink3)}
+.about-thanks img{display:block;width:236px;max-width:100%;height:auto;margin:0 auto;border-radius:8px}
+.thanks-cap{margin-top:8px;font-size:10.5px;color:var(--ink3);text-align:center}
 .about-rule{margin:14px 0 0;padding:12px 14px 10px;background:#fff8f0;border:1px solid #f3dfc4;
   border-radius:10px;font-size:12px;line-height:1.7;color:#7a5320}
 .about-rule b{color:#8a4f00;font-size:12.5px}
@@ -2483,6 +2642,12 @@ main{flex:1;min-height:0;display:flex;overflow:hidden}
 .canvas-wrap{flex:1;overflow:auto;padding:22px;display:flex;justify-content:center;align-items:flex-start;
   position:relative}
 .canvas-wrap.draw{cursor:crosshair}
+/* 顶部功能提示：能拖框、能双击取消 */
+.hint-chip{display:flex;align-items:center;gap:5px;font-size:11.5px;color:#5b6675;
+  background:#f4f6f9;border:1px solid var(--line);border-radius:8px;padding:4px 10px;
+  white-space:nowrap;user-select:none}
+.hint-chip svg{flex:0 0 12px;opacity:.75}
+@media (max-width: 1040px){ .hint-chip{display:none} }
 .canvas-wrap img{display:block;background:#fff;box-shadow:0 8px 30px -12px rgba(15,24,40,.28);
   border-radius:2px;user-select:none;-webkit-user-drag:none}
 .band{position:fixed;border:1.5px dashed #ff2d55;background:rgba(255,45,85,.12);pointer-events:none;z-index:99}
@@ -2550,6 +2715,28 @@ main{flex:1;min-height:0;display:flex;overflow:hidden}
 .modal-note{margin-top:15px;padding:9px 12px;background:#f7f9fc;border-radius:9px;
   font-size:11.5px;color:var(--ink3);line-height:1.7}
 .modal-note em{font-style:normal;color:var(--ink2)}
+/* ---------- 设置：语言 / 检查更新 ---------- */
+.set-sec{margin-top:16px;padding-top:14px;border-top:1px solid var(--line2)}
+.seg{display:flex;gap:3px;background:#f1f3f7;border-radius:10px;padding:3px}
+.seg-btn{flex:1;border:0;background:transparent;padding:8px 0;border-radius:8px;
+  font-size:12.5px;color:var(--ink2);cursor:pointer}
+.seg-btn.on{background:#fff;color:var(--ink);font-weight:600;box-shadow:0 1px 2px rgba(16,24,40,.08)}
+.ver-row{display:flex;align-items:center;gap:10px;justify-content:space-between}
+.ver-cur{font-size:12.5px;color:var(--ink2)}
+.ver-cur b{color:var(--ink)}
+.upd-box{margin-top:10px;padding:11px 12px;border-radius:10px;background:#f7f9fc;
+  border:1px solid var(--line2);font-size:12px;line-height:1.7;color:var(--ink2)}
+.upd-box.ok{background:#f2fbf5;border-color:#cdeed9}
+.upd-box.new{background:#f2f6ff;border-color:#d5e2ff}
+.upd-box.fail{background:#fff6f6;border-color:#f7d4d4}
+.upd-url{margin-top:7px;font-family:ui-monospace,Consolas,monospace;font-size:11.5px;color:var(--ink);
+  word-break:break-all;background:#fff;border:1px solid var(--line);border-radius:7px;
+  padding:6px 8px;user-select:all;cursor:text}
+.upd-actions{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+.upd-help{margin-top:9px;font-size:11.5px;color:var(--ink3);line-height:1.8}
+.upd-detail{margin-top:5px;font-size:11px;color:var(--ink3);word-break:break-all;line-height:1.6}
+.upd-help b{color:var(--ink2)}
+.upd-help ol{margin:6px 0 0;padding-left:18px}
 </style>
 </head>
 <body>
@@ -2635,6 +2822,12 @@ main{flex:1;min-height:0;display:flex;overflow:hidden}
             框选手动打码
           </button>
           <div class="spacer"></div>
+          <div class="hint-chip" title="按住鼠标拖动可以框出要打码的区域；双击页面上的方框，可以取消或恢复该处打码">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/>
+              <path d="M12 11v5"/><path d="M12 8h.01"/></svg>
+            拖动框选 · 双击方框取消/恢复打码
+          </div>
           <label class="switch">
             <input type="checkbox" id="maskPreview" checked><span class="track"></span>预览打码效果
           </label>
@@ -2662,18 +2855,19 @@ main{flex:1;min-height:0;display:flex;overflow:hidden}
 <div class="about-mask" id="aboutMask" hidden>
   <div class="about-box">
     <h3>PDF 隐私打码工具</h3>
-    <div class="ver">版本 __VERSION__ · 本地离线运行</div>
+    <div class="ver">版本 __VERSION__ · <span id="verNote">本地离线运行</span></div>
     <dl>
-      <dt>指导作者</dt><dd>__AUTHOR__</dd>
+      <dt>指导作者</dt><dd>__AUTHOR__。<br>需求、识别规则的设计、验收测试全部由本人完成。</dd>
       <dt>开发</dt><dd>__DEVELOPER__</dd>
       <dt>开源协议</dt><dd>__LICENSE__</dd>
       <dt>原项目地址</dt><dd class="url" id="aboutUrl" data-url="__URL__" title="点击复制">__URL__</dd>
     </dl>
-    <p class="about-note">
-      <b>关于维护：</b>本人还在上学，没有精力长期维护，这个版本发布后就不再更新了。
-      代码全部公开，任何人可以自行修改、继续开发、拿去商用。
+    <p class="about-note" data-en-html='<b>Maintenance:</b> I don’t usually have enough time or energy, so I only check in once every month or two — replies will be slow, don’t expect instant answers. All the code is public: if something doesn’t work for you, feel free to fix it or keep building on it. Commercial use is fine too — no fee, no need to ask me, just follow the three points below.'>
+      <b>关于维护：</b>我平时没有充足的时间和精力，大概一两个月才上来看一两次，
+      所以回复不会很快，别指望秒回。代码全部公开，修不动的地方欢迎你自己改、自己接着用；
+      商用也行，不用付钱也不用问我，照下面三条做就可以。
     </p>
-    <div class="about-rule">
+    <div class="about-rule" data-en-html='<b>Forks / commercial use: three requirements</b><ol><li>Keep the credit <em>Advisor: __AUTHOR__</em> and the developer line, unmodified.</li><li>Show the <em>upstream URL</em> where users can see it — the line just above in this window counts.</li><li>Modified builds must state: “Based on that project, not released by the original author.”</li></ol><p class="rule-foot">The above is the additional term under AGPL-3.0 section 7(b); the full text is in <code>ADDITIONAL-TERMS.md</code>. The license itself also requires you to publish the modified source and, for network services, offer that source to users. The program name and icon are not licensed — rename before republishing.</p>'>
       <b>二次开发 / 商用：三条硬要求</b>
       <ol>
         <li>保留署名 <em>指导作者：__AUTHOR__</em> 与开发者信息，不得删改。</li>
@@ -2685,6 +2879,13 @@ main{flex:1;min-height:0;display:flex;overflow:hidden}
         另外协议本身要求：修改后的源码也要一并开放，网络服务须向使用者提供源码。
         程序名称与图标不在授权范围内，二次发布请改名。
       </p>
+    </div>
+    <div class="about-thanks">
+      <b>如果这个工具帮到了你</b>
+      <p data-en-html='It started as a small side project, and I am glad it is useful. If you feel like buying me a milk tea, that would make my day — completely optional. The app stays free and fully featured either way.'>本来就是顺手做的小工具，能派上用场就挺好。要是你愿意请我喝杯奶茶，我会挺开心——
+      完全自愿，不打赏也一样免费、功能不缺。</p>
+      <img src="data:image/png;base64,__THANKS__" alt="赞赏码">
+      <div class="thanks-cap">微信扫码 · 金额随意 · 右键可保存图片</div>
     </div>
     <div class="about-actions"><button class="btn primary" id="aboutOk">知道了</button></div>
   </div>
@@ -2723,6 +2924,34 @@ main{flex:1;min-height:0;display:flex;overflow:hidden}
       取消上面那个勾选，程序就会一路静默保存到这里的文件夹，不再弹窗。<br>
       无论怎么设置，原 PDF 都只会被读取，不会被改动或删除。
     </div>
+
+    <div class="set-sec">
+      <label class="field-label">界面语言 / Language</label>
+      <div class="seg" id="langSeg">
+        <button class="seg-btn" data-lang="zh">中文</button>
+        <button class="seg-btn" data-lang="en">English</button>
+      </div>
+    </div>
+
+    <div class="set-sec">
+      <label class="field-label">版本与更新</label>
+      <div class="ver-row">
+        <span class="ver-cur"><span id="verLabel1">当前版本</span> v<b id="curVer">__VERSION__</b> ·
+          <span id="verLabel2">仓库最新</span> <b id="latestVer">—</b></span>
+        <button class="btn" id="checkBtn">检查更新</button>
+      </div>
+      <div class="upd-box" id="updBox" hidden>
+        <div id="updText"></div>
+        <div class="upd-detail" id="updDetail" hidden></div>
+        <div class="upd-url" id="updUrl" hidden></div>
+        <div class="upd-actions" id="updActions" hidden>
+          <button class="btn primary" id="updOpen">用浏览器打开下载</button>
+          <button class="btn" id="updCopy">复制链接</button>
+        </div>
+        <div class="upd-help" id="updHelp" hidden></div>
+      </div>
+    </div>
+
     <div class="modal-actions">
       <button class="btn ghost" id="setReset">恢复默认</button>
       <button class="btn primary" id="setOk">保存</button>
@@ -2734,9 +2963,147 @@ main{flex:1;min-height:0;display:flex;overflow:hidden}
 const TOKEN = "__TOKEN__";
 const BOOT = __BOOT__;
 const S = {docId:null, name:'', pages:[], findings:[], sel:new Set(), page:0, zoom:1.2,
-           mask:true, drawing:false, hi:null, scanned:[], outDir:''};
+           mask:true, drawing:false, hi:null, scanned:[], outDir:'', stats:null, size:0};
 
 const $ = id => document.getElementById(id);
+
+/* ---------- 中英双语 ----------
+   静态文字按「原文」查表替换（含 title / placeholder / alt），
+   动态提示走 T(中文, English)。切换立即生效，不用重启。 */
+let LANG = 'zh';
+const DICT = {
+  '设置':'Settings', '关于':'About', '退出':'Quit',
+  'PDF 隐私打码工具':'PDF Privacy Masker',
+  '不支持扫描件 PDF':'No scanned PDFs',
+  '真马赛克 · 全程本地零上传 · ':'Real mosaic · 100% local · ',
+  '扫描件可用「框选手动打码」':'for scans, use the manual box tool',
+  '本机运行 127.0.0.1，文件不出电脑':'Local 127.0.0.1 — files never leave your PC',
+  '把 PDF 拖到这里':'Drop a PDF here',
+  '自动识别手机号、身份证号、银行卡号、邮箱、姓名、座机、地址、出生日期、性别年龄':
+    'Detects phone numbers, ID numbers, bank cards, emails, names, landlines, addresses, birth dates, gender and age',
+  '选择 PDF 文件':'Choose a PDF',
+  '· 不上传服务器':'· No uploads', '· 原文不可还原':'· Text unrecoverable',
+  '· 版面保持一致':'· Layout kept', '· 原文件不改动':'· Original untouched',
+  '· 保存位置可自定义':'· Choose where to save',
+  '换':'Swap', '识别结果 ':'Detected ', ' 处':' items',
+  '全选':'All', '全不选':'None',
+  '框选手动打码':'Draw a box',
+  '拖动框选 · 双击方框取消/恢复打码':'Drag to draw · double-click a box to mute/unmute',
+  '预览打码效果':'Preview mosaic',
+  '已选 ':'Selected ', ' 处 · 生成后原文将被永久打散':' items · text will be destroyed for good',
+  '重新选择文件':'Choose another file', '生成打码 PDF':'Generate masked PDF',
+  '处理中…':'Working…',
+  '指导作者':'Advisor', '开发':'Built by', '开源协议':'License', '原项目地址':'Upstream',
+  '本地离线运行':'runs fully offline',
+  '腾讯 WorkBuddy × DeepSeek-V4.1-Flash':'Tencent WorkBuddy × DeepSeek-V4.1-Flash',
+  '需求、识别规则的设计、验收测试全部由本人完成。':
+    'Requirements, detection rule design and acceptance testing were all done by the author.',
+  '如果这个工具帮到了你':'If this tool helped you',
+  '本来就是顺手做的小工具，能派上用场就挺好。要是你愿意请我喝杯奶茶，我会挺开心——':
+    'It started as a small side project, and I am glad it is useful. If you feel like buying me a milk tea, that would make my day —',
+  '完全自愿，不打赏也一样免费、功能不缺。':
+    'completely optional. The app stays free and fully featured either way.',
+  '微信扫码 · 金额随意 · 右键可保存图片':'Scan in WeChat · any amount · right-click to save',
+  '赞赏码':'Tip QR code', '知道了':'Got it', '点击复制':'Click to copy',
+  '点击复制原项目地址':'Click to copy the upstream URL',
+  '选择保存位置':'Choose a folder', '打码后的 PDF 会存到这个文件夹，原文件不会被改动。':
+    'The masked PDF goes into this folder; the original is never modified.',
+  '保存到':'Save to', '点右侧「浏览」选一个文件夹':'Pick a folder with “Browse”',
+  '浏览…':'Browse…', '下次默认使用这个路径':'Remember this folder',
+  '不再询问':'Don\'t ask again',
+  '以后打开就停在这个文件夹':'next time we start here',
+  '以后直接存到这里，不再弹这个窗口':'save straight here from now on',
+  '最稳妥，不会存到想不到的地方':'safest — never lands somewhere unexpected',
+  '两个勾选随时能在右上角':'Both toggles can be changed anytime under ',
+  '「设置」':'“Settings”',
+  '里改。都不勾也没关系，下次还会再问一次。':' at the top right. Leaving them unticked is fine — we will ask again next time.',
+  '取消':'Cancel', '确定':'OK',
+  '默认保存位置就是打码文件存放的地方。留空则自动跟随原 PDF 所在的文件夹。':
+    'The default folder is where masked PDFs go. Leave it empty to follow the original PDF.',
+  '默认保存位置':'Default save folder', '留空 = 跟随原 PDF 所在文件夹':'Empty = follow the original PDF',
+  '每次生成前，先问我保存到哪里':'Ask me where to save before each run',
+  '取消上面那个勾选，程序就会一路静默保存到这里的文件夹，不再弹窗。':
+    'Untick the box above and the app saves here silently, with no dialog.',
+  '无论怎么设置，原 PDF 都只会被读取，不会被改动或删除。':
+    'Whatever you choose, the original PDF is only ever read — never modified or deleted.',
+  '恢复默认':'Reset', '保存':'Save',
+  '版本与更新':'Version & updates', '当前版本':'Current', '仓库最新':'latest',
+  '检查更新':'Check for updates', '用浏览器打开下载':'Open download in browser',
+  '复制链接':'Copy link',
+  '扫描件是纯图片、没有文字层，无法自动识别，请用「框选手动打码」':
+    'A scan is just an image with no text layer, so it cannot be detected — use the manual box tool',
+  '按住鼠标拖动可以框出要打码的区域；双击页面上的方框，可以取消或恢复该处打码':
+    'Hold and drag to draw a box; double-click a box on the page to mute or unmute it',
+  '重新选择文件':'Choose another file',
+  '关闭程序':'Quit'
+};
+// 文本节点会被 trim 过再查表，所以键也统一去空白，省得结尾多个空格就漏译
+const TK = {};
+Object.keys(DICT).forEach(k=>{ TK[k.trim()] = DICT[k]; });
+
+const PREFIX = [
+  ['版本 ', 'Version '],
+  ['项目创作时为初中生', 'Was a junior high school student when this project was created'],
+  ['原项目地址：', 'Upstream: ']
+];
+const TYPE_EN = {phone:'Phone', idcard:'ID number', bankcard:'Bank card', email:'Email',
+  name:'Name', tel:'Landline', address:'Address', birth:'Birth date', gender:'Gender',
+  age:'Age', manual:'Manual box'};
+const STAT_EN = {'身份证号':'ID number','银行卡号':'Bank card','手机号':'Phone','座机号':'Landline',
+  '邮箱':'Email','姓名':'Name','地址':'Address','出生日期':'Birth date','性别':'Gender',
+  '年龄':'Age','手动框选':'Manual'};
+
+function T(zh, en){ return LANG === 'en' ? en : zh; }
+function labelOf(f){
+  if (LANG !== 'en') return f.label;
+  return TYPE_EN[f.type] || f.label;
+}
+const ORIG_TEXT = new WeakMap();
+function trNode(node){
+  if(!ORIG_TEXT.has(node)) ORIG_TEXT.set(node, node.nodeValue);
+  const raw = ORIG_TEXT.get(node);
+  const s = raw.trim();
+  if(!s) return;
+  let out = TK[s];
+  if(out === undefined){
+    for(const [zh, en] of PREFIX){
+      if(s.indexOf(zh) === 0){ out = en + s.slice(zh.length); break; }
+    }
+  }
+  if(out === undefined){ node.nodeValue = raw; return; }
+  const lead = raw.match(/^\s*/)[0], tail = raw.match(/\s*$/)[0];
+  node.nodeValue = LANG === 'en' ? (lead + out + tail) : raw;
+}
+function applyLang(){
+  // 含行内标签的整段文字，直接整块换成另一种语言（原文存进 dataset，切回来能还原）
+  document.querySelectorAll('[data-en-html]').forEach(el=>{
+    if(el.dataset.zhHtml === undefined) el.dataset.zhHtml = el.innerHTML;
+    el.innerHTML = LANG === 'en' ? el.dataset.enHtml : el.dataset.zhHtml;
+  });
+  const tw = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
+    acceptNode(n){
+      const p = n.parentNode;
+      if(!p) return NodeFilter.FILTER_REJECT;
+      if(p.nodeName === 'SCRIPT' || p.nodeName === 'STYLE') return NodeFilter.FILTER_REJECT;
+      return NodeFilter.FILTER_ACCEPT;
+    }
+  });
+  let n; while((n = tw.nextNode())) trNode(n);
+  document.querySelectorAll('[title],[placeholder],[alt]').forEach(el=>{
+    ['title','placeholder','alt'].forEach(a=>{
+      if(!el.hasAttribute(a)) return;
+      const key = 'i18n' + a;
+      if(el.dataset[key] === undefined) el.dataset[key] = el.getAttribute(a);
+      const zh = el.dataset[key];
+      el.setAttribute(a, LANG === 'en' ? (DICT[zh] || zh) : zh);
+    });
+  });
+  document.documentElement.lang = LANG === 'en' ? 'en' : 'zh-CN';
+  document.title = T('PDF 隐私打码工具', 'PDF Privacy Masker');
+  document.querySelectorAll('.seg-btn').forEach(b=>b.classList.toggle('on', b.dataset.lang === LANG));
+  renderMeta(); renderList(); renderStats(S.stats); syncBar(); renderUpdate();
+}
+
 const TYPE_COLOR = {phone:'#f59e0b', idcard:'#e5484d', bankcard:'#7c5cff', email:'#12a150',
   name:'#2f6bff', tel:'#ea580c', address:'#0aa2c0', birth:'#d6409f', gender:'#78808c',
   age:'#78808c', manual:'#111827'};
@@ -2747,20 +3114,22 @@ function toast(msg, err){
   clearTimeout(t._h); t._h = setTimeout(()=>{t.className='toast';}, 2600);
 }
 /* 复制原项目地址（附加条款要求它必须可见、可留存） */
-function copyProjectUrl(el){
-  const url = el.dataset.url || el.textContent;
-  const done = ()=> toast('已复制项目地址：' + url);
+function copyText(text, okMsg){
+  const done = ()=> toast(okMsg + text);
   const fallback = ()=>{
     try{
       const ta = document.createElement('textarea');
-      ta.value = url; ta.style.position = 'fixed'; ta.style.opacity = '0';
+      ta.value = text; ta.style.position='fixed'; ta.style.opacity='0';
       document.body.appendChild(ta); ta.select();
       document.execCommand('copy'); document.body.removeChild(ta); done();
-    }catch(e){ toast('复制失败，请手动记下：' + url, true); }
+    }catch(e){ toast(T('复制失败，请手动记下：', 'Copy failed — write this down: ') + text, true); }
   };
   if (navigator.clipboard && navigator.clipboard.writeText){
-    navigator.clipboard.writeText(url).then(done).catch(fallback);
+    navigator.clipboard.writeText(text).then(done).catch(fallback);
   } else fallback();
+}
+function copyProjectUrl(el){
+  copyText(el.dataset.url || el.textContent, T('已复制项目地址：', 'Link copied: '));
 }
 function overlay(on, text){
   $('overlay').hidden = !on; if (text) $('ovText').textContent = text;
@@ -2771,7 +3140,7 @@ async function api(path, opts){
   const r = await fetch(path, opts);
   const ct = r.headers.get('content-type')||'';
   if (!r.ok){
-    let m = '请求失败 ('+r.status+')';
+    let m = T('请求失败', 'Request failed') + ' (' + r.status + ')';
     try{ const j = await r.json(); m = j.error||m; }catch(e){}
     throw new Error(m);
   }
@@ -2781,18 +3150,18 @@ async function api(path, opts){
 /* ---------- 上传 / 打开 ---------- */
 async function uploadFile(file){
   if(!file) return;
-  if(!/\.pdf$/i.test(file.name)) return toast('只支持 PDF 文件', true);
-  overlay(true, '正在识别敏感信息…');
+  if(!/\.pdf$/i.test(file.name)) return toast(T('只支持 PDF 文件', 'PDF files only'), true);
+  overlay(true, T('正在识别敏感信息…', 'Scanning for sensitive data…'));
   try{
     const r = await fetch('/api/upload', {method:'POST',
       headers:{'X-Token':TOKEN,'X-File-Name':encodeURIComponent(file.name)}, body:file});
-    if(!r.ok){ let m='识别失败'; try{const j=await r.json(); m=j.error||m;}catch(e){} throw new Error(m); }
+    if(!r.ok){ let m=T('识别失败', 'Scan failed'); try{const j=await r.json(); m=j.error||m;}catch(e){} throw new Error(m); }
     applyDoc(await r.json());
   }catch(e){ toast(e.message, true); }
   finally{ overlay(false); }
 }
 async function openPath(path){
-  overlay(true, '正在识别敏感信息…');
+  overlay(true, T('正在识别敏感信息…', 'Scanning for sensitive data…'));
   try{
     const d = await api('/api/open', {method:'POST', headers:{'Content-Type':'application/json'},
       body:JSON.stringify({path:path})});
@@ -2804,27 +3173,49 @@ async function openPath(path){
 function applyDoc(d){
   S.docId = d.docId; S.name = d.name; S.pages = d.pages; S.findings = d.findings;
   S.scanned = d.scanned || []; S.outDir = d.outDir || '';
+  S.stats = d.stats || {}; S.size = d.size || 0;
   S.sel = new Set(d.findings.filter(f=>!f.suspect).map(f=>f.id)); S.page = 0; S.hi = null;
   $('dropView').hidden = true; $('workView').hidden = false; $('actionBar').hidden = false;
   $('fName').textContent = d.name;
-  const kb = (d.size||0)/1024;
-  const sz = kb > 1024 ? (kb/1024).toFixed(1)+' MB' : Math.max(1, Math.round(kb))+' KB';
-  const hitPages = new Set(d.findings.filter(f=>!f.suspect).map(f=>f.page)).size;
-  const nSus = d.findings.filter(f=>f.suspect).length;
-  $('fSub').textContent = d.pages.length + ' 页 · ' + sz + ' · 识别到 ' +
-    d.findings.filter(f=>!f.suspect).length + ' 处（' + hitPages + '/' + d.pages.length +
-    ' 页有内容）' + (nSus ? '，另有 ' + nSus + ' 处疑似人名待确认' : '');
-  renderStats(d.stats);
-  if (d.scanned && d.scanned.length){
-    $('scanWarn').hidden = false;
-    $('scanWarn').textContent = '第 ' + d.scanned.map(i=>i+1).join('、') +
-      ' 页没有文字层（可能是扫描件），这几页无法自动识别，请用「框选手动打码」补齐。';
-  } else { $('scanWarn').hidden = true; }
+  renderMeta();
+  renderStats(S.stats);
   renderList(); refreshPreview(); syncBar();
+}
+
+/* 文件摘要 + 扫描件提醒：切换语言时要重算，所以单独抽出来 */
+function renderMeta(){
+  if(!S.docId) return;
+  const kb = (S.size||0)/1024;
+  const sz = kb > 1024 ? (kb/1024).toFixed(1)+' MB' : Math.max(1, Math.round(kb))+' KB';
+  const hitPages = new Set(S.findings.filter(f=>!f.suspect).map(f=>f.page)).size;
+  const nHit = S.findings.filter(f=>!f.suspect).length;
+  const nSus = S.findings.filter(f=>f.suspect).length;
+  let sub;
+  if(LANG === 'en'){
+    sub = S.pages.length + ' pages · ' + sz + ' · ' + nHit + ' items (' +
+      hitPages + '/' + S.pages.length + ' pages with hits)';
+    if(nSus) sub += ', plus ' + nSus + ' possible names to confirm';
+  } else {
+    sub = S.pages.length + ' 页 · ' + sz + ' · 识别到 ' + nHit + ' 处（' +
+      hitPages + '/' + S.pages.length + ' 页有内容）';
+    if(nSus) sub += '，另有 ' + nSus + ' 处疑似人名待确认';
+  }
+  $('fSub').textContent = sub;
+  if(S.scanned && S.scanned.length){
+    const pages = S.scanned.map(i=>i+1).join(T('、', ', '));
+    $('scanWarn').hidden = false;
+    $('scanWarn').textContent = T(
+      '第 ' + pages + ' 页没有文字层（可能是扫描件），这几页无法自动识别，请用「框选手动打码」补齐。',
+      'Page ' + pages + ' has no text layer (probably a scan). Those pages cannot be detected — use the manual box tool.'
+    );
+  } else {
+    $('scanWarn').hidden = true;
+  }
 }
 
 function renderStats(stats){
   const box = $('stats'); box.innerHTML = '';
+  stats = stats || S.stats || {};
   const order = ['身份证号','银行卡号','手机号','座机号','邮箱','姓名','地址','出生日期','性别','年龄','手动框选'];
   let n = 0;
   order.forEach(k=>{
@@ -2836,24 +3227,26 @@ function renderStats(stats){
        '手动框选':'manual'}[k]))] || '#888';
     const el = document.createElement('span');
     el.className = 'chip';
-    el.innerHTML = '<i style="background:'+c+'"></i>'+k+' <b>'+stats[k]+'</b>';
+    el.innerHTML = '<i style="background:'+c+'"></i>'+esc(T(k, STAT_EN[k] || k))+' <b>'+stats[k]+'</b>';
     box.appendChild(el);
   });
-  if(!n) box.innerHTML = '<span class="chip">未识别到敏感信息</span>';
+  if(!n) box.innerHTML = '<span class="chip">' + T('未识别到敏感信息', 'Nothing detected') + '</span>';
   $('totalCnt').textContent = n;
 }
 
 function renderList(){
   const list = $('list'); list.innerHTML = '';
   if(!S.findings.length){
-    list.innerHTML = '<div class="empty">没有自动识别到敏感信息。<br>可以点上方「框选手动打码」在页面上手动画框。</div>';
+    list.innerHTML = '<div class="empty">' + T(
+      '没有自动识别到敏感信息。<br>可以点上方「框选手动打码」在页面上手动画框。',
+      'Nothing detected automatically.<br>Use “Draw a box” above to mark areas by hand.') + '</div>';
     return;
   }
   const groups = {};
   S.findings.forEach(f=>{ (groups[f.page] = groups[f.page]||[]).push(f); });
   Object.keys(groups).sort((a,b)=>a-b).forEach(pg=>{
     const g = document.createElement('div');
-    g.className = 'grp'; g.textContent = '第 ' + (+pg+1) + ' 页';
+    g.className = 'grp'; g.textContent = T('第 ' + (+pg+1) + ' 页', 'Page ' + (+pg+1));
     list.appendChild(g);
     groups[pg].forEach(f=>{
       const row = document.createElement('div');
@@ -2861,9 +3254,9 @@ function renderList(){
       row.dataset.id = f.id;
       row.innerHTML = '<input type="checkbox" '+(S.sel.has(f.id)?'checked':'')+'>'
         + '<span class="badge" style="color:'+(TYPE_COLOR[f.type]||'#555')+';background='+
-          (TYPE_COLOR[f.type]||'#555')+'1a">'+esc(f.label)+'</span>'
+          (TYPE_COLOR[f.type]||'#555')+'1a">'+esc(labelOf(f))+'</span>'
         + '<span class="mono">'+esc(f.mask)+'</span>'
-        + (f.suspect ? '<span class="sus">疑似</span>' : '');
+        + (f.suspect ? '<span class="sus">' + T('疑似', 'maybe') + '</span>' : '');
       row.querySelector('input').addEventListener('click', ev=>{
         ev.stopPropagation(); toggle(f.id, ev.target.checked);
       });
@@ -2890,8 +3283,8 @@ function syncBar(){
   const cnt = {};
   S.findings.forEach(f=>{ cnt[f.page] = (cnt[f.page]||0) + 1; });
   let info = (S.page+1) + ' / ' + S.pages.length;
-  if (S.scanned.indexOf(S.page) >= 0) info += ' · 无文字层';
-  else info += ' · 本页 ' + (cnt[S.page]||0) + ' 处';
+  if (S.scanned.indexOf(S.page) >= 0) info += T(' · 无文字层', ' · no text layer');
+  else info += T(' · 本页 ' + (cnt[S.page]||0) + ' 处', ' · ' + (cnt[S.page]||0) + ' here');
   $('pgNum').textContent = info;
   $('prevPage').disabled = S.page <= 0;
   $('nextPage').disabled = S.page >= S.pages.length-1;
@@ -2946,7 +3339,32 @@ $('drawBtn').addEventListener('click', ()=>{
   S.drawing = !S.drawing;
   $('drawBtn').classList.toggle('active', S.drawing);
   $('canvasWrap').classList.toggle('draw', S.drawing);
-  if(S.drawing) toast('在页面上按住鼠标拖动，框出要打码的区域');
+  if(S.drawing) toast(T('在页面上按住鼠标拖动，框出要打码的区域', 'Hold and drag on the page to draw a box'));
+});
+
+/* 双击方框：取消 / 恢复这一处打码（自动识别的框和手动框都支持） */
+$('canvasWrap').addEventListener('dblclick', e=>{
+  const img = $('pageImg');
+  if(!img || !img.src || !S.findings.length) return;
+  const r = img.getBoundingClientRect();
+  if(e.clientX<r.left || e.clientX>r.right || e.clientY<r.top || e.clientY>r.bottom) return;
+  const x = (e.clientX - r.left) / S.zoom;
+  const y = (e.clientY - r.top) / S.zoom;
+  const pad = 6 / S.zoom;               // 小框也点得中
+  let hit = null;
+  for(let i = S.findings.length - 1; i >= 0; i--){   // 从上往下找，后画的优先
+    const f = S.findings[i];
+    if(f.page !== S.page) continue;
+    const b = f.rect;
+    if(x >= b[0]-pad && x <= b[2]+pad && y >= b[1]-pad && y <= b[3]+pad){ hit = f; break; }
+  }
+  if(!hit) return;
+  e.preventDefault();
+  const wasOn = S.sel.has(hit.id);
+  if(wasOn) S.sel.delete(hit.id); else S.sel.add(hit.id);
+  S.hi = wasOn ? null : hit.id;
+  renderList(); syncBar(); refreshPreview();
+  toast((wasOn ? T('已取消这处打码：', 'Mask removed: ') : T('已恢复这处打码：', 'Mask restored: ')) + labelOf(hit));
 });
 
 /* 手动框选 */
@@ -2977,11 +3395,11 @@ window.addEventListener('mouseup', async e=>{
   try{
     const res = await api('/api/manual', {method:'POST', headers:{'Content-Type':'application/json'},
       body:JSON.stringify({doc:S.docId, page:S.page, rect:rect})});
-    S.findings.push({id:res.id, type:'manual', label:'手动框选', mask:'手动框选区域',
-      page:S.page, rect:rect, note:'手动框选'});
+    S.findings.push({id:res.id, type:'manual', label:T('手动框选', 'Manual box'),
+      mask:T('手动框选区域', 'Manual area'), page:S.page, rect:rect, note:'manual'});
     S.sel.add(res.id); S.hi = res.id;
     const sub = $('fSub');
-    renderList(); syncBar(); refreshPreview(); toast('已添加手动打码区域');
+    renderList(); syncBar(); refreshPreview(); toast(T('已添加手动打码区域', 'Manual mask added'));
   }catch(err){ toast(err.message, true); }
 });
 function drawBand(a,b){
@@ -3007,7 +3425,7 @@ async function pickDir(inputId){
       body:JSON.stringify({initial:cur})});
     if(r.path){ $(inputId).value = r.path; }
     else if(r.status === 'error'){
-      toast('打不开系统的选择框，可以直接把文件夹路径粘贴到输入框里', true);
+      toast(T('打不开系统的选择框，可以直接把文件夹路径粘贴到输入框里', 'Could not open the folder picker — paste the path into the box instead'), true);
     }
   }catch(e){ toast(e.message, true); }
 }
@@ -3017,16 +3435,16 @@ async function saveCopyAs(token, initial){
     const r = await api('/api/pickdir', {method:'POST', headers:{'Content-Type':'application/json'},
       body:JSON.stringify({initial:initial || ''})});
     if(r.status === 'cancel') return;
-    if(!r.path) return toast('打不开系统的选择框', true);
+    if(!r.path) return toast(T('打不开系统的选择框', 'Could not open the folder picker'), true);
     const res = await api('/api/copyout', {method:'POST', headers:{'Content-Type':'application/json'},
       body:JSON.stringify({token:token, dir:r.path})});
-    toast('已另存到 ' + res.path);
+    toast(T('已另存到 ', 'Saved a copy to ') + res.path);
   }catch(e){ toast(e.message, true); }
 }
 
 async function doRender(opt){
   if(!S.sel.size) return;
-  overlay(true, '正在生成打码 PDF…');
+  overlay(true, T('正在生成打码 PDF…', 'Generating masked PDF…'));
   try{
     const body = {doc:S.docId, ids:[...S.sel]};
     if(opt){ body.dir = opt.dir || ''; body.remember = !!opt.remember; body.noAsk = !!opt.noAsk; }
@@ -3059,7 +3477,7 @@ $('saveCancel').addEventListener('click', ()=>{ $('saveMask').hidden = true; });
 $('saveMask').addEventListener('click', e=>{ if(e.target === $('saveMask')) $('saveMask').hidden = true; });
 $('saveOk').addEventListener('click', async ()=>{
   const dir = ($('savePath').value || '').trim();
-  if(!dir) return toast('请先选一个保存文件夹', true);
+  if(!dir) return toast(T('请先选一个保存文件夹', 'Pick a folder first'), true);
   const remember = $('optRemember').checked, noAsk = $('optNoAsk').checked;
   $('saveMask').hidden = true;
   doRender({dir:dir, remember:remember, noAsk:noAsk});
@@ -3071,6 +3489,8 @@ $('setBtn').addEventListener('click', async ()=>{
   $('setPath').value = CFG.saveDir || '';
   $('setAsk').checked = !CFG.noAsk;
   $('setMask').hidden = false;
+  applyLang();                 // 顺带把语言按钮的选中态同步一下
+  if (UPD) renderUpdate();
 });
 $('setBrowse').addEventListener('click', ()=>pickDir('setPath'));
 $('setMask').addEventListener('click', e=>{ if(e.target === $('setMask')) $('setMask').hidden = true; });
@@ -3082,7 +3502,7 @@ $('setOk').addEventListener('click', async ()=>{
       body:JSON.stringify({saveDir:v, noAsk:!ask})});
     await loadCfg();
     $('setMask').hidden = true;
-    toast('设置已保存');
+    toast(T('设置已保存', 'Settings saved'));
   }catch(e){ toast(e.message, true); }
 });
 $('setReset').addEventListener('click', async ()=>{
@@ -3090,27 +3510,143 @@ $('setReset').addEventListener('click', async ()=>{
   try{
     await api('/api/settings', {method:'POST', headers:{'Content-Type':'application/json'},
       body:JSON.stringify({saveDir:'', noAsk:false})});
-    await loadCfg(); toast('已恢复默认设置');
+    await loadCfg(); toast(T('已恢复默认设置', 'Defaults restored'));
   }catch(e){ toast(e.message, true); }
 });
 
+/* ---------- 界面语言 / 检查更新 ---------- */
+$('langSeg').addEventListener('click', async e=>{
+  const b = e.target.closest('.seg-btn');
+  if(!b) return;
+  LANG = b.dataset.lang === 'en' ? 'en' : 'zh';
+  applyLang();
+  try{
+    await api('/api/settings', {method:'POST', headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({lang:LANG})});
+  }catch(err){}
+});
+
+let UPD = null;      // {r: 后端返回, opened: 浏览器是否被成功唤起}
+
+function setHelp(){
+  $('updHelp').innerHTML = T(
+    '还是打不开？按顺序试：<ol>' +
+    '<li><b>查权限</b>：安全软件 / 家长控制有没有拦浏览器；系统「设置 → 网络和 Internet → 代理」是不是还开着；防火墙有没有拦本程序联网。</li>' +
+    '<li><b>复制链接</b>，自己粘到浏览器地址栏里打开。</li>' +
+    '<li>都不行就<b>截屏这一屏</b>，用微信「提取文字」或相册的文字识别把链接抠出来，手动输入。</li></ol>',
+    'Still blocked? Try in order:<ol>' +
+    '<li><b>Check permissions</b>: is a security suite or parental control blocking your browser? Is a proxy still on under Settings → Network & Internet → Proxy? Is the firewall blocking this app?</li>' +
+    '<li><b>Copy the link</b> and paste it into your browser yourself.</li>' +
+    '<li>If that fails, <b>screenshot this window</b> and use text recognition (WeChat “Extract text”, or your photo app) to pull the link out by hand.</li></ol>'
+  );
+}
+
+function renderUpdate(){
+  if(!UPD) return;
+  const r = UPD.r;
+  const box = $('updBox'), txt = $('updText');
+  const urlBox = $('updUrl'), acts = $('updActions'), help = $('updHelp');
+  box.hidden = false;
+  urlBox.hidden = true; acts.hidden = true; help.hidden = true;
+  const detail = $('updDetail');
+  detail.hidden = true; detail.textContent = '';
+  if(!r || !r.ok){
+    box.className = 'upd-box fail';
+    txt.textContent = T('检查失败：', 'Check failed: ') +
+      ((r && r.error) || T('网络不通。', 'network error.')) +
+      T(' 可以直接去发布页手动看看，也可以按下面的步骤排查。',
+        ' You can also open the releases page yourself, or work through the steps below.');
+    if(r && r.detail){ detail.hidden = false; detail.textContent = r.detail; }
+    urlBox.textContent = (r && (r.url || r.releasesUrl)) || '';
+    urlBox.hidden = !urlBox.textContent;
+    acts.hidden = false; help.hidden = false;
+    setHelp();
+    return;
+  }
+  $('latestVer').textContent = 'v' + r.latest;
+  if(!r.hasUpdate){
+    box.className = 'upd-box ok';
+    txt.textContent = T('已是最新版本（v' + r.current + '）。',
+                        'You are on the latest version (v' + r.current + ').');
+    return;
+  }
+  box.className = 'upd-box new';
+  txt.textContent = UPD.opened
+    ? T('发现新版本 v' + r.latest + '（当前 v' + r.current + '），已经让浏览器去下载了。',
+        'New version v' + r.latest + ' is out (you have v' + r.current + '). Your browser is downloading it now.')
+    : T('发现新版本 v' + r.latest + '（当前 v' + r.current + '），但没能自动打开浏览器，点下面的按钮再试一次。',
+        'New version v' + r.latest + ' is out (you have v' + r.current + '), but the browser did not open — try the button below.');
+  urlBox.textContent = r.url || '';
+  urlBox.hidden = !urlBox.textContent;
+  acts.hidden = false; help.hidden = false;
+  setHelp();
+}
+
+async function openUpdateUrl(url){
+  if(!url) return false;
+  try{
+    await api('/api/openurl', {method:'POST', headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({url:url})});
+    return true;
+  }catch(err){
+    toast(T('打不开默认浏览器：', 'Could not launch a browser: ') + err.message, true);
+    return false;
+  }
+}
+
+$('checkBtn').addEventListener('click', async ()=>{
+  const btn = $('checkBtn');
+  btn.disabled = true;
+  btn.textContent = T('检查中…', 'Checking…');
+  $('updBox').hidden = false;
+  $('updBox').className = 'upd-box';
+  $('updText').textContent = T('正在连接 GitHub 查询最新版本…', 'Contacting GitHub for the latest release…');
+  $('updUrl').hidden = true; $('updActions').hidden = true; $('updHelp').hidden = true;
+
+  let r;
+  try{ r = await api('/api/check_update'); }
+  catch(e){ r = {ok:false, error:e.message}; }
+  let opened = false;
+  if(r && r.ok && r.hasUpdate){
+    // 有新版本才跳浏览器，直接指向安装包
+    opened = await openUpdateUrl(r.url);
+  }
+  UPD = {r:r, opened:opened};
+  btn.disabled = false;
+  btn.textContent = T('检查更新', 'Check for updates');
+  renderUpdate();
+});
+
+$('updOpen').addEventListener('click', async ()=>{
+  const url = (UPD && UPD.r && (UPD.r.url || UPD.r.releasesUrl)) || '';
+  const ok = await openUpdateUrl(url);
+  if(ok && UPD){ UPD.opened = true; renderUpdate(); }
+});
+$('updCopy').addEventListener('click', ()=>{
+  const url = (UPD && UPD.r && (UPD.r.url || UPD.r.releasesUrl)) || '';
+  if(!url) return;
+  copyText(url, T('已复制下载链接：', 'Download link copied: '));
+});
+
 function showResult(d){
-  const stats = Object.keys(d.stats).map(k=>k+' '+d.stats[k]).join(' · ');
+  const stats = Object.keys(d.stats).map(k=>T(k, STAT_EN[k]||k)+' '+d.stats[k]).join(' · ');
   const wrap = document.createElement('div');
   wrap.className = 'result';
   wrap.innerHTML = '<div class="card">'
     + '<div class="ok-ico"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
     + 'stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12.5l5 5L20 6.5"/></svg></div>'
-    + '<h3>打码完成</h3>'
-    + '<div style="color:var(--ink2);font-size:13px">共处理 ' + d.count + ' 处：' + esc(stats) + '</div>'
-    + '<div style="color:var(--ink3);font-size:12px;margin-top:2px">全文 ' + (d.pages||'-') +
-      ' 页，其中 ' + (d.hitPages||'-') + ' 页有打码，其余页面原样保留</div>'
+    + '<h3>' + T('打码完成', 'Masking done') + '</h3>'
+    + '<div style="color:var(--ink2);font-size:13px">' +
+      T('共处理 ' + d.count + ' 处：', 'Masked ' + d.count + ' items: ') + esc(stats) + '</div>'
+    + '<div style="color:var(--ink3);font-size:12px;margin-top:2px">' + T(
+      '全文 ' + (d.pages||'-') + ' 页，其中 ' + (d.hitPages||'-') + ' 页有打码，其余页面原样保留',
+      (d.pages||'-') + ' pages in total, ' + (d.hitPages||'-') + ' of them masked, the rest untouched') + '</div>'
     + '<div class="path">' + esc(d.path) + '</div>'
     + '<div class="res-actions">'
-    + '<button class="btn primary" id="rOpen">打开 PDF</button>'
-    + '<button class="btn" id="rFolder">打开所在文件夹</button>'
-    + '<button class="btn" id="rDl">另存到别处…</button>'
-    + '<button class="btn ghost" id="rClose">关闭</button>'
+    + '<button class="btn primary" id="rOpen">' + T('打开 PDF', 'Open PDF') + '</button>'
+    + '<button class="btn" id="rFolder">' + T('打开所在文件夹', 'Open containing folder') + '</button>'
+    + '<button class="btn" id="rDl">' + T('另存到别处…', 'Save a copy…') + '</button>'
+    + '<button class="btn ghost" id="rClose">' + T('关闭', 'Close') + '</button>'
     + '</div></div>';
   document.body.appendChild(wrap);
   wrap.querySelector('#rClose').onclick = ()=>wrap.remove();
@@ -3123,7 +3659,15 @@ function showResult(d){
   }
 }
 
-if (BOOT) { openPath(BOOT); }
+/* 启动：先按上次保存的语言刷新整页文案，再决定要不要打开命令行带来的文件 */
+(async ()=>{
+  try{
+    await loadCfg();
+    if(CFG && CFG.lang === 'en') LANG = 'en';
+  }catch(e){}
+  applyLang();
+  if (BOOT) openPath(BOOT);
+})();
 
 setInterval(()=>{ fetch('/api/ping').catch(()=>{}); }, 60000);
 
@@ -3142,7 +3686,8 @@ if (aboutMask) {
 $('quitBtn').addEventListener('click', async ()=>{
   try{ await api('/api/quit', {method:'POST'}); }catch(e){}
   document.body.innerHTML = '<div style="height:100vh;display:grid;place-items:center;'
-    + 'font:14px system-ui;color:#5b6472">已退出，可直接关闭此页面。</div>';
+    + 'font:14px system-ui;color:#5b6472">' +
+    T('已退出，可直接关闭此页面。', 'Closed. You can shut this tab now.') + '</div>';
 });
 </script>
 </body>
@@ -3204,6 +3749,22 @@ def _open_browser(url):
             os.startfile(url)
         except Exception:
             _fatal("请手动用浏览器打开：%s" % url)
+
+
+def _browser_open(url):
+    """打开默认浏览器。失败时抛异常，让界面展示「复制链接」这类兜底方案。"""
+    try:
+        import webbrowser
+        if webbrowser.open(url):
+            return True
+    except Exception:
+        pass
+    try:
+        os.startfile(url)  # noqa: S606  (Windows 本地打开链接)
+        return True
+    except Exception as e:
+        raise RuntimeError(_L("打不开默认浏览器：%s", "Could not launch a browser: %s") % e)
+
 
 
 def about_text():

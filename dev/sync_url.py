@@ -5,10 +5,11 @@
 
     python dev/sync_url.py
 
-会更新 README.md / NOTICE.md / ADDITIONAL-TERMS.md / 使用说明.txt / version_info.txt。
+会更新仓库里所有文档（根目录 *.md、docs/*.md、使用说明.txt、version_info.txt）。
 只替换本项目的地址（形如 github.com/<用户名>/pdf-privacy-masker），
 不会碰到依赖项的 GitHub 链接。
 """
+import glob
 import os
 import re
 import sys
@@ -17,8 +18,9 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 import pdfmask  # noqa: E402
 
-DOCS = ["README.md", "NOTICE.md", "ADDITIONAL-TERMS.md", "使用说明.txt",
-        "version_info.txt", "dev/README.md"]
+DOCS = ["README.md", "CHANGELOG.md", "DOCS.md", "NOTICE.md", "ADDITIONAL-TERMS.md",
+        "使用说明.txt", "version_info.txt"]
+DOCS += sorted(os.path.relpath(p, ROOT) for p in glob.glob(os.path.join(ROOT, "docs", "*.md")))
 
 # 只匹配「本项目」的仓库路径，避免误伤 PyMuPDF / Pillow 等依赖的链接
 PAT = re.compile(r"(?:https?://)?github\.com/[A-Za-z0-9_.\-]+/pdf-privacy-masker")

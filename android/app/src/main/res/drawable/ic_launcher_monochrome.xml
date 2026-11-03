@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 13+ 主题图标：只用轮廓，系统按壁纸取色 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <path
+        android:pathData="M54,21 L74,29.5 L74,47 C74,57.5 65.5,63.5 54,68 C42.5,63.5 34,57.5 34,47 L34,29.5 Z"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="4"
+        android:strokeLineJoin="round" />
+
+    <path
+        android:pathData="M44.5,44.5 L50.5,51 L63.5,36.5"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="5.2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+
+    <path
+        android:pathData="M39,82.6 L39,73 L44.6,73 A2.6,2.6 0 0 1 44.6,78.2 L39,78.2"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="2.8"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+    <path
+        android:pathData="M49.5,82.6 L49.5,73 L51.9,73 A4.8,4.8 0 0 1 51.9,82.6 Z"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="2.8"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+    <path
+        android:pathData="M60.4,82.6 L60.4,73 L67,73 M60.4,77.8 L64.8,77.8"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="2.8"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+</vector>

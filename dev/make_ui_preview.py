@@ -37,8 +37,11 @@ MOCK = r"""
     scanned: [], outDir: OUTDIR
   };
   var CFG = {saveDir:'', rememberDir:true, noAsk:false, defaultDir:OUTDIR,
-             effectiveDir:OUTDIR, configured:false,
+             effectiveDir:OUTDIR, configured:false, lang:'zh',
              settingsPath:'C:\\Users\\YB\\AppData\\Roaming\\PDF隐私打码工具\\settings.json'};
+  window.__UPD = {ok:true, current:'1.4.0', latest:'1.5.0', hasUpdate:true,
+    url:'https://github.com/neurotracee/pdf-privacy-masker/releases/download/v1.5.0/PDFPrivacyMasker-1.5.0.exe',
+    releasesUrl:'https://github.com/neurotracee/pdf-privacy-masker/releases/latest'};
   function json(o){ return new Response(JSON.stringify(o),
       {status:200, headers:{'content-type':'application/json; charset=utf-8'}}); }
 
@@ -56,6 +59,8 @@ MOCK = r"""
       }
       return Promise.resolve(json(CFG));
     }
+    if (u.indexOf('/api/check_update') >= 0) return Promise.resolve(json(window.__UPD));
+    if (u.indexOf('/api/openurl') >= 0) return Promise.resolve(json({ok:true, url:b.url}));
     if (u.indexOf('/api/pickdir') >= 0)
       return Promise.resolve(json({path:'D:\\HugoMoveData\\User\\YB\\Downloads\\已打码输出', status:'ok'}));
     if (u.indexOf('/api/render') >= 0){
@@ -112,6 +117,23 @@ STEPS = {
     "ui_06_noask": "function(){ document.getElementById('goBtn').click(); }",
     # 「关于」窗口：附加条款的三条硬要求是否完整、不溢出
     "ui_07_about": "function(){ document.getElementById('aboutBtn').click(); }",
+    # 设置面板：中英切换 + 检查更新三种结果
+    "ui_08_settings_en": ("function(){ document.getElementById('setBtn').click();"
+                          " setTimeout(function(){ document.querySelector('.seg-btn[data-lang=en]').click(); }, 80); }"),
+    "ui_09_update_new": ("function(){ window.__UPD.hasUpdate = true;"
+                         " document.getElementById('setBtn').click();"
+                         " setTimeout(function(){ document.getElementById('checkBtn').click(); }, 120); }"),
+    "ui_10_update_latest": ("function(){ window.__UPD.hasUpdate = false; window.__UPD.latest = '1.4.0';"
+                            " document.getElementById('setBtn').click();"
+                            " setTimeout(function(){ document.getElementById('checkBtn').click(); }, 120); }"),
+    "ui_11_update_fail": ("function(){ window.__UPD = {ok:false, error:'TimeoutError: timed out'};"
+                          " document.getElementById('setBtn').click();"
+                          " setTimeout(function(){ document.getElementById('checkBtn').click(); }, 120); }"),
+    "ui_12_work_en": ("function(){ document.querySelector('.seg-btn[data-lang=en]').click(); }"),
+    "ui_13_about_en": ("function(){ document.querySelector('.seg-btn[data-lang=en]').click();"
+                       " setTimeout(function(){ document.getElementById('aboutBtn').click(); }, 80); }"),
+    "ui_14_save_en": ("function(){ document.querySelector('.seg-btn[data-lang=en]').click();"
+                      " setTimeout(function(){ document.getElementById('goBtn').click(); }, 80); }"),
 }
 
 
@@ -126,7 +148,8 @@ def build():
                 .replace("__LICENSE__", pdfmask.LICENSE_NAME)
                 .replace("__CREDIT__", pdfmask.CREDIT_LINE)
                 .replace("__URLSHORT__", pdfmask.URL_SHORT)
-                .replace("__URL__", pdfmask.PROJECT_URL))
+                .replace("__URL__", pdfmask.PROJECT_URL)
+                .replace("__THANKS__", pdfmask.QR_PNG_B64))
     for name, step in STEPS.items():
         mock = MOCK
         if name.startswith("ui_06"):
