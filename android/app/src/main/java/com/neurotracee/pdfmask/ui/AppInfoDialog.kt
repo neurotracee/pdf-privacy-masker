@@ -1,7 +1,11 @@
 package com.neurotracee.pdfmask.ui
 
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -24,11 +28,20 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -37,6 +50,9 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.neurotracee.pdfmask.BuildConfig
 import com.neurotracee.pdfmask.R
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @Composable
 fun AppInfoDialog(onClose: () -> Unit) {
@@ -52,7 +68,12 @@ fun AppInfoDialog(onClose: () -> Unit) {
 
 /** 关于面板本体（不含 Dialog 外壳，方便单独渲染与截图） */
 @Composable
-fun AboutPanel(onClose: () -> Unit, maxHeight: androidx.compose.ui.unit.Dp = 580.dp) {
+fun AboutPanel(
+    onClose: () -> Unit,
+    maxHeight: androidx.compose.ui.unit.Dp = 580.dp,
+    /** 仅供测试注入：不为 null 时长按赞赏码只回调整，不真的写文件 */
+    thanksOnLongPress: (() -> Unit)? = null
+) {
     val dark = isSystemInDarkTheme()
     Column(
         Modifier
@@ -184,7 +205,7 @@ fun AboutPanel(onClose: () -> Unit, maxHeight: androidx.compose.ui.unit.Dp = 580
         Spacer(Modifier.height(16.dp))
         Divider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
         Spacer(Modifier.height(14.dp))
-        ThanksBlock(dark)
+        ThanksBlock(dark, thanksOnLongPress)
 
         Spacer(Modifier.height(18.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
@@ -203,7 +224,49 @@ fun AboutPanel(onClose: () -> Unit, maxHeight: androidx.compose.ui.unit.Dp = 580
 
 /** 赞赏码：白底本身是一张图，深浅色都放进同一张圆角白卡里，像一张贴纸 */
 @Composable
-private fun ThanksBlock(dark: Boolean) {
+private fun ThanksBlock(dark: Boolean, onLongPressOverride: (() -> Unit)? = null) {
+    val ctx = LocalContext.current
+    val haptic = LocalHapticFeedback.current
+    val scope = rememberCoroutineScope()
+    var saving by remember { mutableStateOf(false) }
+
+    fun tip(msg: String) = Toast.makeText(ctx, msg, Toast.LENGTH_SHORT).show()
+
+    // 8.0 / 9.0 没有相册写入权限，改用系统「保存到…」选择器，全程零权限
+    val picker = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("image/png")
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        tip(
+            if (ThanksQr.writeTo(ctx, uri)) t("已保存", "Saved")
+            else t("保存失败，可以截屏后用微信提取文字", "Couldn't save — try a screenshot instead")
+        )
+    }
+
+    fun saveQr() {
+        if (onLongPressOverride != null) {
+            onLongPressOverride()
+            return
+        }
+        if (saving) return
+        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+        if (!ThanksQr.canSaveToGallery()) {
+            picker.launch(ThanksQr.FILE_NAME)
+            return
+        }
+        saving = true
+        scope.launch {
+            val msg = try {
+                val path = withContext(Dispatchers.IO) { ThanksQr.saveToGallery(ctx) }
+                t("已保存到相册：$path", "Saved to gallery: $path")
+            } catch (e: Exception) {
+                t("保存失败，可以截屏后用微信提取文字", "Couldn't save — try a screenshot instead")
+            }
+            saving = false
+            tip(msg)
+        }
+    }
+
     Column(Modifier.fillMaxWidth()) {
         Text(
             T("如果这个工具帮到了你", "If this tool helped you"),
@@ -229,7 +292,10 @@ private fun ThanksBlock(dark: Boolean) {
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(12.dp))
                 .background(Color.White)
-                .padding(vertical = 12.dp),
+                .padding(vertical = 12.dp)
+                .pointerInput(Unit) {
+                    detectTapGestures(onLongPress = { saveQr() })
+                },
             contentAlignment = Alignment.Center
         ) {
             Image(

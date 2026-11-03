@@ -63,7 +63,7 @@ from PIL import Image
 from thanks_asset import QR_PNG_B64  # 赞赏码图片（base64 内嵌，单文件打包不丢）
 
 APP_NAME = "PDF 隐私打码工具"
-VERSION = "1.4.0"
+VERSION = "1.4.1"
 
 # ---- 署名信息（开源后请勿删除，AGPL-3.0 第 5 条要求保留版权声明） ----
 AUTHOR = "项目创作时为初中生"
@@ -2547,6 +2547,8 @@ header{height:66px;flex:0 0 66px;display:flex;align-items:center;justify-content
 .about-thanks p{margin:0 0 10px;font-size:11.5px;line-height:1.65;color:var(--ink3)}
 .about-thanks img{display:block;width:236px;max-width:100%;height:auto;margin:0 auto;border-radius:8px}
 .thanks-cap{margin-top:8px;font-size:10.5px;color:var(--ink3);text-align:center}
+.thanks-save-row{display:flex;justify-content:center;margin-top:9px}
+.thanks-save-row .btn{padding:5px 16px;font-size:11.5px}
 .about-rule{margin:14px 0 0;padding:12px 14px 10px;background:#fff8f0;border:1px solid #f3dfc4;
   border-radius:10px;font-size:12px;line-height:1.7;color:#7a5320}
 .about-rule b{color:#8a4f00;font-size:12.5px}
@@ -2884,8 +2886,9 @@ main{flex:1;min-height:0;display:flex;overflow:hidden}
       <b>如果这个工具帮到了你</b>
       <p data-en-html='It started as a small side project, and I am glad it is useful. If you feel like buying me a milk tea, that would make my day — completely optional. The app stays free and fully featured either way.'>本来就是顺手做的小工具，能派上用场就挺好。要是你愿意请我喝杯奶茶，我会挺开心——
       完全自愿，不打赏也一样免费、功能不缺。</p>
-      <img src="data:image/png;base64,__THANKS__" alt="赞赏码">
-      <div class="thanks-cap">微信扫码 · 金额随意 · 右键可保存图片</div>
+      <img id="thanksQr" src="data:image/png;base64,__THANKS__" alt="赞赏码">
+      <div class="thanks-cap">微信扫码 · 金额随意 · 点下面的按钮保存图片</div>
+      <div class="thanks-save-row"><button class="btn" id="thanksSave">保存赞赏码</button></div>
     </div>
     <div class="about-actions"><button class="btn primary" id="aboutOk">知道了</button></div>
   </div>
@@ -3003,7 +3006,8 @@ const DICT = {
     'It started as a small side project, and I am glad it is useful. If you feel like buying me a milk tea, that would make my day —',
   '完全自愿，不打赏也一样免费、功能不缺。':
     'completely optional. The app stays free and fully featured either way.',
-  '微信扫码 · 金额随意 · 右键可保存图片':'Scan in WeChat · any amount · right-click to save',
+  '微信扫码 · 金额随意 · 点下面的按钮保存图片':'Scan in WeChat · any amount · use the button below to save',
+  '保存赞赏码':'Save the tip QR',
   '赞赏码':'Tip QR code', '知道了':'Got it', '点击复制':'Click to copy',
   '点击复制原项目地址':'Click to copy the upstream URL',
   '选择保存位置':'Choose a folder', '打码后的 PDF 会存到这个文件夹，原文件不会被改动。':
@@ -3675,6 +3679,18 @@ const aboutMask = $('aboutMask');
 if (aboutMask) {
   $('aboutBtn').onclick = ()=> aboutMask.hidden = false;
   $('aboutOk').onclick = ()=> aboutMask.hidden = true;
+  // 保存赞赏码：浏览器里直接用 a[download] 落盘，不需要后端
+  const thanksSave = $('thanksSave');
+  if (thanksSave) thanksSave.onclick = ()=>{
+    const qr = $('thanksQr');
+    if (!qr) return;
+    const a = document.createElement('a');
+    a.href = qr.src;
+    a.download = 'PDFPrivacyMasker-' + (CFG.lang === 'en' ? 'thanks-qr' : '赞赏码') + '.png';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  };
   aboutMask.addEventListener('click', e=>{ if (e.target === aboutMask) aboutMask.hidden = true; });
 }
 /* 项目地址：点一下就复制，方便二次开发者把来源留在自己版本里 */

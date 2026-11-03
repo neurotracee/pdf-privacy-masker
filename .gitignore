@@ -2,6 +2,8 @@
 build/
 dist/
 *.spec.bak
+# 发版暂存：release/<版本>/ 里放的是要往 Release 页面拖的 exe/apk，不进仓库
+release/
 
 # 运行时与临时文件
 __pycache__/
@@ -19,3 +21,17 @@ venv/
 _shots/
 dev/_ui/
 *.log
+
+# ---- 安卓端（android/ 内另有 .gitignore，这里再兜一层）----
+.gradle/
+app/build/
+captures/
+local.properties
+*.apk
+*.aab
+
+# ---- 签名文件一律不进仓库 ----
+*.jks
+*.keystore
+keystore.properties
+signing.properties

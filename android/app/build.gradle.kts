@@ -19,8 +19,8 @@ android {
         applicationId = "com.neurotracee.pdfmask"
         minSdk = 26
         targetSdk = 34
-        versionCode = 7
-        versionName = "1.4.0"
+        versionCode = 8
+        versionName = "1.4.1"
 
         // 只打 arm64-v8a
         ndk {
@@ -133,4 +133,12 @@ dependencies {
     testImplementation("androidx.test.ext:junit:1.2.1")
     testImplementation("androidx.compose.ui:ui-test-junit4")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
+}
+
+// Compose 控件测试需要 ui-test-manifest 里的 ComponentActivity，而它只链在 debug 变体上，
+// 所以这条测试只在 testDebugUnitTest 里跑；release 变体按包名排除，避免整轮测试变红。
+tasks.withType<Test>().configureEach {
+    if (name.contains("Release")) {
+        filter { excludeTestsMatching("com.neurotracee.pdfmask.ThanksQrLongPressTest") }
+    }
 }

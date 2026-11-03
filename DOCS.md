@@ -10,7 +10,7 @@
 | 入口 | 什么时候看 | 讲什么 |
 | --- | --- | --- |
 | **[README.md](README.md)** | 第一次来、想知道这东西是什么、怎么最快跑起来 | 双端总览、下载与安装、能识别什么、许可与署名 |
-| **[CHANGELOG.md](CHANGELOG.md)** | 想知道"这次更新了什么、修了什么" | v1.4.0 双端功能更新与已修问题清单 |
+| **[CHANGELOG.md](CHANGELOG.md)** | 想知道"这次更新了什么、修了什么" | 顶部是最新一版（v1.4.1 赞赏码保存修复），往下是 v1.4.0 双端更新与已修问题清单 |
 | **[DOCS.md](DOCS.md)**（本文件） | 想找具体某件事的说明、或要往仓库里放文件 | 文档索引 + 上传清单 |
 
 其余所有细节，都在 `docs/` 目录里，按编号顺序读即可。
@@ -23,7 +23,7 @@
 pdf-privacy-masker/
 │
 ├─ README.md                    项目总览：唯一入口，中英双语
-├─ CHANGELOG.md                 版本升级说明（本版 v1.4.0，双端合一）   ← 文件一
+├─ CHANGELOG.md                 版本升级说明（最新 v1.4.1 在顶部，历史往下）   ← 文件一
 ├─ DOCS.md                      文档地图：在哪、怎么找、怎么放          ← 文件二（本文件）
 │
 ├─ LICENSE                      GNU AGPL-3.0 全文
@@ -37,12 +37,13 @@ pdf-privacy-masker/
 │  ├─ 03-识别规则与已知限制.md    能识别什么、按什么规则、什么认不出来
 │  ├─ 04-常见问题.md             扫描件、加密、误报、漏报、跳转失败等
 │  ├─ 05-构建与发布.md           自己打包、跑测试、发 Release、附件命名
+│  ├─ 06-发布Release操作指南.md   网页点点点发版：建 tag、贴正文、传附件、自检
 │  └─ img/                      截图与赞赏码（README、docs 共用）
 │
 ├─ android/                     安卓端源码（Kotlin + Compose，完整工程）
 │  ├─ app/src/main/java/com/neurotracee/pdfmask/   …
 │  ├─ app/src/test/java/…        Robolectric 界面截图测试 + 检查更新解析测试
-│  ├─ build.gradle.kts           compileSdk 34 / minSdk 26 / versionName 1.4.0
+│  ├─ build.gradle.kts           compileSdk 34 / minSdk 26 / versionName 1.4.1
 │  └─ .gitignore                 已排除签名文件与构建产物
 │
 ├─ pdfmask.py                   Windows 端主程序（单文件，含内嵌前端）
@@ -52,6 +53,9 @@ pdf-privacy-masker/
 ├─ app.ico                      Windows 程序图标
 │
 └─ dev/                         开发与回归测试脚本（不参与打包）
+
+（本地还有 `release/<版本>/` 和 `dist/`，是打包产物的暂存处，**不进仓库**。
+ `release/v1.4.1/` 里放的就是这次要上传的两个安装包、可直接粘贴的 Release 正文、校验和。）
 ```
 
 **为什么 Windows 的文件在根目录、安卓在子目录？**
@@ -72,7 +76,7 @@ pdf-privacy-masker/
 | 搞清"到底能识别哪些信息、按什么规则" | [docs/03-识别规则与已知限制.md](docs/03-识别规则与已知限制.md) | `docs/` |
 | 遇到问题：扫描件、加密、误报、跳转失败 | [docs/04-常见问题.md](docs/04-常见问题.md) | `docs/` |
 | 自己打包 exe / 自己编译 apk | [docs/05-构建与发布.md](docs/05-构建与发布.md) | `docs/` |
-| 发新版 Release、给安装包起名 | [docs/05-构建与发布.md](docs/05-构建与发布.md) → 「发布 Release」 | `docs/` |
+| 发新版 Release、给安装包起名 | [docs/06-发布Release操作指南.md](docs/06-发布Release操作指南.md)（命名规则在同目录 05 的 4.1 节） | `docs/` |
 | 二次开发、fork、商用要遵守什么 | [ADDITIONAL-TERMS.md](ADDITIONAL-TERMS.md) + [NOTICE.md](NOTICE.md) | 根目录 |
 | 看代码从哪进 | [README.md](README.md) → 「代码结构」 | 根目录 |
 | 改界面文字 / 加语言 | `android/.../ui/Lang.kt`、`pdfmask.py` 里的 `DICT` | 源码 |
@@ -93,7 +97,11 @@ pdf-privacy-masker/
 | 姓名、姓氏、疑似、橙色条目 | `docs/03-识别规则与已知限制.md` → 第 2 节「姓名怎么判断」 |
 | 保存位置、不再询问、默认路径 | `docs/01` 第 3 节「打码后的文件存哪」；`docs/02` 第 5 节「生成与保存」 |
 | 打包、PyInstaller、gradle、签名 | `docs/05-构建与发布.md` → 第 1、2 节 |
+| 赞赏码、赞赏、打赏、奶茶、长按保存 | `CHANGELOG.md` → v1.4.1 第 1、2 节；`docs/01` 第 9 节、`docs/02` 第 9 节 |
 | 测试、回归、452 条、截图核对 | `docs/05-构建与发布.md` → 第 3 节「测试」 |
+| 发 Release、建 tag、传附件、Publish、预发布 | `docs/06-发布Release操作指南.md` |
+| 线上还是 v1.3.0、检查更新读不到新版本 | `docs/06-发布Release操作指南.md` → 第一节、第三节「自检」 |
+| 附件命名、`PDFPrivacyMasker-<版本>` | `docs/05` 第 4.1 节；`docs/06` 第 5 步 |
 | 许可、AGPL、商用、署名、fork | `ADDITIONAL-TERMS.md`；摘要见 `README.md` →「关于署名」 |
 | 第三方库、PyMuPDF、PDFBox | `NOTICE.md` |
 | 赞赏、奶茶、二维码 | `README.md` →「支持」 |
@@ -112,6 +120,7 @@ pdf-privacy-masker/
 | `docs/03` | 想评估准不准的人 | 识别类型与规则、姓名策略、跨行/表格处理、打码不可还原的原理、不支持的情况 | 改了识别规则时 |
 | `docs/04` | 遇到问题的人 | 常见问题与自助排查 | 收到重复问题就补一条 |
 | `docs/05` | 想自己构建/发布的人 | Windows 打包、安卓编译与签名、测试怎么跑、Release 附件命名、`dev/` 脚本清单 | 构建流程或版本号变化时 |
+| `docs/06` | 要发版的人（纯网页操作） | 发版顺序、建 tag、贴正文、传附件、两个勾选框的坑、发完自检、改错了怎么退 | 发版流程变化或 GitHub 改版时 |
 | `NOTICE.md` | 合规检查 | 双端第三方组件、许可、必须保留的署名 | 增删依赖时 |
 | `ADDITIONAL-TERMS.md` | 二次开发者、商用者 | AGPL 第 7 条 (b) 项的附加要求（署名、原项目地址、改动声明） | 条款变化时 |
 | `使用说明.txt` | 拿到 exe 的普通用户 | 纯文本简版：上手五步、保存位置、检查更新、几条限制 | 与 `docs/01` 口径保持一致 |
@@ -133,6 +142,7 @@ pdf-privacy-masker/
 | `docs/03-识别规则与已知限制.md` | `docs/` | 同上 |
 | `docs/04-常见问题.md` | `docs/` | 同上 |
 | `docs/05-构建与发布.md` | `docs/` | 同上 |
+| `docs/06-发布Release操作指南.md` | `docs/` | 同上 |
 | `android/`（整个目录） | 根目录 | 上传安卓工程：`app/`、`build.gradle.kts`、`settings.gradle.kts`、`gradle.properties`、`.gitignore` |
 
 ### 本次要覆盖替换的文件
@@ -142,8 +152,8 @@ pdf-privacy-masker/
 | `README.md` | 根目录 | 改为双端唯一入口，删掉"另有安卓版"的割裂表述 |
 | `NOTICE.md` | 根目录 | 合并安卓端依赖 |
 | `使用说明.txt` | 根目录 | 精简为随 exe 分发的简版，详细内容移入 `docs/01` |
-| `pdfmask.py` | 根目录 | Windows 1.4.0 源码 |
-| `version_info.txt` | 根目录 | 版本号 1.4.0 |
+| `pdfmask.py` | 根目录 | Windows 1.4.1 源码（关于窗新增「保存赞赏码」） |
+| `version_info.txt` | 根目录 | 版本号 1.4.1 |
 | `dev/sync_url.py` | `dev/` | 地址同步范围扩到 `docs/*.md` |
 
 ### 已经从仓库里移除的文件
@@ -159,6 +169,7 @@ pdf-privacy-masker/
 - `android/keystore.properties`、`android/pdfmask-release.jks`、`android/local.properties`（**含签名密码，泄露就等于把发布权交出去**）
 - `test/`（生成的测试 PDF）
 - `__pycache__/`、`dev/_ui/`、`*.log`
+- `release/`（发版暂存目录，里面是 exe / apk 大文件，**只用来往 Release 拖拽，不要提交进仓库**）
 
 ### 网页界面一步步怎么点
 
@@ -168,7 +179,7 @@ pdf-privacy-masker/
 2. 右上「Add file」→「Create new file」。
 3. 文件名填 `CHANGELOG.md`，正文粘贴本地 `CHANGELOG.md` 全文 → 底部「Commit changes」。
 4. 同样方式新建 `DOCS.md`。
-5. 建 `docs/` 下的文件时，文件名输入框直接写 `docs/01-使用说明-Windows.md`（带斜杠会自动建目录），依次建 01 ~ 05 五篇。
+5. 建 `docs/` 下的文件时，文件名输入框直接写 `docs/01-使用说明-Windows.md`（带斜杠会自动建目录），依次建 01 ~ 06 六篇。
 
 **B. 再放图片与替换文档（上传）**
 
@@ -188,9 +199,9 @@ pdf-privacy-masker/
 **D. 发 Release（安装包）**
 
 1. 仓库右侧「Releases」→「Draft a new release」。
-2. Tag 填 `v1.4.0`，标题 `v1.4.0`。
+2. Tag 填 `v1.4.1`，标题 `v1.4.1 修复赞赏码保存 · 双端同版本`。
 3. 说明直接从 `CHANGELOG.md` 复制这一版的内容。
-4. 附件上传 `PDFPrivacyMasker-1.4.0.exe` 与 `PDFPrivacyMasker-1.4.0-arm64.apk`——**文件名一个字符都不要改**，检查更新靠它读版本号。
+4. 附件上传 `PDFPrivacyMasker-1.4.1.exe` 与 `PDFPrivacyMasker-1.4.1-arm64.apk`——**文件名一个字符都不要改**，检查更新靠它读版本号。
 5. 发布后，两端各点一次「检查更新」验证。
 
 ---

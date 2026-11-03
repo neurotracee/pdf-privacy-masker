@@ -127,7 +127,7 @@ The same panel also has **Check for updates** and **Language (中文 / English)*
 
 ### Option 1: Use the packaged exe (recommended, Windows)
 
-1. Go to [Releases](../../releases) and download `PDFPrivacyMasker-1.4.0.exe`.
+1. Go to [Releases](../../releases) and download `PDFPrivacyMasker-1.4.1.exe`.
 2. Double-click to run. **No Python install needed, no network needed.**
 3. First launch takes 1–2 seconds (single-file app self-extracts to temp dir), that's normal.
 4. If Windows shows "Windows protected your PC", click "More info → Run anyway" — the app has no code signing certificate, but it works fine.
@@ -136,7 +136,7 @@ The UI opens automatically in your browser at a random `127.0.0.1` port. Close t
 
 ### Option 1b: Install the apk (Android)
 
-1. Download `PDFPrivacyMasker-1.4.0-arm64.apk` (Android 8.0+, arm64 devices).
+1. Download `PDFPrivacyMasker-1.4.1-arm64.apk` (Android 8.0+, arm64 devices).
 2. Tap to install; allow "unknown sources" for your file manager if the system asks.
 3. Tap a PDF on the home screen, confirm the detections, then tap "Mask PDF" and pick a folder.
 
@@ -237,6 +237,7 @@ by the Free Software Foundation, either version 3 of the License, or
 | Detection rules & limitations | [docs/03](docs/03-识别规则与已知限制.md) |
 | FAQ | [docs/04](docs/04-常见问题.md) |
 | Build, test, release | [docs/05](docs/05-构建与发布.md) |
+| How to publish a release (web UI, step by step) | [docs/06](docs/06-发布Release操作指南.md) |
 
 The Android app has no separate README on purpose: both platforms share one set of capabilities, licence and attribution, and two copies always drift apart.
 
@@ -247,6 +248,8 @@ If this project saved you some time, you can buy me a bubble tea 🧋
 ![WeChat Donate](docs/img/wechat-donate.png)
 
 > Domestic users can scan the QR code to support. International users can just give a star — that's enough.
+>
+> Want to keep the code? In the app, open **About → Save the tip QR** (Windows) or **long-press the QR code** (Android). Added in v1.4.1.
 
 ---
 ---
@@ -381,7 +384,7 @@ https://github.com/neurotracee/pdf-privacy-masker
 
 ### 方式一：直接用打包好的 exe（Windows，推荐）
 
-1. 到 [Releases](../../releases) 下载 `PDFPrivacyMasker-1.4.0.exe`。
+1. 到 [Releases](../../releases) 下载 `PDFPrivacyMasker-1.4.1.exe`。
 2. 双击运行。**不需要安装 Python，也不需要联网。**
 3. 第一次启动会慢 1–2 秒（单文件程序要先自解压到临时目录），属正常现象。
 4. 如果 Windows 弹「已保护你的电脑」，点「更多信息 → 仍要运行」——程序没有购买数字签名证书，不影响功能。
@@ -390,7 +393,7 @@ https://github.com/neurotracee/pdf-privacy-masker
 
 ### 方式一之二：安装 apk（安卓）
 
-1. 下载 `PDFPrivacyMasker-1.4.0-arm64.apk`（Android 8.0 及以上，arm64 机型）。
+1. 下载 `PDFPrivacyMasker-1.4.1-arm64.apk`（Android 8.0 及以上，arm64 机型）。
 2. 点开安装；系统提示「未知来源」时，允许当前文件管理器安装即可。
 3. 打开后在首页点一下选 PDF，确认勾选，点「生成打码 PDF」再选保存目录。
 
@@ -492,6 +495,7 @@ by the Free Software Foundation, either version 3 of the License, or
 | 识别规则与已知限制 | [docs/03](docs/03-识别规则与已知限制.md) |
 | 常见问题 | [docs/04](docs/04-常见问题.md) |
 | 打包、测试、发版 | [docs/05](docs/05-构建与发布.md) |
+| 怎么发 Release（网页一步步点） | [docs/06](docs/06-发布Release操作指南.md) |
 
 安卓端没有单独的 README：两端的能力、许可、署名共用一套说法，写两份必然一头改了一头忘。
 
@@ -502,3 +506,5 @@ by the Free Software Foundation, either version 3 of the License, or
 ![微信赞赏码](docs/img/wechat-donate.png)
 
 > 国内用户可以扫码支持，国外用户点个 star 就够了。
+>
+> 想把二维码存下来：Windows 端在「关于」里点「保存赞赏码」，安卓端在「关于与开源信息」里长按二维码。这是 v1.4.1 补上的（上一版写了「长按图片可保存」，其实没生效）。
