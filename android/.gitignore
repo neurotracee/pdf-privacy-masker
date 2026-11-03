@@ -1,0 +1,24 @@
+# ---- Android / Gradle ----
+.gradle/
+build/
+app/build/
+captures/
+.externalNativeBuild/
+.cxx/
+local.properties
+
+# ---- 签名文件一律不进仓库 ----
+*.jks
+*.keystore
+keystore.properties
+signing.properties
+
+# ---- IDE ----
+.idea/
+*.iml
+.DS_Store
+
+# ---- 本机产生的临时产物 ----
+app/build/ui-shots/
+*.apk
+*.aab
