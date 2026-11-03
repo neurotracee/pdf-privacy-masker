@@ -4,7 +4,7 @@
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-green.svg)](requirements.txt)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Android-blue.svg)](https://github.com/neurotracee/pdf-privacy-masker/releases)
 
-**English** | [中文](#pdf-隐私打码工具)
+**English** | [中文](#cn)
 
 Offline PDF privacy redaction tool. Drag a PDF in, it automatically detects phone numbers, ID card numbers, bank card numbers, emails, names, addresses, dates of birth and gender/age, then covers them with **irreversible pixel mosaic** while stripping the underlying text layer, and saves as a new file.
 
@@ -250,6 +250,8 @@ If this project saved you some time, you can buy me a bubble tea 🧋
 
 ---
 ---
+
+<a id="cn"></a>
 
 # PDF 隐私打码工具
 
