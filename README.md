@@ -205,6 +205,14 @@ by the Free Software Foundation, either version 3 of the License, or
 (at your option) any later version.
 ```
 
+## Support
+
+If this project saved you some time, you can buy me a bubble tea 🧋
+
+![WeChat Donate](docs/img/wechat-donate.png)
+
+> Domestic users can scan the QR code to support. International users can just give a star — that's enough.
+
 ---
 
 # PDF 隐私打码工具
@@ -415,3 +423,11 @@ it under the terms of the GNU Affero General Public License as published
 by the Free Software Foundation, either version 3 of the License, or
 (at your option) any later version.
 ```
+
+## 赞赏
+
+如果这个项目帮你省了时间，可以请我喝杯奶茶 🧋
+
+![微信赞赏码](docs/img/wechat-donate.png)
+
+> 国内用户可以扫码支持，国外用户点个 star 就够了。
