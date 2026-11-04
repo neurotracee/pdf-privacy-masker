@@ -27,6 +27,7 @@ import androidx.compose.material3.Divider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -124,13 +125,15 @@ fun AboutPanel(
         Note(T("隐私", "Privacy"))
         Text(
             T(
-                "没有存储权限，也没有后台联网。唯一的网络权限只在你自己点「设置 → 检查更新」时用一次：" +
-                    "向 GitHub 读一个公开的版本号，不传文件、不传任何个人信息。" +
+                "没有存储权限，也没有后台联网。唯一的网络权限只用在两处：启动时自动查一次更新、" +
+                    "以及你自己在设置里手动检查——都只是向 GitHub 读一个公开的版本号，" +
+                    "不传文件、不传任何个人信息。断网时直接跳过，不会卡住也不会提示。" +
                     "选文件走系统文件选择器，只拿到你挑中的那一个文件的临时读取权；" +
                     "保存时由你当场决定写到哪里。识别和打码全程本地完成。",
-                "No storage permission, no background networking. The single network permission is used only " +
-                    "when you tap Settings → Check for updates: it reads one public version number from GitHub — " +
-                    "no files, no personal data. Files come through the system picker, so the app only gets " +
+                "No storage permission, no background networking. The single network permission is used in two " +
+                    "places only — the update check at launch, and the manual check in Settings. Both just read one " +
+                    "public version number from GitHub: no files, no personal data. Offline, the check is skipped " +
+                    "silently. Files come through the system picker, so the app only gets " +
                     "temporary read access to the one file you chose, and you decide where output is written. " +
                     "Detection and masking always run on-device."
             ),
@@ -205,7 +208,7 @@ fun AboutPanel(
         Spacer(Modifier.height(16.dp))
         Divider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
         Spacer(Modifier.height(14.dp))
-        ThanksBlock(dark, thanksOnLongPress)
+        ThanksBlock(thanksOnLongPress)
 
         Spacer(Modifier.height(18.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
@@ -224,7 +227,7 @@ fun AboutPanel(
 
 /** 赞赏码：白底本身是一张图，深浅色都放进同一张圆角白卡里，像一张贴纸 */
 @Composable
-private fun ThanksBlock(dark: Boolean, onLongPressOverride: (() -> Unit)? = null) {
+private fun ThanksBlock(onLongPressOverride: (() -> Unit)? = null) {
     val ctx = LocalContext.current
     val haptic = LocalHapticFeedback.current
     val scope = rememberCoroutineScope()
@@ -277,16 +280,63 @@ private fun ThanksBlock(dark: Boolean, onLongPressOverride: (() -> Unit)? = null
         Spacer(Modifier.height(4.dp))
         Text(
             T(
-                "本来就是顺手做的小工具，能派上用场就挺好。要是你愿意请我喝杯奶茶，我会挺开心——" +
-                    "完全自愿，不打赏也一样免费、功能不缺。",
-                "It began as a small side project, and I'm glad it's useful. If you'd like to buy me a milk tea, " +
-                    "that would make my day — entirely up to you. The app stays free and fully functional either way."
+                "本来就是顺手做的小工具，能派上用场就挺好。",
+                "It began as a small side project, and I'm glad it's useful."
             ),
             fontSize = 11.5.sp,
             lineHeight = 18.sp,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
+
+        // ---- 点 Star：不打赏也能帮上忙的那条路 ----
         Spacer(Modifier.height(10.dp))
+        Surface(
+            shape = RoundedCornerShape(10.dp),
+            color = MaterialTheme.colorScheme.surfaceVariant,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Row(
+                Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        T("给仓库点个 Star", "Star the repository"),
+                        fontSize = 12.5.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        T(
+                            "不想花钱也没关系，点一颗 Star 就是最好的支持——别人搜得到，我才更有动力维护。",
+                            "No money needed — a star is the best support: it helps others find the project, " +
+                                "and it keeps me motivated."
+                        ),
+                        fontSize = 11.sp,
+                        lineHeight = 16.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Spacer(Modifier.width(8.dp))
+                TextButton(onClick = { openRepo(ctx) }) {
+                    Text(T("去点 Star", "Star it"), fontSize = 12.5.sp)
+                }
+            }
+        }
+
+        Spacer(Modifier.height(12.dp))
+        Text(
+            T(
+                "国内用户：愿意的话可以请我喝杯奶茶，完全自愿，不打赏也一样免费、功能不缺。",
+                "In China? You can buy me a milk tea if you feel like it — entirely optional; the app stays " +
+                    "free and fully functional either way."
+            ),
+            fontSize = 11.5.sp,
+            lineHeight = 18.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(Modifier.height(8.dp))
         Box(
             Modifier
                 .fillMaxWidth()
@@ -308,16 +358,29 @@ private fun ThanksBlock(dark: Boolean, onLongPressOverride: (() -> Unit)? = null
             )
         }
         Spacer(Modifier.height(6.dp))
-        Text(
-            T(
-                "微信扫码 · 金额随意 · 长按图片可保存",
-                "Scan in WeChat · any amount · long-press to save"
-            ),
-            fontSize = 10.5.sp,
-            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
-            textAlign = TextAlign.Center,
-            modifier = Modifier.fillMaxWidth()
-        )
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                T(
+                    "微信扫码 · 金额随意 · 长按图片可保存",
+                    "Scan in WeChat · any amount · long-press to save"
+                ),
+                fontSize = 10.5.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                textAlign = TextAlign.Center
+            )
+        }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
+            TextButton(enabled = !saving, onClick = { saveQr() }) {
+                Text(
+                    if (saving) T("保存中…", "Saving…") else T("保存赞赏码", "Save the QR"),
+                    fontSize = 12.sp
+                )
+            }
+        }
     }
 }
 

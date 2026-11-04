@@ -10,7 +10,7 @@
 | 入口 | 什么时候看 | 讲什么 |
 | --- | --- | --- |
 | **[README.md](README.md)** | 第一次来、想知道这东西是什么、怎么最快跑起来 | 双端总览、下载与安装、能识别什么、许可与署名 |
-| **[CHANGELOG.md](CHANGELOG.md)** | 想知道"这次更新了什么、修了什么" | 顶部是最新一版（v1.4.1 赞赏码保存修复），往下是 v1.4.0 双端更新与已修问题清单 |
+| **[CHANGELOG.md](CHANGELOG.md)** | 想知道"这次更新了什么、修了什么" | 顶部是最新一版（v1.4.2 启动自动检查更新 + 建议/强烈建议两档 + Star 引导），往下依次是 v1.4.1、v1.4.0 |
 | **[DOCS.md](DOCS.md)**（本文件） | 想找具体某件事的说明、或要往仓库里放文件 | 文档索引 + 上传清单 |
 
 其余所有细节，都在 `docs/` 目录里，按编号顺序读即可。
@@ -23,7 +23,7 @@
 pdf-privacy-masker/
 │
 ├─ README.md                    项目总览：唯一入口，中英双语
-├─ CHANGELOG.md                 版本升级说明（最新 v1.4.1 在顶部，历史往下）   ← 文件一
+├─ CHANGELOG.md                 版本升级说明（最新 v1.4.2 在顶部，历史往下）   ← 文件一
 ├─ DOCS.md                      文档地图：在哪、怎么找、怎么放          ← 文件二（本文件）
 │
 ├─ LICENSE                      GNU AGPL-3.0 全文
@@ -43,7 +43,7 @@ pdf-privacy-masker/
 ├─ android/                     安卓端源码（Kotlin + Compose，完整工程）
 │  ├─ app/src/main/java/com/neurotracee/pdfmask/   …
 │  ├─ app/src/test/java/…        Robolectric 界面截图测试 + 检查更新解析测试
-│  ├─ build.gradle.kts           compileSdk 34 / minSdk 26 / versionName 1.4.1
+│  ├─ build.gradle.kts           compileSdk 34 / minSdk 26 / versionName 1.4.2
 │  └─ .gitignore                 已排除签名文件与构建产物
 │
 ├─ pdfmask.py                   Windows 端主程序（单文件，含内嵌前端）
@@ -55,7 +55,7 @@ pdf-privacy-masker/
 └─ dev/                         开发与回归测试脚本（不参与打包）
 
 （本地还有 `release/<版本>/` 和 `dist/`，是打包产物的暂存处，**不进仓库**。
- `release/v1.4.1/` 里放的就是这次要上传的两个安装包、可直接粘贴的 Release 正文、校验和。）
+ `release/v1.4.2/` 里放的就是这次要上传的两个安装包、可直接粘贴的 Release 正文、校验和。）
 ```
 
 **为什么 Windows 的文件在根目录、安卓在子目录？**
@@ -90,14 +90,17 @@ pdf-privacy-masker/
 | --- | --- |
 | 放大镜、拖框、虚线框、手指挡字 | `docs/02-使用说明-安卓.md` → 第 4.2 节「手动框选 + 放大镜」；`CHANGELOG.md` → 第 2 节、第 4 节第 ③④ 行 |
 | 双击、取消打码、恢复打码 | `CHANGELOG.md` → 第 1.1 节；`docs/01` 第 2.3 节、`docs/02` 第 4.3 节 |
-| 检查更新、版本号、打不开浏览器、复制链接 | `CHANGELOG.md` → 第 1.3 节；`docs/04-常见问题.md` → 第四节「检查更新相关」 |
+| 检查更新、版本号、打不开浏览器、复制链接 | `CHANGELOG.md` → v1.4.2 第 1、2 节；`docs/04-常见问题.md` → 第四节「检查更新相关」 |
+| 自动检查、一打开就弹窗、断网跳过、卡住 | `CHANGELOG.md` → v1.4.2 第 1、2 节；`docs/01` 第 4 节、`docs/02` 6.1 |
+| 建议更新、强烈建议更新、更新级别、挽留话术 | `CHANGELOG.md` → v1.4.2 第 3、7 节；`docs/06` → 第二节第 4 步 |
+| Star、点星、给仓库点个 Star、不打赏怎么支持 | `CHANGELOG.md` → v1.4.2 第 4 节；`docs/01` 第 9 节、`docs/02` 第 9 节 |
 | 中英切换、语言、Language | `CHANGELOG.md` → 第 1.4 节；`docs/01` 第 5 节、`docs/02` 第 6 节 |
 | 权限、联网、上传、隐私 | `README.md` →「隐私与权限」；`docs/02-使用说明-安卓.md` → 第 7 节 |
 | 扫描件、图片里的字 | `docs/03-识别规则与已知限制.md` → 第 3、5 节 |
 | 姓名、姓氏、疑似、橙色条目 | `docs/03-识别规则与已知限制.md` → 第 2 节「姓名怎么判断」 |
 | 保存位置、不再询问、默认路径 | `docs/01` 第 3 节「打码后的文件存哪」；`docs/02` 第 5 节「生成与保存」 |
 | 打包、PyInstaller、gradle、签名 | `docs/05-构建与发布.md` → 第 1、2 节 |
-| 赞赏码、赞赏、打赏、奶茶、长按保存 | `CHANGELOG.md` → v1.4.1 第 1、2 节；`docs/01` 第 9 节、`docs/02` 第 9 节 |
+| 赞赏码、赞赏、打赏、奶茶、长按保存 | `CHANGELOG.md` → v1.4.2 第 1、2 节；`docs/01` 第 9 节、`docs/02` 第 9 节 |
 | 测试、回归、452 条、截图核对 | `docs/05-构建与发布.md` → 第 3 节「测试」 |
 | 发 Release、建 tag、传附件、Publish、预发布 | `docs/06-发布Release操作指南.md` |
 | 线上还是 v1.3.0、检查更新读不到新版本 | `docs/06-发布Release操作指南.md` → 第一节、第三节「自检」 |
@@ -142,7 +145,7 @@ pdf-privacy-masker/
 | `docs/03-识别规则与已知限制.md` | `docs/` | 同上 |
 | `docs/04-常见问题.md` | `docs/` | 同上 |
 | `docs/05-构建与发布.md` | `docs/` | 同上 |
-| `docs/06-发布Release操作指南.md` | `docs/` | 同上 |
+| `docs/06-发布Release操作指南.md` | `docs/` | 发 Release 的每一步、附件命名、**更新级别标记怎么改**、要传哪些文件 | 每次发版前 |
 | `android/`（整个目录） | 根目录 | 上传安卓工程：`app/`、`build.gradle.kts`、`settings.gradle.kts`、`gradle.properties`、`.gitignore` |
 
 ### 本次要覆盖替换的文件
@@ -152,8 +155,8 @@ pdf-privacy-masker/
 | `README.md` | 根目录 | 改为双端唯一入口，删掉"另有安卓版"的割裂表述 |
 | `NOTICE.md` | 根目录 | 合并安卓端依赖 |
 | `使用说明.txt` | 根目录 | 精简为随 exe 分发的简版，详细内容移入 `docs/01` |
-| `pdfmask.py` | 根目录 | Windows 1.4.1 源码（关于窗新增「保存赞赏码」） |
-| `version_info.txt` | 根目录 | 版本号 1.4.1 |
+| `pdfmask.py` | 根目录 | Windows 1.4.2 源码（启动自动检查、更新级别解析、关于窗 Star 卡片） |
+| `version_info.txt` | 根目录 | 版本号 1.4.2 |
 | `dev/sync_url.py` | `dev/` | 地址同步范围扩到 `docs/*.md` |
 
 ### 已经从仓库里移除的文件
@@ -199,9 +202,9 @@ pdf-privacy-masker/
 **D. 发 Release（安装包）**
 
 1. 仓库右侧「Releases」→「Draft a new release」。
-2. Tag 填 `v1.4.1`，标题 `v1.4.1 修复赞赏码保存 · 双端同版本`。
+2. Tag 填 `v1.4.2`，标题 `v1.4.2 启动自动检查更新 · 双端同版本`。
 3. 说明直接从 `CHANGELOG.md` 复制这一版的内容。
-4. 附件上传 `PDFPrivacyMasker-1.4.1.exe` 与 `PDFPrivacyMasker-1.4.1-arm64.apk`——**文件名一个字符都不要改**，检查更新靠它读版本号。
+4. 附件上传 `PDFPrivacyMasker-1.4.2.exe` 与 `PDFPrivacyMasker-1.4.2-arm64.apk`——**文件名一个字符都不要改**，检查更新靠它读版本号。
 5. 发布后，两端各点一次「检查更新」验证。
 
 ---

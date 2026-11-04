@@ -4,7 +4,7 @@
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-green.svg)](requirements.txt)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Android-blue.svg)](https://github.com/neurotracee/pdf-privacy-masker/releases)
 
-**English** | [中文](#user-content-pdf-隐私打码工具)
+**English** | [中文](#pdf-隐私打码工具)
 
 Offline PDF privacy redaction tool. Drag a PDF in, it automatically detects phone numbers, ID card numbers, bank card numbers, emails, names, addresses, dates of birth and gender/age, then covers them with **irreversible pixel mosaic** while stripping the underlying text layer, and saves as a new file.
 
@@ -93,6 +93,7 @@ You can also change this anytime in the Settings panel in the top-right corner �
 
 The same panel also has **Check for updates** and **Language (中文 / English)**:
 
+- **Automatic update check (new in v1.4.2)**: the app checks once at launch, compares versions, and if a newer build exists it opens your default browser straight at the download. Offline, the check is skipped silently — no dialog, no error, and the app stays fully usable. A window that hangs still has a close button; a release marked *strongly suggested* by the author only raises the tone (a stronger badge and one gentle nudge before you close it) — **it can always be dismissed. No release ever locks the window.**
 - **Check for updates** asks GitHub for the newest release and compares versions. If there is a newer build it opens your default browser straight at the download; if the network is blocked it shows the link, a copy button, and a short checklist (browser/security software, system proxy, firewall) — worst case you screenshot the window and use text recognition to get the link out by hand. The only thing it sends is a plain request for the public version number; no file, no personal data.
 - **Language** switches the whole interface between Chinese and English instantly, no restart. The choice is remembered in `settings.json`.
 
@@ -127,7 +128,7 @@ The same panel also has **Check for updates** and **Language (中文 / English)*
 
 ### Option 1: Use the packaged exe (recommended, Windows)
 
-1. Go to [Releases](../../releases) and download `PDFPrivacyMasker-1.4.1.exe`.
+1. Go to [Releases](../../releases) and download `PDFPrivacyMasker-1.4.2.exe`.
 2. Double-click to run. **No Python install needed, no network needed.**
 3. First launch takes 1–2 seconds (single-file app self-extracts to temp dir), that's normal.
 4. If Windows shows "Windows protected your PC", click "More info → Run anyway" — the app has no code signing certificate, but it works fine.
@@ -136,11 +137,11 @@ The UI opens automatically in your browser at a random `127.0.0.1` port. Close t
 
 ### Option 1b: Install the apk (Android)
 
-1. Download `PDFPrivacyMasker-1.4.1-arm64.apk` (Android 8.0+, arm64 devices).
+1. Download `PDFPrivacyMasker-1.4.2-arm64.apk` (Android 8.0+, arm64 devices).
 2. Tap to install; allow "unknown sources" for your file manager if the system asks.
 3. Tap a PDF on the home screen, confirm the detections, then tap "Mask PDF" and pick a folder.
 
-Only one permission: `INTERNET`, used solely when you tap Check for updates. No storage permission — files are picked through the system file picker.
+Only one permission: `INTERNET`, used solely for the update check (once at launch, or when you tap Check for updates). No storage permission — files are picked through the system file picker.
 
 ### Where are the redacted files saved
 
@@ -247,9 +248,11 @@ If this project saved you some time, you can buy me a bubble tea 🧋
 
 ![WeChat Donate](docs/img/wechat-donate.png)
 
-> Domestic users can scan the QR code to support. International users can just give a star — that's enough.
+> **A star beats a tip.** If you don't feel like paying anything, starring the repo is the best support — it helps others find the project. Both apps have a **Star it** button in the About window (v1.4.2).
 >
-> Want to keep the code? In the app, open **About → Save the tip QR** (Windows) or **long-press the QR code** (Android). Added in v1.4.1.
+> Domestic users can also scan the QR code to buy me a milk tea — entirely optional; the app stays free and fully functional either way.
+>
+> Want to keep the QR? In the app, use **About → Save the tip QR** (Windows) or **long-press the QR code / tap Save the QR** (Android). Added in v1.4.1.
 
 ---
 ---
@@ -260,7 +263,7 @@ If this project saved you some time, you can buy me a bubble tea 🧋
 
 自动认不出来的部分——扫描件、图片里的字、程序保守放过的内容——可以**框选手动打码**，一样是像素级不可还原。
 
-全程在你自己的电脑上跑，不联网、不上传，原文件不动。打码后的文件存到哪个文件夹由你决定，不硬塞进某个固定位置。
+全程在你自己的电脑上跑，不上传任何内容，原文件不动。唯一联网的地方是「检查更新」——只读一个公开的版本号，断网时静默跳过。打码后的文件存到哪个文件夹由你决定，不硬塞进某个固定位置。
 
 目前有 **Windows 版**（单文件 exe）和**安卓版**（arm64 apk），两端共用同一套识别内核、同一个版本号。
 
@@ -350,6 +353,7 @@ https://github.com/neurotracee/pdf-privacy-masker
 
 同一个面板里还有**检查更新**和**界面语言（中文 / English）**：
 
+- **自动检查更新（v1.4.2 新增）**：打开程序就查一次，比当前版本新就直接用默认浏览器打开下载页。断网时静默跳过——不弹窗、不报错，照样能打码。万一卡住，窗口上有关闭按钮；作者在发布说明里标了**强烈建议更新**的版本提醒会更重，但同样能关掉（关之前会挽留一次）。**没有任何版本会锁住窗口。**
 - **检查更新**：去 GitHub 读最新发布的版本号，比当前版本新就自动用默认浏览器打开下载页；网络被拦时会把链接摆出来、给一个复制按钮，并列出该查哪几项权限（浏览器/安全软件、系统代理、防火墙），最后还能截屏用文字识别把链接抠出来。整个过程只发一个查版本号的请求，不传文件、不传个人信息。
 - **界面语言**：中英文一键切换，立即生效不用重启，选择存在 `settings.json` 里，下次打开还是这个语言。
 
@@ -384,7 +388,7 @@ https://github.com/neurotracee/pdf-privacy-masker
 
 ### 方式一：直接用打包好的 exe（Windows，推荐）
 
-1. 到 [Releases](../../releases) 下载 `PDFPrivacyMasker-1.4.1.exe`。
+1. 到 [Releases](../../releases) 下载 `PDFPrivacyMasker-1.4.2.exe`。
 2. 双击运行。**不需要安装 Python，也不需要联网。**
 3. 第一次启动会慢 1–2 秒（单文件程序要先自解压到临时目录），属正常现象。
 4. 如果 Windows 弹「已保护你的电脑」，点「更多信息 → 仍要运行」——程序没有购买数字签名证书，不影响功能。
@@ -393,11 +397,11 @@ https://github.com/neurotracee/pdf-privacy-masker
 
 ### 方式一之二：安装 apk（安卓）
 
-1. 下载 `PDFPrivacyMasker-1.4.1-arm64.apk`（Android 8.0 及以上，arm64 机型）。
+1. 下载 `PDFPrivacyMasker-1.4.2-arm64.apk`（Android 8.0 及以上，arm64 机型）。
 2. 点开安装；系统提示「未知来源」时，允许当前文件管理器安装即可。
 3. 打开后在首页点一下选 PDF，确认勾选，点「生成打码 PDF」再选保存目录。
 
-只有一个权限 `INTERNET`，且只在「设置 → 检查更新」时用一次；没有存储权限，选文件走系统文件选择器。
+只有一个权限 `INTERNET`，只用在两处：打开时自动查一次更新、以及「设置 → 检查更新」手动查。没有存储权限，选文件走系统文件选择器。
 
 ### 打码后的文件存在哪
 
@@ -469,6 +473,7 @@ pyinstaller pdfmask.spec --noconfirm --clean
 - 唯一会写文件的地方：你指定的输出路径。
 - 程序会在 `%APPDATA%\PDF隐私打码工具\settings.json` 里存一个偏好文件，内容只有「默认保存路径」和两个开关，不含任何文档内容、不含任何个人信息。删掉它即恢复默认。
 - 安卓端只有 `INTERNET` 一个权限（仅检查更新时用），不做任何统计埋点，不上传文件。
+- 每次启动会自动向 GitHub 读一次公开的版本号（`/releases` 接口）。断网、超时、被拦截时静默跳过，不重试、不提示、不影响任何本地功能。
 
 ## 许可
 
@@ -505,6 +510,8 @@ by the Free Software Foundation, either version 3 of the License, or
 
 ![微信赞赏码](docs/img/wechat-donate.png)
 
-> 国内用户可以扫码支持，国外用户点个 star 就够了。
+> **点 Star 比打赏更有用。**不想花钱完全没问题：到仓库点一颗 Star 就是最好的支持，别人搜得到，我才更有动力维护。两端「关于」窗口里都有「去点 Star」按钮（v1.4.2 新增）。
 >
-> 想把二维码存下来：Windows 端在「关于」里点「保存赞赏码」，安卓端在「关于与开源信息」里长按二维码。这是 v1.4.1 补上的（上一版写了「长按图片可保存」，其实没生效）。
+> 国内用户也可以扫码请我喝杯奶茶——完全自愿，不打赏一样免费、功能不缺。
+>
+> 想把二维码存下来：Windows 端点「保存赞赏码」，安卓端长按二维码或点「保存赞赏码」。这是 v1.4.1 补上的（更早的版本写了「长按图片可保存」，其实没生效）。

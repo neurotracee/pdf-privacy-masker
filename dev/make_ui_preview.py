@@ -39,7 +39,7 @@ MOCK = r"""
   var CFG = {saveDir:'', rememberDir:true, noAsk:false, defaultDir:OUTDIR,
              effectiveDir:OUTDIR, configured:false, lang:'zh',
              settingsPath:'C:\\Users\\YB\\AppData\\Roaming\\PDF隐私打码工具\\settings.json'};
-  window.__UPD = {ok:true, current:'1.4.0', latest:'1.5.0', hasUpdate:true,
+  window.__UPD = {ok:true, current:'1.4.2', latest:'1.5.0', hasUpdate:false, strong:false,
     url:'https://github.com/neurotracee/pdf-privacy-masker/releases/download/v1.5.0/PDFPrivacyMasker-1.5.0.exe',
     releasesUrl:'https://github.com/neurotracee/pdf-privacy-masker/releases/latest'};
   function json(o){ return new Response(JSON.stringify(o),
@@ -106,6 +106,10 @@ MOCK = r"""
 </script>
 """
 
+# 点「暂不更新」后应该出现挽留界面
+PLEA = ("function(){ setTimeout(function(){"
+        " var b = document.querySelector('#autoUpdActs .btn'); if (b) b.click(); }, 600); }")
+
 STEPS = {
     "ui_01_home": "'home'",
     "ui_02_work": 'function(){}',
@@ -134,6 +138,25 @@ STEPS = {
                        " setTimeout(function(){ document.getElementById('aboutBtn').click(); }, 80); }"),
     "ui_14_save_en": ("function(){ document.querySelector('.seg-btn[data-lang=en]').click();"
                       " setTimeout(function(){ document.getElementById('goBtn').click(); }, 80); }"),
+    # 启动自动检查：建议 / 强烈建议 / 检查中卡住 / 两档挽留 五个状态
+    "ui_15_auto_suggest": "function(){}",
+    "ui_16_auto_strong": "function(){}",
+    "ui_17_auto_checking": "function(){}",
+    "ui_18_auto_plea_suggest": PLEA,
+    "ui_19_auto_plea_strong": PLEA,
+}
+
+# 启动自动检查发生在页面脚本一开始，改不了 __UPD，所以按页面改 mock
+PER_PAGE = {
+    "ui_15_auto_suggest": [("hasUpdate:false", "hasUpdate:true")],
+    "ui_16_auto_strong": [("hasUpdate:false", "hasUpdate:true"), ("strong:false,", "strong:true,")],
+    # 卡住：让 /api/check_update 永不返回，看 1.2 秒后那个可关闭的提示
+    "ui_17_auto_checking": [
+        ("if (u.indexOf('/api/check_update') >= 0) return Promise.resolve(json(window.__UPD));",
+         "if (u.indexOf('/api/check_update') >= 0) return new Promise(function(){});"),
+    ],
+    "ui_18_auto_plea_suggest": [("hasUpdate:false", "hasUpdate:true")],
+    "ui_19_auto_plea_strong": [("hasUpdate:false", "hasUpdate:true"), ("strong:false,", "strong:true,")],
 }
 
 
@@ -155,8 +178,11 @@ def build():
         if name.startswith("ui_06"):
             mock = mock.replace("noAsk:false", "noAsk:true").replace(
                 "saveDir:''", "saveDir:'D:\\\\HugoMoveData\\\\User\\\\YB\\\\Downloads'")
+        for a, b in PER_PAGE.get(name, []):
+            mock = mock.replace(a, b)
         boot = "<script>window.__ready(%s);</script>" % step
-        html = base.replace("</body>", mock + boot + "</body>")
+        # mock 必须在页面主脚本之前生效，否则启动自动检查会用真实 fetch
+        html = base.replace("<body>", "<body>" + mock, 1).replace("</body>", boot + "</body>", 1)
         path = os.path.join(OUT, name + ".html")
         with open(path, "w", encoding="utf-8") as fh:
             fh.write(html)

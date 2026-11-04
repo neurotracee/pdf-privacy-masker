@@ -11,6 +11,11 @@ import java.net.URL
  * 用系统自带的 HttpURLConnection + org.json，不额外引依赖。
  * 版本号优先从安装包文件名里取（PDFPrivacyMasker-1.4.0-arm64.apk），
  * 文件名没带版本号时退回 release 的 tag（v1.4.0）。
+ *
+ * 更新级别由发布正文决定，只有两档，都只是「建议」，用户永远能关掉：
+ * - 正文里写「更新级别：强烈建议」→ 强烈建议更新（提醒更醒目，关掉前多说一句挽留）；
+ * - 没写 / 写成「更新级别：建议」→ 普通建议更新。
+ * 没有任何「不更新就不给用」的路径。
  */
 object Updater {
 
@@ -29,7 +34,9 @@ object Updater {
         val latest: String = "",
         val hasUpdate: Boolean = false,
         val url: String = RELEASES_PAGE,
-        val detail: String = ""
+        val detail: String = "",
+        /** 强烈建议：发布正文里标了「更新级别：强烈建议」。仍然可以关掉，只是关的时候多劝一句 */
+        val strong: Boolean = false
     )
 
     fun check(current: String): Result {
@@ -54,19 +61,23 @@ object Updater {
 
         var bestVer: IntArray? = null
         var bestUrl = ""
+        var bestStrong = false
         var tagVer: IntArray? = null
         var tagUrl = ""
+        var tagStrong = false
 
         for (i in 0 until arr.length()) {
             val rel = arr.optJSONObject(i) ?: continue
             if (rel.optBoolean("draft")) continue
             val page = rel.optString("html_url").ifBlank { RELEASES_PAGE }
+            val strong = isStrongUpdate(rel.optString("body"))
 
             ver(rel.optString("tag_name"))?.let { v ->
                 val old = tagVer
                 if (old == null || cmp(v, old) > 0) {
                     tagVer = v
                     tagUrl = page
+                    tagStrong = strong
                 }
             }
 
@@ -80,15 +91,16 @@ object Updater {
                 if (old == null || cmp(v, old) > 0) {
                     bestVer = v
                     bestUrl = a.optString("browser_download_url").ifBlank { page }
+                    bestStrong = strong
                 }
             }
         }
 
         bestVer?.let { v ->
-            return Result(true, current, fmt(v), cmp(v, cur) > 0, bestUrl)
+            return Result(true, current, fmt(v), cmp(v, cur) > 0, bestUrl, strong = bestStrong)
         }
         tagVer?.let { v ->
-            return Result(true, current, fmt(v), cmp(v, cur) > 0, tagUrl)
+            return Result(true, current, fmt(v), cmp(v, cur) > 0, tagUrl, strong = tagStrong)
         }
         return Result(
             ok = false,
@@ -97,6 +109,19 @@ object Updater {
                 "No Android build in the releases yet — have a look at the releases page.")
         )
     }
+
+    /**
+     * 发布正文里的更新级别标记。只认行首的两种写法：
+     * - 单独一行「更新级别：强烈建议」（普通建议写「更新级别：建议」或干脆不写）
+     * - 单独一行的旧注释 <!-- update:force -->（早期版本这么写，现在降级成「强烈建议」，不再锁人）
+     * 刻意不认正文里出现的「强烈建议」几个字，避免正文举例时误判。
+     */
+    private val STRONG_RE = Regex(
+        "^[ \\t]*(?:更新级别\\s*[：:]\\s*强烈建议|<!--\\s*update\\s*:\\s*force\\s*-->)",
+        setOf(RegexOption.IGNORE_CASE, RegexOption.MULTILINE)
+    )
+
+    fun isStrongUpdate(body: String?): Boolean = !body.isNullOrBlank() && STRONG_RE.containsMatchIn(body)
 
     /** 取第一段 x.y.z；取不到返回 null */
     fun ver(text: String): IntArray? {
@@ -141,9 +166,11 @@ internal fun parseReleasesForTest(text: String, current: String): Updater.Result
     val arr = JSONArray(text)
     var bestVer: IntArray? = null
     var bestUrl = ""
+    var bestStrong = false
     for (i in 0 until arr.length()) {
         val rel: JSONObject = arr.optJSONObject(i) ?: continue
         val assets = rel.optJSONArray("assets") ?: continue
+        val strong = Updater.isStrongUpdate(rel.optString("body"))
         for (j in 0 until assets.length()) {
             val a = assets.optJSONObject(j) ?: continue
             val name = a.optString("name")
@@ -153,10 +180,14 @@ internal fun parseReleasesForTest(text: String, current: String): Updater.Result
             if (old == null || Updater.cmp(v, old) > 0) {
                 bestVer = v
                 bestUrl = a.optString("browser_download_url")
+                bestStrong = strong
             }
         }
     }
     val cur = Updater.ver(current) ?: intArrayOf(0, 0, 0)
-    bestVer?.let { return Updater.Result(true, current, Updater.fmt(it), Updater.cmp(it, cur) > 0, bestUrl) }
+    bestVer?.let {
+        return Updater.Result(true, current, Updater.fmt(it), Updater.cmp(it, cur) > 0, bestUrl,
+            strong = bestStrong)
+    }
     return Updater.Result(false, current, detail = "no apk")
 }

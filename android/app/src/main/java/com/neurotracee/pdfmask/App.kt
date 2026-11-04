@@ -46,6 +46,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.neurotracee.pdfmask.ui.AppInfoDialog
+import com.neurotracee.pdfmask.ui.AutoUpdateGate
 import com.neurotracee.pdfmask.ui.HomeScreen
 import com.neurotracee.pdfmask.ui.RedTag
 import com.neurotracee.pdfmask.ui.SaveTargetDialog
@@ -183,6 +184,9 @@ fun AppRoot(vm: AppViewModel = viewModel()) {
     if (showAbout) {
         AppInfoDialog(onClose = { showAbout = false })
     }
+
+    // 启动先自动查一次版本：断网静默跳过，慢的话给一个能关掉的提示
+    AutoUpdateGate()
 
     if (showSaveAsk) {
         SaveTargetDialog(

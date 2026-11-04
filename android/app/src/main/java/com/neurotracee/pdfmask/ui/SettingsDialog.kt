@@ -331,7 +331,10 @@ private fun UpdateSection() {
                 color = MaterialTheme.colorScheme.onSurface
             )
             Text(
-                T("点一下才会联网查询版本号", "Goes online only when you tap"),
+                T(
+                    "启动时会自动查一次，这里可以手动再查",
+                    "Checked once at launch; tap to check again"
+                ),
                 fontSize = 11.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )

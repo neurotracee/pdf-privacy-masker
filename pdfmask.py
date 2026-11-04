@@ -31,7 +31,8 @@ PDF 隐私打码工具  (本地离线 · 单文件运行)
 - 姓名保留姓氏，仅打码名字
 - 带「出生 / 生日」语义的日期打码，普通会议、合同日期不打码
 - 真马赛克：像素级重采样，字形不可还原，同时抹除底层文本层
-- 全程本机处理，不联网、不上传；输出新文件，原文件不动
+- 全程本机处理，不上传任何内容；只有「检查更新」会读一个公开的版本号（断网自动跳过）
+- 输出新文件，原文件只读不改
 
 作者 / Authors
 -------------
@@ -63,7 +64,7 @@ from PIL import Image
 from thanks_asset import QR_PNG_B64  # 赞赏码图片（base64 内嵌，单文件打包不丢）
 
 APP_NAME = "PDF 隐私打码工具"
-VERSION = "1.4.1"
+VERSION = "1.4.2"
 
 # ---- 署名信息（开源后请勿删除，AGPL-3.0 第 5 条要求保留版权声明） ----
 AUTHOR = "项目创作时为初中生"
@@ -1822,6 +1823,22 @@ def _fetch_releases():
     return None, last
 
 
+STRONG_RE = re.compile(
+    r"^[ \t]*(?:更新级别\s*[：:]\s*强烈建议|<!--\s*update\s*:\s*force\s*-->)",
+    re.I | re.M)
+
+
+def _update_strong(body):
+    """发布正文里的更新级别：返回 True 表示「强烈建议」更新。
+
+    只有两档，都只是建议，用户永远能关掉，区别只在关之前劝不劝：
+      1. 正文里有一行「更新级别：强烈建议」（普通建议写「更新级别：建议」或干脆不写）
+      2. 早期版本用过的隐藏注释 <!-- update:force -->，现在降级成「强烈建议」
+    注意：正文里单独出现「强烈建议」几个字不算，避免说明文字被误判。
+    """
+    return bool(STRONG_RE.search(body or ""))
+
+
 def _parse_releases(data):
     """从 releases 里挑出本平台能用的最新版本。
 
@@ -1832,16 +1849,17 @@ def _parse_releases(data):
         data = [data]
     if not isinstance(data, list):
         return None
-    best = None      # (ver, url, asset)
-    tag_only = None  # (ver, page, tag)
+    best = None      # (ver, url, asset, strong)
+    tag_only = None  # (ver, page, tag, strong)
     for rel in data:
         if not isinstance(rel, dict) or rel.get("draft"):
             continue
         page = rel.get("html_url") or RELEASES_URL
         tag = (rel.get("tag_name") or "").strip()
+        strong = _update_strong(rel.get("body"))
         tv = _ver_tuple(tag)
         if tv and (tag_only is None or tv > tag_only[0]):
-            tag_only = (tv, page, tag)
+            tag_only = (tv, page, tag, strong)
         for a in rel.get("assets") or []:
             name = a.get("name") or ""
             if not name.lower().endswith(UPDATE_ASSET_SUFFIX):
@@ -1850,11 +1868,13 @@ def _parse_releases(data):
             if not v:
                 continue
             if best is None or v > best[0]:
-                best = (v, a.get("browser_download_url") or page, name)
+                best = (v, a.get("browser_download_url") or page, name, strong)
     if best:
-        return {"ver": best[0], "url": best[1], "asset": best[2], "source": "asset"}
+        return {"ver": best[0], "url": best[1], "asset": best[2], "source": "asset",
+                "strong": best[3]}
     if tag_only:
-        return {"ver": tag_only[0], "url": tag_only[1], "asset": "", "source": "tag"}
+        return {"ver": tag_only[0], "url": tag_only[1], "asset": "", "source": "tag",
+                "strong": tag_only[3]}
     return None
 
 
@@ -1889,6 +1909,7 @@ def check_update():
         "current": VERSION,
         "latest": latest,
         "hasUpdate": got["ver"] > cur,
+        "strong": bool(got.get("strong")),
         "url": got["url"],
         "asset": got["asset"],
         "source": got["source"],
@@ -2328,6 +2349,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if u.path == "/api/ping":
             self._json({"ok": True})
             return
+        if u.path == "/api/check_update":
+            # GET / POST 都收：前端一直用 GET（api() 不带 method），
+            # 早先只注册了 POST，导致手动检查拿到 404 —— v1.4.2 一并修掉。
+            if not self._authed():
+                return
+            return self._json(check_update())
         if u.path == "/api/settings":
             if not self._authed():
                 return
@@ -2423,7 +2450,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 return self._json({"ok": True, "settings": cfg,
                                    "path": SETTINGS_PATH})
             if u.path == "/api/check_update":
-                # 只读 GitHub 上的版本号；用户主动点「检查更新」才会走到这里
+                # 只读 GitHub 上的版本号：启动自动检查与手动检查共用这一个接口
                 return self._json(check_update())
             if u.path == "/api/openurl":
                 data = json.loads(self._body() or b"{}")
@@ -2546,6 +2573,11 @@ header{height:66px;flex:0 0 66px;display:flex;align-items:center;justify-content
 .about-thanks b{display:block;font-size:12.5px;color:var(--ink);margin-bottom:6px}
 .about-thanks p{margin:0 0 10px;font-size:11.5px;line-height:1.65;color:var(--ink3)}
 .about-thanks img{display:block;width:236px;max-width:100%;height:auto;margin:0 auto;border-radius:8px}
+.about-star{display:flex;align-items:center;gap:10px;margin:10px 0 14px;padding:10px 12px;
+  background:#f7f9fc;border:1px solid var(--line2);border-radius:10px}
+.about-star-txt{flex:1;font-size:11.5px;color:var(--ink3);line-height:1.6}
+.about-star-txt b{display:block;color:var(--ink);font-size:12.5px;margin-bottom:2px}
+.about-star .btn{flex:none;padding:6px 14px;font-size:12px}
 .thanks-cap{margin-top:8px;font-size:10.5px;color:var(--ink3);text-align:center}
 .thanks-save-row{display:flex;justify-content:center;margin-top:9px}
 .thanks-save-row .btn{padding:5px 16px;font-size:11.5px}
@@ -2739,6 +2771,25 @@ main{flex:1;min-height:0;display:flex;overflow:hidden}
 .upd-detail{margin-top:5px;font-size:11px;color:var(--ink3);word-break:break-all;line-height:1.6}
 .upd-help b{color:var(--ink2)}
 .upd-help ol{margin:6px 0 0;padding-left:18px}
+
+/* ---------- 启动自动检查更新（v1.4.2） ---------- */
+#autoUpdMask{z-index:900}
+.auto-upd{position:relative;width:min(470px,100%)}
+.auto-upd h3{padding-right:34px}
+.au-close{position:absolute;top:8px;right:10px;width:30px;height:30px;border:0;border-radius:8px;
+  background:transparent;color:var(--ink3);font-size:19px;line-height:1;cursor:pointer}
+.au-close:hover{background:#f1f3f7;color:var(--ink)}
+.au-badge{display:inline-block;font-size:11px;padding:2px 9px;border-radius:999px;margin-bottom:7px}
+.au-badge.sug{background:#eef4ff;color:#2b5bd0}
+.au-badge.strong{background:#fff0ea;color:#b3401a}
+#autoUpdText{white-space:pre-line}
+.au-spin{display:flex;align-items:center;gap:9px;margin-top:2px;font-size:12px;color:var(--ink3)}
+.au-spin i{width:13px;height:13px;border:2px solid #e0e5ee;border-top-color:var(--accent);
+  border-radius:50%;display:inline-block;animation:au-rot .9s linear infinite}
+@keyframes au-rot{to{transform:rotate(360deg)}}
+.au-acts{display:flex;gap:9px;justify-content:flex-end;margin-top:18px;flex-wrap:wrap}
+.au-url{margin-top:10px;font-family:ui-monospace,Consolas,monospace;font-size:11px;color:var(--ink3);
+  word-break:break-all;background:#f7f9fc;border:1px solid var(--line);border-radius:8px;padding:7px 9px}
 </style>
 </head>
 <body>
@@ -2884,13 +2935,33 @@ main{flex:1;min-height:0;display:flex;overflow:hidden}
     </div>
     <div class="about-thanks">
       <b>如果这个工具帮到了你</b>
-      <p data-en-html='It started as a small side project, and I am glad it is useful. If you feel like buying me a milk tea, that would make my day — completely optional. The app stays free and fully featured either way.'>本来就是顺手做的小工具，能派上用场就挺好。要是你愿意请我喝杯奶茶，我会挺开心——
+      <p data-en-html='It started as a small side project, and I am glad it is useful. Buying me a milk tea would make my day — completely optional. The app stays free and fully featured either way.'>本来就是顺手做的小工具，能派上用场就挺好。
       完全自愿，不打赏也一样免费、功能不缺。</p>
+      <div class="about-star">
+        <div class="about-star-txt">
+          <b>星标仓库 = 最好的支持</b>
+          <span data-en-html='No money needed — starring the repo helps others find it and keeps me motivated.'>不想花钱也没关系，点一颗 Star 就是最好的支持：别人搜得到，我才更有动力维护。</span>
+        </div>
+        <button class="btn" id="aboutStar">去点 Star</button>
+      </div>
+      <div class="thanks-cap">国内用户：微信扫码，请我喝杯奶茶（金额随意）</div>
       <img id="thanksQr" src="data:image/png;base64,__THANKS__" alt="赞赏码">
-      <div class="thanks-cap">微信扫码 · 金额随意 · 点下面的按钮保存图片</div>
+      <div class="thanks-cap">点下面的按钮保存这张码</div>
       <div class="thanks-save-row"><button class="btn" id="thanksSave">保存赞赏码</button></div>
     </div>
     <div class="about-actions"><button class="btn primary" id="aboutOk">知道了</button></div>
+  </div>
+</div>
+
+<div class="modal-mask" id="autoUpdMask" hidden>
+  <div class="modal auto-upd">
+    <button class="au-close" id="autoUpdClose" title="关闭">×</button>
+    <div class="au-badge" id="autoUpdBadge" hidden></div>
+    <h3 id="autoUpdTitle">正在检查更新</h3>
+    <p class="sub" id="autoUpdText"></p>
+    <div class="au-spin" id="autoUpdSpin" hidden><i></i><span id="autoUpdSpinText"></span></div>
+    <div class="au-url" id="autoUpdUrl" hidden></div>
+    <div class="au-acts" id="autoUpdActs" hidden></div>
   </div>
 </div>
 
@@ -2943,6 +3014,7 @@ main{flex:1;min-height:0;display:flex;overflow:hidden}
           <span id="verLabel2">仓库最新</span> <b id="latestVer">—</b></span>
         <button class="btn" id="checkBtn">检查更新</button>
       </div>
+      <div class="modal-note" style="margin-top:8px">启动时会自动查一次更新；没有网络就静默跳过，不会打扰你。这里可以随时手动再查。</div>
       <div class="upd-box" id="updBox" hidden>
         <div id="updText"></div>
         <div class="upd-detail" id="updDetail" hidden></div>
@@ -3008,6 +3080,10 @@ const DICT = {
     'completely optional. The app stays free and fully featured either way.',
   '微信扫码 · 金额随意 · 点下面的按钮保存图片':'Scan in WeChat · any amount · use the button below to save',
   '保存赞赏码':'Save the tip QR',
+  '去点 Star':'Star it',
+  '星标仓库 = 最好的支持':'A star is the best support',
+  '国内用户：微信扫码，请我喝杯奶茶（金额随意）':'In China? Scan in WeChat to buy me a milk tea (any amount)',
+  '点下面的按钮保存这张码':'Use the button below to save this code',
   '赞赏码':'Tip QR code', '知道了':'Got it', '点击复制':'Click to copy',
   '点击复制原项目地址':'Click to copy the upstream URL',
   '选择保存位置':'Choose a folder', '打码后的 PDF 会存到这个文件夹，原文件不会被改动。':
@@ -3032,7 +3108,8 @@ const DICT = {
     'Whatever you choose, the original PDF is only ever read — never modified or deleted.',
   '恢复默认':'Reset', '保存':'Save',
   '版本与更新':'Version & updates', '当前版本':'Current', '仓库最新':'latest',
-  '检查更新':'Check for updates', '用浏览器打开下载':'Open download in browser',
+  '检查更新':'Check for updates',
+  '启动时会自动查一次更新；没有网络就静默跳过，不会打扰你。这里可以随时手动再查。':'Updates are checked once at launch; offline, the check is skipped silently. You can also check again here at any time.', '用浏览器打开下载':'Open download in browser',
   '复制链接':'Copy link',
   '扫描件是纯图片、没有文字层，无法自动识别，请用「框选手动打码」':
     'A scan is just an image with no text layer, so it cannot be detected — use the manual box tool',
@@ -3663,6 +3740,169 @@ function showResult(d){
   }
 }
 
+/* ---------- 启动自动检查更新（v1.4.2） ----------
+   和「设置 → 检查更新」共用同一个 /api/check_update，只是把结果做成一个可以先关掉的窗口：
+   · 断网 / 超时 / 已是最新 —— 一律不弹，直接进主程序；
+   · 1.2 秒还没结果 —— 弹「正在检查」，右上角能关，随时跳过；
+   · 超过 12 秒 —— 当作卡住，给一个「进入主程序」的兜底；
+   · 发现新版本 —— 自动用默认浏览器打开发布页，同时给「用浏览器下载 / 复制链接」两条路；
+   · 更新级别只有两档：建议更新 / 强烈建议更新 —— 都只是建议，永远留着关闭；
+     用户真要点「暂不更新」，先劝一次挽留，点第二次就放行，不再纠缠。 */
+const AUTO = {strong:false, skipped:false, shown:false, state:'', pled:false, opened:false, r:null};
+
+function autoUpdHide(){
+  const m = $('autoUpdMask');
+  if (m) m.hidden = true;
+  AUTO.state = '';
+}
+
+function autoUpdOpen(){
+  const m = $('autoUpdMask');
+  if (!m) return false;
+  m.hidden = false;
+  AUTO.shown = true;
+  $('autoUpdBadge').hidden = true;
+  $('autoUpdBadge').className = 'au-badge';
+  $('autoUpdSpin').hidden = true;
+  $('autoUpdUrl').hidden = true;
+  $('autoUpdUrl').textContent = '';
+  $('autoUpdActs').innerHTML = '';
+  $('autoUpdActs').hidden = true;
+  $('autoUpdClose').hidden = false;
+  return true;
+}
+
+function autoUpdBtn(label, primary, fn){
+  const b = document.createElement('button');
+  b.className = 'btn' + (primary ? ' primary' : '');
+  b.textContent = label;
+  b.onclick = fn;
+  $('autoUpdActs').appendChild(b);
+  $('autoUpdActs').hidden = false;
+  return b;
+}
+
+/* 检查中：慢的时候才出现，给一个「跳过」 */
+function autoUpdChecking(){
+  if (!autoUpdOpen()) return;
+  AUTO.state = 'check';
+  $('autoUpdTitle').textContent = T('正在检查更新', 'Checking for updates');
+  $('autoUpdText').textContent = T(
+    '正在向 GitHub 读一次版本号，不传任何文件。网络慢的话可以直接关掉，不影响使用。',
+    'Reading the latest version number from GitHub. No files are sent. If the network is slow, just close this.');
+  $('autoUpdSpinText').textContent = T('连接 GitHub…', 'Contacting GitHub…');
+  $('autoUpdSpin').hidden = false;
+  autoUpdBtn(T('跳过，先进入', 'Skip and continue'), false, ()=>{
+    AUTO.skipped = true;
+    autoUpdHide();
+  });
+}
+
+/* 卡住：超时兜底，必须能一键进主程序 */
+function autoUpdStuck(){
+  if (!autoUpdOpen()) return;
+  AUTO.state = 'stuck';
+  AUTO.skipped = true;
+  $('autoUpdTitle').textContent = T('检查更新没有回应', 'Update check timed out');
+  $('autoUpdText').textContent = T(
+    '网络似乎不通，这次检查已经跳过，可以直接使用。想再试一次：设置 → 版本与更新 → 检查更新。',
+    'The network looks unreachable, so this check was skipped — you can go ahead. To retry later: Settings → Version & updates → Check.');
+  autoUpdBtn(T('重新检查', 'Try again'), false, ()=>{ autoUpdHide(); autoCheckUpdates(); });
+  autoUpdBtn(T('进入主程序', 'Continue'), true, autoUpdHide);
+}
+
+/* 有新版：两档都只是建议，关闭按钮永远在 */
+function autoUpdNew(r, opened){
+  AUTO.r = r;
+  AUTO.strong = !!r.strong;
+  if (typeof opened === 'boolean') AUTO.opened = opened;
+  if (!autoUpdOpen()) return;
+  AUTO.state = 'new';
+  const strong = AUTO.strong;
+  const badge = $('autoUpdBadge');
+  badge.hidden = false;
+  badge.className = 'au-badge ' + (strong ? 'strong' : 'sug');
+  badge.textContent = strong
+    ? T('强烈建议更新', 'Strongly suggested')
+    : T('建议更新', 'Suggested');
+  $('autoUpdTitle').textContent = (strong ? T('强烈建议更新到 ', 'Strongly suggested: ') : T('发现新版本 ', 'New version ')) + 'v' + r.latest;
+  $('autoUpdText').textContent = strong
+    ? T('你当前是 v' + r.current + '。这一版修了一直在影响使用的问题，强烈建议尽快换上——更新只要一分钟，原来的功能都在，文件也始终留在你的电脑里。',
+        'You are on v' + r.current + '. This build fixes problems that keep getting in the way, so updating is strongly suggested — it takes a minute, everything keeps working, and your files never leave your computer.')
+    : T('你当前是 v' + r.current + '。新版修了几个已知问题，也更稳——不更新也能继续用，但建议尽快换上。',
+        'You are on v' + r.current + '. The new build fixes a few known problems and is more reliable — you can keep using this version, but updating is worth it.');
+  $('autoUpdUrl').hidden = false;
+  $('autoUpdUrl').textContent = r.url || r.releasesUrl || '';
+  autoUpdBtn(T('暂不更新', 'Not now'), false, autoUpdAskLater);
+  autoUpdBtn(T('复制链接', 'Copy link'), false, ()=>{
+    const url = r.url || r.releasesUrl || '';
+    if (url) copyText(url, T('已复制下载链接：', 'Download link copied: '));
+  });
+  autoUpdBtn(T('用浏览器下载', 'Download in browser'), true, async ()=>{
+    const ok = await openUpdateUrl(r.url || r.releasesUrl);
+    if (!ok){
+      toast(T('打不开默认浏览器，可以复制链接自己粘到浏览器里。',
+              'Could not launch a browser — copy the link and paste it yourself.'), true);
+    }
+  });
+  if (!AUTO.opened){
+    // 自动跳浏览器失败时，直接把话说清楚，免得用户以为没反应
+    $('autoUpdText').textContent = T(
+      '你当前是 v' + r.current + '，最新是 v' + r.latest + '，但没能自动打开浏览器，点下面的按钮再试一次。',
+      'You have v' + r.current + ' and v' + r.latest + ' is out, but the browser did not open — try the button below.');
+  }
+}
+
+/* 点「暂不更新」或右上角 ×：先劝一次挽留；已经劝过就真的放行，不再纠缠 */
+function autoUpdAskLater(){
+  const r = AUTO.r;
+  if (!r){ autoUpdHide(); return; }
+  if (AUTO.pled){ AUTO.skipped = true; autoUpdHide(); return; }
+  AUTO.pled = true;
+  if (!autoUpdOpen()) return;
+  AUTO.state = 'plea';
+  const strong = AUTO.strong;
+  $('autoUpdTitle').textContent = strong
+    ? T('再看一眼，好吗？', 'One more look?')
+    : T('确定先不更新吗？', 'Skip this update?');
+  $('autoUpdText').textContent = strong
+    ? T('这一版修的是一上手就会碰到的问题——旧版里那些反复出错、只能一遍遍重来的地方，新版已经处理好了。花一分钟换上，往后能省下不少时间。\n\n当然，换不换还是你说了算：点「我还是要用旧版」就能继续用，下次打开只会再提醒你一次而已。',
+        'This release fixes the things you run into as soon as you start — the repeated failures and retries are gone. One minute now saves a lot of hassle later.\n\nIt is still your call: click “Keep the old version” to carry on. You will just be reminded once next time.')
+    : T('不更新也能照常用，只是新版顺手修了几个小毛病，用起来更稳。\n\n下次打开还会再提醒一次，到时候想换也来得及。',
+        'The app works fine without it — the new build just tidies up a few rough edges and is steadier.\n\nYou will be reminded once more next time, so you can always switch later.');
+  autoUpdBtn(strong
+      ? T('我还是要用旧版', "I'll stay on the old version")
+      : T('先这样，下次再说', 'Skip for now'),
+    false, ()=>{ AUTO.skipped = true; autoUpdHide(); });
+  autoUpdBtn(T('好，现在更新', 'Okay, update now'), true, async ()=>{
+    const ok = await openUpdateUrl(r.url || r.releasesUrl);
+    autoUpdNew(r, ok);
+  });
+}
+
+async function autoCheckUpdates(){
+  if (!$('autoUpdMask')) return;
+  AUTO.skipped = false;
+  AUTO.pled = false;
+  let settled = false;
+  const slow = setTimeout(()=>{ if (!settled) autoUpdChecking(); }, 1200);
+  let r = null;
+  try{
+    r = await Promise.race([
+      api('/api/check_update'),
+      new Promise(res => setTimeout(()=> res({__timeout:true}), 12000))
+    ]);
+  }catch(e){ r = null; }
+  settled = true;
+  clearTimeout(slow);
+  if (r && r.__timeout){ autoUpdStuck(); return; }
+  // 断网 / 没有包 / 已是最新：静默，什么都不提示
+  if (!r || !r.ok || !r.hasUpdate){ autoUpdHide(); return; }
+  if (AUTO.skipped){ autoUpdHide(); return; }
+  const opened = await openUpdateUrl(r.url || r.releasesUrl);
+  autoUpdNew(r, opened);
+}
+
 /* 启动：先按上次保存的语言刷新整页文案，再决定要不要打开命令行带来的文件 */
 (async ()=>{
   try{
@@ -3671,6 +3911,7 @@ function showResult(d){
   }catch(e){}
   applyLang();
   if (BOOT) openPath(BOOT);
+  autoCheckUpdates();
 })();
 
 setInterval(()=>{ fetch('/api/ping').catch(()=>{}); }, 60000);
@@ -3693,6 +3934,21 @@ if (aboutMask) {
   };
   aboutMask.addEventListener('click', e=>{ if (e.target === aboutMask) aboutMask.hidden = true; });
 }
+
+const autoCloseBtn = $('autoUpdClose');
+if (autoCloseBtn) autoCloseBtn.onclick = ()=>{
+  // 正在展示新版时，× 等同于「暂不更新」——先劝一次；检查中/超时/挽留界面直接关
+  if (AUTO.state === 'new') autoUpdAskLater();
+  else autoUpdHide();
+};
+
+/* 关于窗里的「去点 Star」：直接开仓库页，打不开就复制地址 */
+const aboutStarBtn = $('aboutStar');
+if (aboutStarBtn) aboutStarBtn.onclick = async ()=>{
+  const url = ($('aboutUrl') && $('aboutUrl').dataset.url) || '';
+  if (!url) return;
+  if (!await openUpdateUrl(url)) copyText(url, T('已复制仓库地址：', 'Repository URL copied: '));
+};
 /* 项目地址：点一下就复制，方便二次开发者把来源留在自己版本里 */
 ['aboutUrl', 'footUrl'].forEach(id=>{
   const el = $(id);
