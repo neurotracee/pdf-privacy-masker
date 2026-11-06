@@ -6,7 +6,7 @@
 
 **English** | [中文](#pdf-隐私打码工具)
 
-> **Published on 7 November 2026 and mirrored to [Gitee](https://gitee.com/bio234/pdf-privacy-masker)**, the domestic open-source platform.
+> **This project was originally published on GitHub, and was mirrored to [Gitee](https://gitee.com/bio234/pdf-privacy-masker) — the domestic open-source platform — on 7 November 2026.**
 >
 > Note: this GitHub repository and the Gitee repository above are owned by the same developer. The GitHub repository was created earlier — stating this here so nobody mistakes one for a copy of the other.
 
@@ -263,7 +263,7 @@ If this project saved you some time, you can buy me a bubble tea 🧋
 
 # PDF 隐私打码工具
 
-> **本项目于 2026 年 11 月 7 日发布，并同步至国内开源平台 Gitee**：https://gitee.com/bio234/pdf-privacy-masker
+> **本项目此前已在 GitHub 发布，于 2026 年 11 月 7 日同步至国内开源平台 Gitee**：https://gitee.com/bio234/pdf-privacy-masker
 >
 > 注：本项目仓库与 Gitee 的（https://gitee.com/bio234/pdf-privacy-masker）为同一开发者所有，GitHub 创建时间更早，特此告知。
 
