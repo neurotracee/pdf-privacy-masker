@@ -39,7 +39,7 @@ def token():
     return (os.environ.get("GITHUB_TOKEN") or "").strip()
 
 
-def api(url, method="GET", data=None, tok="", retries=4):
+def api(url, method="GET", data=None, tok="", retries=6):
     """走系统 curl（本机 GitHub 需要 -k，其余情况正常校验）。"""
     cmd = ["curl", "-s", "-k", "--noproxy", "127.0.0.1", "--max-time", "90",
            "-X", method, "-H", "Accept: application/vnd.github+json",
@@ -63,13 +63,19 @@ def api(url, method="GET", data=None, tok="", retries=4):
                 code = int(tail.strip())
             except Exception:
                 code = 0
-        if code:
+        # 5xx 多半是本机加速通道临时抖了一下（502 常见），退避后重试；
+        # 4xx 是真正的业务错误，立刻返回。
+        if code and code < 500:
             try:
                 return code, (json.loads(out) if out.strip() else {})
             except Exception:
                 return code, {"raw": out[:300]}
-        time.sleep(1.5 * (i + 1))
-    return 0, {"err": "curl 多次失败"}
+        if code:
+            last = (code, {"raw": out[:300]})
+        else:
+            last = (0, {"err": "curl 失败"})
+        time.sleep(2.0 * (i + 1))
+    return last
 
 
 def upload_asset(rid, path, tok):

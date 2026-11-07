@@ -28,6 +28,7 @@ import json
 import os
 import re
 import subprocess
+import time
 import sys
 import urllib.parse
 import urllib.request
@@ -257,6 +258,8 @@ def main():
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--tag", default="")
     ap.add_argument("--skip-upload", action="store_true")
+    ap.add_argument("--replace-assets", action="store_true",
+                    help="已存在的 Release：整个删掉重建并重传附件（重发同一版本号时用）")
     ap.add_argument("--reorder", action="store_true",
                     help="按版本号升序重建全部 Release，修正 Gitee 的倒序排列")
     a = ap.parse_args()
@@ -297,15 +300,33 @@ def main():
                 "一致" if same_name else "不同（'%s'）" % (cur.get("name") or "")[:30],
                 "一致" if same_body else "不同（%d vs %d 字符）" % (
                     len(cur.get("body") or ""), len(body))))
-            if not (same_name and same_body) and not a.dry_run:
-                # Gitee 的 PATCH 是「整对象更新」，不带 tag_name 会 400
-                c, resp = http_json(GE_API + "/releases/%s" % cur.get("id"), "PATCH",
-                                    {"tag_name": tag, "name": name, "body": body,
-                                     "target_commitish": TAG, "prerelease": pre}, tok)
-                print("  PATCH -> HTTP %s %s" % (c, "" if c in (200, 201) else str(resp)[:200]))
-            elif a.dry_run and not (same_name and same_body):
-                print("  [dry-run] 将更新标题与正文")
-            rel = cur
+            if a.replace_assets:
+                # Gitee 的 API 不提供删除单个附件的接口（assets 里连 id 都没有），
+                # 所以要换附件只能整个 Release 删掉重建——tag 不变，指向同一提交。
+                if a.dry_run:
+                    print("  [dry-run] 删除整个 Release 后重建，并重传全部附件")
+                    rel = dict(cur, assets=[])
+                else:
+                    c, resp = http_json(GE_API + "/releases/%s" % cur.get("id"),
+                                        "DELETE", None, tok)
+                    print("  删除旧 Release -> HTTP %s" % c)
+                    if c not in (200, 204):
+                        print("  删除失败：%s" % str(resp)[:200])
+                        continue
+                    time.sleep(2)
+                    rel = create_release(r, tok, False)
+                    if not rel:
+                        continue
+            else:
+                if not (same_name and same_body) and not a.dry_run:
+                    # Gitee 的 PATCH 是「整对象更新」，不带 tag_name 会 400
+                    c, resp = http_json(GE_API + "/releases/%s" % cur.get("id"), "PATCH",
+                                        {"tag_name": tag, "name": name, "body": body,
+                                         "target_commitish": TAG, "prerelease": pre}, tok)
+                    print("  PATCH -> HTTP %s %s" % (c, "" if c in (200, 201) else str(resp)[:200]))
+                elif a.dry_run and not (same_name and same_body):
+                    print("  [dry-run] 将更新标题与正文")
+                rel = cur
         else:
             print("  不存在，需要创建（正文 %d 字符）" % len(body))
             rel = create_release(r, tok, a.dry_run)
