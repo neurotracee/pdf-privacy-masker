@@ -4,7 +4,7 @@
 并附带依据 **AGPL-3.0 第 7 条 (b) 项** 制定的附加条款 —— 见 **[ADDITIONAL-TERMS.md](ADDITIONAL-TERMS.md)**。
 
 简而言之：二次开发或商用都可以，但**必须保留作者署名，并在程序里标注原项目地址**
-`https://github.com/neurotracee/pdf-privacy-masker`。
+`https://github.com/neurotracee/pdf-privacy-masker`（国内镜像：`https://gitee.com/bio234/pdf-privacy-masker`）。
 
 下面按平台列出用到的第三方组件，各自的授权与版权归其作者所有。
 
@@ -50,6 +50,7 @@
 指导作者：项目创作时为初中生 —— 需求、识别规则的设计、验收测试全部由本人完成
 开发    ：腾讯 WorkBuddy × DeepSeek-V4.1-Flash
 原项目  ：https://github.com/neurotracee/pdf-privacy-masker
+镜像    ：https://gitee.com/bio234/pdf-privacy-masker
 ```
 
 二次开发或商用必须保留以上署名，并在程序中标注原项目地址；改动过的版本须注明

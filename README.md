@@ -52,6 +52,7 @@ This is based on AGPL-3.0 Section 5 (preserve copyright notices); Section 7(b) e
 
 ```
 https://github.com/neurotracee/pdf-privacy-masker
+https://gitee.com/bio234/pdf-privacy-masker      # mirror / 镜像（国内访问更快）
 ```
 
 **Must be visible to users** — in the About window, footer, help menu, or `--about` output, pick any one. Writing it only in `LICENSE` or a source comment hundreds of lines away **doesn't count**, because users won't see it during normal operation.
@@ -60,15 +61,16 @@ How this project does it (you can copy it directly):
 
 | Location | Content |
 | --- | --- |
-| Footer | `Original project: https://github.com/neurotracee/pdf-privacy-masker` (click to copy) |
-| About window | `Original project` line, blue dashed clickable |
+| Footer | `Original project: https://github.com/neurotracee/pdf-privacy-masker` + `Gitee: gitee.com/bio234/pdf-privacy-masker` (both click to copy) |
+| About window | `Original project` and `Mirror (Gitee)` lines, blue dashed clickable |
 | CLI | `python pdfmask.py --about` prints attribution and URL |
 
 ### ③ State clearly if your version is modified
 
 Unless you're distributing the original unmodified, add a prominent notice in the program:
 
-> This program is based on https://github.com/neurotracee/pdf-privacy-masker, modified, not released by the original author.
+> This program is based on https://github.com/neurotracee/pdf-privacy-masker
+> (mirror: https://gitee.com/bio234/pdf-privacy-masker), modified, not released by the original author.
 
 This prevents people from mistaking a modified version as the original author's — especially when your version has bugs, privacy risks, or starts charging.
 
@@ -97,8 +99,8 @@ You can also change this anytime in the Settings panel in the top-right corner �
 
 The same panel also has **Check for updates** and **Language (中文 / English)**:
 
-- **Automatic update check (new in v1.4.2)**: the app checks once at launch, compares versions, and if a newer build exists it opens your default browser straight at the download. Offline, the check is skipped silently — no dialog, no error, and the app stays fully usable. A window that hangs still has a close button; a release marked *strongly suggested* by the author only raises the tone (a stronger badge and one gentle nudge before you close it) — **it can always be dismissed. No release ever locks the window.**
-- **Check for updates** asks Gitee and GitHub for the newest release and compares versions — on a Simplified Chinese system with the Chinese interface, Gitee is tried first (it is reachable from mainland China), then GitHub; other languages go the other way round. It also never relaxes TLS verification, and only accepts download links from the official GitHub/Gitee release hosts. If there is a newer build it opens your default browser straight at the download; if the network is blocked it shows the link, a copy button, and a short checklist (browser/security software, system proxy, firewall) — worst case you screenshot the window and use text recognition to get the link out by hand. The only thing it sends is a plain request for the public version number; no file, no personal data.
+- **Automatic update check**: the default mode checks once at launch, compares versions, and if a newer build exists it opens your default browser straight at the download. Offline, the check is skipped silently — no dialog, no error, and the app stays fully usable. Switch to **Manual only** in Settings if you would rather have nothing go online until you ask. A window that hangs still has a close button; a release marked *strongly suggested* by the author only raises the tone (a stronger badge and one gentle nudge before you close it) — **it can always be dismissed. No release ever locks the window.**
+- **Update source** is yours to pick: **Gitee (recommended in mainland China)** or **GitHub**. Left on the default, it follows the environment — a Simplified Chinese system with the Chinese interface starts with Gitee (reachable from mainland China), a clearly non-Chinese system starts with GitHub, and if the language cannot be detected Gitee is used as the fallback. Whichever you pick, an unreachable source automatically falls back to the other one. It also never relaxes TLS verification, and only accepts download links from the official GitHub/Gitee release hosts. If there is a newer build it opens your default browser straight at the download; if the network is blocked it shows the link, a copy button, and a short checklist (browser/security software, system proxy, firewall) — worst case you screenshot the window and use text recognition to get the link out by hand. The only thing it sends is a plain request for the public version number; no file, no personal data.
 - **Language** switches the whole interface between Chinese and English instantly, no restart. The choice is remembered in `settings.json`.
 
 ## What it can detect
@@ -145,7 +147,7 @@ The UI opens automatically in your browser at a random `127.0.0.1` port. Close t
 2. Tap to install; allow "unknown sources" for your file manager if the system asks.
 3. Tap a PDF on the home screen, confirm the detections, then tap "Mask PDF" and pick a folder.
 
-Only one permission: `INTERNET`, used solely for the update check (once at launch, or when you tap Check for updates). No storage permission — files are picked through the system file picker.
+Only one permission: `INTERNET`, used solely for the update check (once at launch in automatic mode, or when you tap Check for updates; in manual mode nothing goes online by itself). No storage permission — files are picked through the system file picker.
 
 ### Where are the redacted files saved
 
@@ -311,6 +313,7 @@ If this project saved you some time, you can buy me a bubble tea 🧋
 
 ```
 https://github.com/neurotracee/pdf-privacy-masker
+https://gitee.com/bio234/pdf-privacy-masker      # mirror / 镜像（国内访问更快）
 ```
 
 **必须让使用者看得见**——「关于」窗口、首页页脚、帮助菜单、`--about` 输出，
@@ -321,15 +324,16 @@ https://github.com/neurotracee/pdf-privacy-masker
 
 | 位置 | 内容 |
 | --- | --- |
-| 首页页脚 | `原项目地址：https://github.com/neurotracee/pdf-privacy-masker`（点一下可复制） |
-| 「关于」窗口 | `原项目地址` 一行，蓝色虚线可点 |
+| 首页页脚 | `原项目地址：https://github.com/neurotracee/pdf-privacy-masker` + `Gitee: gitee.com/bio234/pdf-privacy-masker`（两行都可点，点了复制） |
+| 「关于」窗口 | `原项目地址` 与 `镜像地址（Gitee）` 两行，蓝色虚线可点 |
 | 命令行 | `python pdfmask.py --about` 会打印署名与地址 |
 
 ### ③ 改过的版本必须说明改过
 
 只要你不是拿原版原样分发，就在程序里显著注明：
 
-> 本程序基于 https://github.com/neurotracee/pdf-privacy-masker 修改，非原作者发布。
+> 本程序基于 https://github.com/neurotracee/pdf-privacy-masker
+> （镜像：https://gitee.com/bio234/pdf-privacy-masker）修改，非原作者发布。
 
 这一条是为了不让人误以为改动后的版本出自原作者——尤其是你的版本有 bug、
 有隐私风险、或者开始收费的时候。
@@ -362,7 +366,8 @@ https://github.com/neurotracee/pdf-privacy-masker
 同一个面板里还有**检查更新**和**界面语言（中文 / English）**：
 
 - **自动检查更新（v1.4.2 新增）**：打开程序就查一次，比当前版本新就直接用默认浏览器打开下载页。断网时静默跳过——不弹窗、不报错，照样能打码。万一卡住，窗口上有关闭按钮；作者在发布说明里标了**强烈建议更新**的版本提醒会更重，但同样能关掉（关之前会挽留一次）。**没有任何版本会锁住窗口。**
-- **检查更新（v1.4.3 起双通道）**：简体中文系统 + 中文界面时先去 Gitee 读最新版本号（国内直连更稳），失败再走 GitHub；其它语言反过来。证书校验全程严格，下载地址只认 GitHub / Gitee 的官方发布域名，被篡改的版本号骗不到你的浏览器。比当前版本新就自动用默认浏览器打开下载页；网络被拦时会把链接摆出来、给一个复制按钮，并列出该查哪几项权限（浏览器/安全软件、系统代理、防火墙），最后还能截屏用文字识别把链接抠出来。整个过程只发一个查版本号的请求，不传文件、不传个人信息。
+- **检查方式**：「自动检查（启动时）」/「手动检查」。自动每次启动在后台静默查一次，没网就跳过；手动则只有点「检查更新」才联网。
+- **更新源**：「Gitee（建议中国大陆用户）」/「GitHub」，自己选。留在默认时按环境判断：简体中文系统 + 中文界面先去 Gitee（国内直连更稳），明确是其它语言走 GitHub，语言判断不出来按 Gitee 兜底。选中的源连不上会自动换另一个再试。证书校验全程严格，下载地址只认 GitHub / Gitee 的官方发布域名，被篡改的版本号骗不到你的浏览器。比当前版本新就自动用默认浏览器打开下载页；网络被拦时会把链接摆出来、给一个复制按钮，并列出该查哪几项权限（浏览器/安全软件、系统代理、防火墙），最后还能截屏用文字识别把链接抠出来。整个过程只发一个查版本号的请求，不传文件、不传个人信息。
 - **界面语言**：中英文一键切换，立即生效不用重启，选择存在 `settings.json` 里，下次打开还是这个语言。
 
 ## 能识别什么

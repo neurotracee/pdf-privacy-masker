@@ -23,6 +23,7 @@
 
 ```
 https://github.com/neurotracee/pdf-privacy-masker
+https://gitee.com/bio234/pdf-privacy-masker      （国内镜像，两处写任一处或都写均可）
 ```
 
 （具体放在哪里算数，见第二节。地址写了就行，不要求做成链接。）
@@ -30,7 +31,8 @@ https://github.com/neurotracee/pdf-privacy-masker
 **3. 修改说明**
 如果你改过代码、改过界面、改过功能，必须在程序里**显著注明**：
 
-> 本程序基于 https://github.com/neurotracee/pdf-privacy-masker 修改，非原作者发布。
+> 本程序基于 https://github.com/neurotracee/pdf-privacy-masker
+> （镜像：https://gitee.com/bio234/pdf-privacy-masker）修改，非原作者发布。
 
 这一条是为了避免别人误以为改动后的版本是原作者做的——尤其是当你的版本有 bug、
 有隐私风险、或者开始收费的时候。
@@ -109,6 +111,7 @@ under **Section 7(b)** of that license:
    `Developed by Tencent WorkBuddy × DeepSeek-V4.1-Flash`.
 2. You must display the original project URL
    `https://github.com/neurotracee/pdf-privacy-masker`
+   (mirror: `https://gitee.com/bio234/pdf-privacy-masker`)
    somewhere the end user can actually see it (an About dialog, footer, or `--about` output).
 3. Modified versions must state clearly that they are modified, and must not
    imply endorsement by the original author.

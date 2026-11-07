@@ -2,7 +2,7 @@
 
 更新级别：建议
 
-**一句话结论**：这一版主要是「把被指出的问题一条条修掉」——检查更新不再放宽证书校验、只认 GitHub/Gitee 官方下载域名；国内用户默认走 Gitee 通道，不用再靠代理；打码时连 PDF 注释和书签标题里的隐私也一起清洗掉；跨年后身份证不会因为年份上限写死而漏打。工程上把 4000 行的单文件拆开了，并加了跨端一致性测试，防止 Windows 和安卓两套规则各走各的。
+**一句话结论**：这一版对着豆包 AI 在云端 Linux 沙箱里实测出的问题清单逐条核实——真实存在的全部修掉，判断有误的也写明理由。更新器不再放宽证书校验、只认官方下载域名；检查方式（自动/手动）和更新源（Gitee/GitHub）都能自己选，默认按环境走 Gitee；打码时连 PDF 注释和书签标题也一起清洗；跨年后身份证不会因为年份上限写死而漏打。工程上拆了 4000 行的单文件，并加了跨端一致性测试。
 
 ---
 
@@ -11,14 +11,20 @@
 - **删掉了放宽证书校验的兜底分支。** 旧版在直连失败时会用 `ssl.CERT_NONE` 再试一次，等于放弃证书验证——链路上只要有人做中间人，返回的 JSON 就能把「下载地址」换成任意站点。现在只有严格校验一条路，失败就如实报错（提示里会显示是哪个通道、什么原因）。
 - **新增下载域名白名单。** GitHub 的发布资产只认 `github.com` / `objects.githubusercontent.com` / `release-assets.githubusercontent.com` / `codeload.github.com`，Gitee 只认 `gitee.com`（含子域）。白名单外的地址一律不使用，只给发布页链接。安卓端同样加了一份白名单。
 
-## 2. 新增：Gitee 更新通道（国内直连）
+## 2. 新增：更新方式和更新源都能自己选（Windows + 安卓）
 
-| 环境 | 通道顺序 |
+设置里多了两个选项，两端界面一致：
+
+- **检查方式**：「自动检查（启动时）」/「手动检查」。选自动，每次启动在后台静默查一次，没网就跳过；选手动，只有点「检查更新」才联网，平时一个请求都不发。
+- **更新源**：「Gitee（建议中国大陆用户）」/「GitHub」。默认值按环境判断：
+
+| 环境 | 默认源 |
 | --- | --- |
-| 简体中文系统 + 中文界面 | 先 Gitee，失败再 GitHub |
-| 其它语言 | 先 GitHub，失败再 Gitee |
+| 简体中文系统 + 中文界面 | Gitee |
+| 明确是其他语言 | GitHub |
+| 语言取不到、判断失败 | Gitee（兜底） |
 
-判断依据是系统的界面语言（Windows 读 `GetUserDefaultUILanguage`，安卓读 `Locale`）加上软件内的语言设置，两个都是中文才走 Gitee 优先。两个通道都拿不到才报错，报错里会列出每个通道各自的失败原因。窗口标题里会标出这次结果来自哪个通道（Gitee / GitHub）。
+判断依据是系统界面语言（Windows 读 `GetUserDefaultUILanguage`，安卓读 `Locale`）加软件内语言设置。选中的源连不上时会自动换另一个再试，不会因为选错源就查不了更新；系统代理是坏配置（指向已失效的端口）时，每个通道还会再直连试一次——这一步只换连接方式，证书校验始终严格。窗口标题里会标出这次结果来自哪个通道。
 
 ## 3. 隐私：注释与书签也一起清洗（Windows）
 
@@ -36,6 +42,7 @@
 
 ## 5. 工程改动
 
+- **声明里补上 Gitee 镜像地址**：关于窗口、首页页脚、`--about` 输出、`NOTICE.md` 和附加条款里出现的 GitHub 地址，都并列了 `gitee.com/bio234/pdf-privacy-masker`。国内打不开 GitHub 时，使用者和二次开发者仍然能追溯到出处。
 - **拆分了单文件**：`pdfmask.py` 从 4077 行降到 2644 行。首页那一整页 HTML/CSS/JS 移到 `pdfmask_webui.py`，检查更新移到 `pdfmask_update.py`。打包仍是单文件 exe，行为不变。
 - **新增跨端一致性测试**：`test/rules_golden.json` 存的是 Python 端在同一份样张上的识别结果，安卓单元测试 `RuleParityTest` 用 PDFBox 读同一份 PDF、跑 Kotlin 的 `Detector`，逐条比对 `page/type/text`。任何一端改了规则没同步，测试立刻失败。
 - **测试产物不再污染工作区**：`selfcheck.py` 及其调用的生成脚本统一写到临时目录（可用 `PDFMASK_TEST_DIR` 指定），跑完 `git status` 是干净的。
@@ -55,21 +62,27 @@
 
 Update level: suggested
 
-**TL;DR** — this release is mostly "fix every issue that was reported". The updater no longer relaxes TLS verification and only accepts download links from the official GitHub/Gitee release hosts; users in mainland China now get the Gitee channel first, no proxy needed; redaction now also scrubs PDF annotations and bookmark titles; the hard-coded year cap that made ID numbers leak after New Year is gone. On the engineering side, the 4,000-line single file was split up and a cross-platform parity test was added so the Windows and Android rule sets can no longer drift apart.
+**TL;DR** — this release works through the list of issues Doubao AI reported after testing the app in a cloud Linux sandbox: every real issue is fixed, and the few that were not are explained below. The updater no longer relaxes TLS verification and only accepts download links from the official release hosts; both the checking mode (automatic / manual) and the update source (Gitee / GitHub) are now user-selectable, defaulting to Gitee by environment; redaction also scrubs PDF annotations and bookmark titles; the hard-coded year cap that leaked ID numbers after New Year is gone. On the engineering side, the 4,000-line single file was split up and a cross-platform parity test was added.
 
 ## 1. Security: the updater refuses untrusted download URLs
 
 - **Removed the `ssl.CERT_NONE` fallback.** The old code retried with certificate verification disabled, which is exactly what a man-in-the-middle needs to swap the "download URL" in the JSON response. Only strict verification is used now; on failure it reports the channel and the reason.
 - **Download host allowlist.** GitHub assets are only accepted from `github.com`, `objects.githubusercontent.com`, `release-assets.githubusercontent.com` and `codeload.github.com`; Gitee only from `gitee.com` (and subdomains). Anything else falls back to the release page. Same rule on Android.
 
-## 2. New: Gitee update channel
+## 2. New: pick how and where updates are checked (Windows + Android)
 
-| Environment | Channel order |
+Two new settings, identical on both platforms:
+
+- **Checking mode**: "Automatic (at launch)" / "Manual only". Automatic runs one silent check at startup and skips it when offline; manual sends nothing at all until you press "Check for updates".
+- **Update source**: "Gitee (recommended in mainland China)" / "GitHub". The default follows the environment:
+
+| Environment | Default source |
 | --- | --- |
-| Simplified Chinese system + Chinese UI | Gitee first, then GitHub |
-| Any other language | GitHub first, then Gitee |
+| Simplified Chinese system + Chinese UI | Gitee |
+| Clearly another language | GitHub |
+| Language unavailable / detection failed | Gitee (fallback) |
 
-The decision uses the system UI language (Windows: `GetUserDefaultUILanguage`; Android: `Locale`) combined with the in-app language setting — both must be Chinese to prefer Gitee. If both channels fail, the error lists the reason for each.
+The decision uses the system UI language (Windows: `GetUserDefaultUILanguage`; Android: `Locale`) plus the in-app language setting. If the chosen source cannot be reached, the other one is tried automatically, so picking the "wrong" source never blocks updates. When the system proxy is a stale broken config, each channel also gets one direct-connect retry — that only changes the route, certificate verification stays strict. The result card shows which channel answered.
 
 ## 3. Privacy: annotations and bookmarks are scrubbed too (Windows)
 
@@ -87,6 +100,7 @@ The plausibility check capped birth year at `2026` (one place in Python, one in 
 
 ## 5. Engineering
 
+- **Gitee mirror added to every attribution spot**: the About window, footer, `--about` output, `NOTICE.md` and the additional terms now list `gitee.com/bio234/pdf-privacy-masker` next to the GitHub URL, so users and downstream developers can still trace the origin when GitHub is unreachable.
 - **Single file split**: `pdfmask.py` went from 4,077 to 2,644 lines; the web UI moved to `pdfmask_webui.py`, the update logic to `pdfmask_update.py`. The packaged app is still a single exe.
 - **Cross-platform parity test**: `test/rules_golden.json` holds the Python results on a fixed sample; the Android `RuleParityTest` reads the same PDF with PDFBox, runs the Kotlin `Detector` and compares `page/type/text` item by item.
 - **Test output no longer pollutes the work tree**: `selfcheck.py` writes to a temp directory (`PDFMASK_TEST_DIR` to override).
