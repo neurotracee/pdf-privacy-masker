@@ -19,14 +19,14 @@ if errorlevel 1 (
   exit /b 1
 )
 
-echo [1/4] 检查依赖...
+echo [1/5] 检查依赖...
 python -m pip install -r requirements.txt --quiet
 python -m pip install pyinstaller --quiet
 
-echo [2/4] 同步项目地址到文档与 exe 属性...
+echo [2/5] 同步项目地址到文档与 exe 属性...
 python dev\sync_url.py
 
-echo [3/4] 开始打包...
+echo [3/5] 开始打包...
 python -m PyInstaller "pdfmask.spec" --noconfirm --clean
 if errorlevel 1 (
   echo.
@@ -36,7 +36,18 @@ if errorlevel 1 (
 )
 
 echo.
-echo [4/4] 完成。
+echo [4/5] 同步到本机日常使用的那一份...
+python dev\sync_local_copy.py --close
+if errorlevel 1 (
+  echo.
+  echo [提示] 本地副本没同步成功（不影响 dist 里的成品）。
+  echo         如果是因为程序正在运行，关掉后再单独执行：
+  echo         python dev\sync_local_copy.py
+  echo.
+)
+
+echo.
+echo [5/5] 完成。
 echo 生成的程序在：%~dp0dist\PDF隐私打码工具.exe
 echo.
 if exist "%~dp0dist\PDF隐私打码工具.exe" explorer "%~dp0dist"

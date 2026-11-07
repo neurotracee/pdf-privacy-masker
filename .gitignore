@@ -17,6 +17,9 @@ venv/
 .idea/
 *.swp
 
+# 本机路径配置（各人机器不同，不入仓库）
+dev/.local_copy_target
+
 # 本地测试输出（不进入仓库）
 _shots/
 dev/_ui/
