@@ -58,31 +58,50 @@ def token():
     return (os.environ.get("GITEE_TOKEN") or "").strip()
 
 
-def http_json(url, method="GET", data=None, tok=None):
+def http_json(url, method="GET", data=None, tok=None, retries=4):
+    """调 Gitee / GitHub 的 JSON 接口。
+
+    统一走系统 curl：Python 的 urllib 在本机偶尔会被中间层掐断
+    （报 "Remote end closed connection without response"），curl 重试即可。
+    """
+    if data is not None or tok:
+        sep = "&" if "?" in url else "?"
+        if tok:
+            url += sep + urllib.parse.urlencode({"access_token": tok})
+            sep = "&"
+    cmd = ["curl", "-s", "--noproxy", "*", "--max-time", "60",
+           "-X", method, "-H", "Content-Type: application/json; charset=utf-8",
+           "-H", "Accept: application/json", "-H", "User-Agent: sync-gitee",
+           "-w", "\n%{http_code}", url]
+    if "api.github.com" in url:
+        # 本机装了抓包/加速软件时 GitHub 走的是它签发的证书，curl 需要 -k；
+        # 这条通道只读公开数据，不涉及任何凭据。
+        cmd.insert(1, "-k")
     body = None
     if data is not None:
-        sep = "&" if "?" in url else "?"
-        url += sep + urllib.parse.urlencode({"access_token": tok})
         body = json.dumps(data, ensure_ascii=False).encode("utf-8")
-    elif tok:
-        sep = "&" if "?" in url else "?"
-        url += sep + urllib.parse.urlencode({"access_token": tok})
-    req = urllib.request.Request(url, data=body, method=method)
-    req.add_header("Content-Type", "application/json; charset=utf-8")
-    req.add_header("Accept", "application/json")
-    req.add_header("User-Agent", "sync-gitee")
-    try:
-        with urllib.request.urlopen(req, timeout=40) as r:
-            raw = r.read().decode("utf-8")
-            return r.status, (json.loads(raw) if raw.strip() else {})
-    except urllib.error.HTTPError as e:
-        raw = e.read().decode("utf-8", "replace")
-        try:
-            return e.code, json.loads(raw)
-        except Exception:
-            return e.code, {"raw": raw[:300]}
-    except Exception as e:
-        return 0, {"err": str(e)}
+    for i in range(retries):
+        args = cmd[:]
+        if body is not None:
+            args += ["--data-binary", "@-"]
+        r = subprocess.run(args, input=body, capture_output=True)
+        out = r.stdout.decode("utf-8", "replace") if r.stdout else ""
+        code = 0
+        if "\n" in out:
+            out, _, tail = out.rpartition("\n")
+            try:
+                code = int(tail.strip())
+            except Exception:
+                code = 0
+        if code:
+            try:
+                return code, (json.loads(out) if out.strip() else {})
+            except Exception:
+                return code, {"raw": out[:300]}
+        if i + 1 < retries:
+            import time as _t
+            _t.sleep(1.5 * (i + 1))
+    return 0, {"err": "curl 多次失败"}
 
 
 def ver_key(text):
@@ -95,11 +114,23 @@ def ver_key(text):
 
 
 def gh_releases():
+    """读 GitHub 的 Release 列表。
+
+    个别网络环境里 Python 的 urllib 过不去（例如本机装了抓包/加速软件、
+    系统信任它但 OpenSSL 不信任）。这时退回系统 curl，再不行才报错。
+    """
     code, data = http_json(GH_API + "/releases?per_page=30")
-    if code != 200:
-        print("读取 GitHub Release 失败：HTTP %s" % code)
+    if code == 200 and isinstance(data, list):
+        return [r for r in data if not r.get("draft")]
+    r = subprocess.run(["curl", "-sk", "--noproxy", "127.0.0.1", "--max-time", "40",
+                        GH_API + "/releases?per_page=30"],
+                       capture_output=True, text=True, encoding="utf-8", errors="replace")
+    try:
+        data = json.loads(r.stdout)
+    except Exception:
+        print("读取 GitHub Release 失败：HTTP %s / curl 也拿不到" % code)
         return []
-    return [r for r in data if not r.get("draft")]
+    return [x for x in data if not x.get("draft")]
 
 
 def local_asset(tag, name):
