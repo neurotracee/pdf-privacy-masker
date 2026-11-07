@@ -42,6 +42,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.neurotracee.pdfmask.AppPrefs
 import com.neurotracee.pdfmask.BuildConfig
 import com.neurotracee.pdfmask.Updater
 import com.neurotracee.pdfmask.tr
@@ -76,7 +77,11 @@ fun AutoUpdateGate() {
     var opened by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
-        val job = async(Dispatchers.IO) { Updater.check(BuildConfig.VERSION_NAME) }
+        // 用户选了「手动检查」就完全不联网
+        if (!AppPrefs.autoCheck) return@LaunchedEffect
+        val job = async(Dispatchers.IO) {
+            Updater.check(BuildConfig.VERSION_NAME, AppPrefs.updateSource)
+        }
 
         // 第一段：1.2 秒内就完成的，一律不打扰
         var r = withTimeoutOrNull(SLOW_HINT_MS) { job.await() }

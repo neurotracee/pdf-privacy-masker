@@ -141,6 +141,18 @@ class UpdaterTest {
     }
 
     @Test
+    fun explicit_source_wins_over_environment() {
+        // 用户自己选了源，就不该再按语言猜
+        assertTrue(Updater.resolve("gitee"))
+        assertFalse(Updater.resolve("github"))
+        assertTrue(Updater.resolve("GITEE"))
+        // 空值 / 未知值 → 走环境判断（不抛异常即可）
+        Updater.resolve("")
+        Updater.resolve(null)
+        Updater.resolve("nonsense")
+    }
+
+    @Test
     fun plain_suggestion_is_not_strong() {
         val json = """
         [{"tag_name":"v1.4.2","html_url":"https://github.com/x/1.4.2","body":"更新级别：建议",

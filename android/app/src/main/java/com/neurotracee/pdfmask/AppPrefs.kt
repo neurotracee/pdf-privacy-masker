@@ -7,7 +7,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 
 /**
- * 全局偏好：语言、主题模式、保存位置。
+ * 全局偏好：语言、主题模式、保存位置、更新检查方式与更新源。
  * 用 Compose 的 MutableState 承载，改动后界面立即重组，不需要重启。
  */
 object AppPrefs {
@@ -38,6 +38,14 @@ object AppPrefs {
     var askedSaveOnce by mutableStateOf(false)
         private set
 
+    /** 启动时自动检查更新；关掉就是纯手动 */
+    var autoCheck by mutableStateOf(true)
+        private set
+
+    /** 更新源：auto（跟随环境）/ gitee / github */
+    var updateSource by mutableStateOf("auto")
+        private set
+
     private var sp: SharedPreferences? = null
 
     fun init(ctx: Context) {
@@ -53,6 +61,9 @@ object AppPrefs {
         rememberDir = p.getBoolean("rememberDir", true)
         noAsk = p.getBoolean("noAsk", false)
         askedSaveOnce = p.getBoolean("askedSaveOnce", false)
+        autoCheck = p.getBoolean("autoCheck", true)
+        updateSource = p.getString("updateSource", "auto")
+            ?.takeIf { it == "gitee" || it == "github" || it == "auto" } ?: "auto"
     }
 
     fun updateLang(v: String) {
@@ -79,6 +90,24 @@ object AppPrefs {
         noAsk = v
         sp?.edit()?.putBoolean("noAsk", v)?.apply()
     }
+
+    fun updateAutoCheck(v: Boolean) {
+        autoCheck = v
+        sp?.edit()?.putBoolean("autoCheck", v)?.apply()
+    }
+
+    /** "auto" 表示跟随环境，界面高亮时用 [resolvedUpdateSource] */
+    fun updateUpdateSource(v: String) {
+        updateSource = if (v == "gitee" || v == "github") v else "auto"
+        sp?.edit()?.putString("updateSource", updateSource)?.apply()
+    }
+
+    /** 实际会走的源：显式选择优先；auto 时问环境，问不出来按 Gitee 兜底 */
+    val resolvedUpdateSource: String
+        get() = when (updateSource) {
+            "gitee", "github" -> updateSource
+            else -> if (Updater.preferGitee()) "gitee" else "github"
+        }
 
     fun markAsked() {
         askedSaveOnce = true

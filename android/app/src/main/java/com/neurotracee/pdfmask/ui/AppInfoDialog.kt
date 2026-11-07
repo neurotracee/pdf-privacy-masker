@@ -120,19 +120,22 @@ fun AboutPanel(
         InfoRow(T("开发", "Built by"), "腾讯 WorkBuddy × DeepSeek-V4.1-Flash")
         InfoRow(T("开源协议", "License"), "AGPL-3.0-or-later")
         InfoRow(T("原项目地址", "Upstream"), "github.com/neurotracee/pdf-privacy-masker")
+        // 国内访问 GitHub 常被拦，声明里再给一个 Gitee 镜像，方便追溯来源
+        InfoRow(T("镜像地址", "Mirror"), "gitee.com/bio234/pdf-privacy-masker")
 
         Spacer(Modifier.height(14.dp))
         Note(T("隐私", "Privacy"))
         Text(
             T(
-                "没有存储权限，也没有后台联网。唯一的网络权限只用在两处：启动时自动查一次更新、" +
-                    "以及你自己在设置里手动检查——都只是向 GitHub 读一个公开的版本号，" +
-                    "不传文件、不传任何个人信息。断网时直接跳过，不会卡住也不会提示。" +
+                "没有存储权限，也没有后台联网。唯一的网络权限只用在检查更新：默认启动时自动查一次，" +
+                    "也可以在设置里改成纯手动，那样只有你点「检查更新」才联网。联网时只向 Gitee（国内默认）" +
+                    "或 GitHub 读一个公开的版本号，不传文件、不传任何个人信息。断网时直接跳过，不会卡住也不会提示。" +
                     "选文件走系统文件选择器，只拿到你挑中的那一个文件的临时读取权；" +
                     "保存时由你当场决定写到哪里。识别和打码全程本地完成。",
-                "No storage permission, no background networking. The single network permission is used in two " +
-                    "places only — the update check at launch, and the manual check in Settings. Both just read one " +
-                    "public version number from GitHub: no files, no personal data. Offline, the check is skipped " +
+                "No storage permission, no background networking. The single network permission is used for the " +
+                    "update check only — once at launch by default, or only when you tap Check for updates if you " +
+                    "switch to manual in Settings. It just reads one public version number from Gitee (the default " +
+                    "in mainland China) or GitHub: no files, no personal data. Offline, the check is skipped " +
                     "silently. Files come through the system picker, so the app only gets " +
                     "temporary read access to the one file you chose, and you decide where output is written. " +
                     "Detection and masking always run on-device."

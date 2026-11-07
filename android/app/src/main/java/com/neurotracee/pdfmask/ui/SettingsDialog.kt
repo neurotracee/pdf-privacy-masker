@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -13,6 +14,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -27,6 +29,7 @@ import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Divider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -43,6 +46,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -221,7 +225,13 @@ fun SettingsPanel(
     }
 }
 
-/** 两三个选项的分段选择器 */
+/**
+ * 两三个选项的分段选择器。
+ *
+ * 选项文案长短不一时（例如「Gitee（建议中国大陆用户）」）会折成两行，
+ * 所以这里统一：按钮等高、文字居中、行高放宽——不会出现一项顶对齐、
+ * 一项底对齐的错位。
+ */
 @Composable
 private fun Segmented(options: List<Pair<String, String>>, selected: String, onSelect: (String) -> Unit) {
     Row(
@@ -230,26 +240,72 @@ private fun Segmented(options: List<Pair<String, String>>, selected: String, onS
             .clip(RoundedCornerShape(10.dp))
             .background(MaterialTheme.colorScheme.surfaceVariant)
             .padding(3.dp),
-        horizontalArrangement = Arrangement.spacedBy(3.dp)
+        horizontalArrangement = Arrangement.spacedBy(3.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
         options.forEach { (label, key) ->
             val on = key == selected
             Box(
                 Modifier
                     .weight(1f)
+                    .defaultMinSize(minHeight = 40.dp)
                     .clip(RoundedCornerShape(8.dp))
                     .background(if (on) MaterialTheme.colorScheme.surface else Color.Transparent)
                     .clickable { onSelect(key) }
-                    .padding(vertical = 9.dp),
+                    .padding(horizontal = 4.dp, vertical = 8.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
                     label,
-                    fontSize = 13.sp,
+                    fontSize = if (label.length > 10) 12.sp else 13.sp,
+                    lineHeight = 16.sp,
+                    textAlign = TextAlign.Center,
                     fontWeight = if (on) FontWeight.SemiBold else FontWeight.Normal,
                     color = if (on) MaterialTheme.colorScheme.onSurface
                     else MaterialTheme.colorScheme.onSurfaceVariant
                 )
+            }
+        }
+    }
+}
+
+/**
+ * 竖排单选。文案较长（「Gitee（建议中国大陆用户）」、英文更长）时，
+ * 一列放不下会折行，分段按钮又会被挤成两行不等高，所以单独用列表：
+ * 每项一行、整行可点，选中的那项带主色边框和圆点。
+ */
+@Composable
+private fun ChoiceList(options: List<Pair<String, String>>, selected: String, onSelect: (String) -> Unit) {
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        options.forEach { (label, key) ->
+            val on = key == selected
+            Surface(
+                onClick = { onSelect(key) },
+                shape = RoundedCornerShape(10.dp),
+                color = if (on) MaterialTheme.colorScheme.primary.copy(alpha = 0.10f)
+                else MaterialTheme.colorScheme.surfaceVariant,
+                border = if (on) BorderStroke(1.dp, MaterialTheme.colorScheme.primary) else null,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    Modifier.padding(horizontal = 12.dp, vertical = 11.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    RadioButton(
+                        selected = on,
+                        onClick = { onSelect(key) },
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(Modifier.width(10.dp))
+                    Text(
+                        label,
+                        fontSize = 12.5.sp,
+                        lineHeight = 17.sp,
+                        fontWeight = if (on) FontWeight.SemiBold else FontWeight.Normal,
+                        color = if (on) MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.onSurface
+                    )
+                }
             }
         }
     }
@@ -321,6 +377,54 @@ private fun UpdateSection() {
         ).show()
     }
 
+    // ---- 更新检查方式 ----
+    SectionLabel(T("更新检查方式", "Update checking"))
+    Spacer(Modifier.height(8.dp))
+    Segmented(
+        options = listOf(
+            T("自动检查（启动时）", "Automatic") to "auto",
+            T("手动检查", "Manual only") to "manual"
+        ),
+        selected = if (AppPrefs.autoCheck) "auto" else "manual",
+        onSelect = { AppPrefs.updateAutoCheck(it == "auto") }
+    )
+    Spacer(Modifier.height(6.dp))
+    Text(
+        T(
+            "自动：每次启动在后台静默查一次，没网就不响。手动：只有点下面的「检查更新」才联网。",
+            "Automatic: one silent check at every launch, skipped when offline. Manual: only the button below goes online."
+        ),
+        fontSize = 11.sp,
+        lineHeight = 16.sp,
+        color = MaterialTheme.colorScheme.onSurfaceVariant
+    )
+
+    Spacer(Modifier.height(14.dp))
+
+    // ---- 更新源 ----
+    SectionLabel(T("更新源", "Update source"))
+    Spacer(Modifier.height(8.dp))
+    ChoiceList(
+        options = listOf(
+            T("Gitee（建议中国大陆用户）", "Gitee (recommended in mainland China)") to "gitee",
+            T("GitHub（海外用户）", "GitHub (outside mainland China)") to "github"
+        ),
+        selected = AppPrefs.resolvedUpdateSource,
+        onSelect = { AppPrefs.updateUpdateSource(it) }
+    )
+    Spacer(Modifier.height(6.dp))
+    Text(
+        T(
+            "默认按系统语言自动选（简体中文 → Gitee）。选中的源连不上会自动换另一个再试。",
+            "Picked from your system language by default (Simplified Chinese → Gitee). If it is unreachable, the other one is tried."
+        ),
+        fontSize = 11.sp,
+        lineHeight = 16.sp,
+        color = MaterialTheme.colorScheme.onSurfaceVariant
+    )
+
+    Spacer(Modifier.height(18.dp))
+
     SectionLabel(T("版本与更新", "Version & updates"))
     Spacer(Modifier.height(8.dp))
     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -332,8 +436,8 @@ private fun UpdateSection() {
             )
             Text(
                 T(
-                    "启动时会自动查一次，这里可以手动再查",
-                    "Checked once at launch; tap to check again"
+                    "查到的更新来自下面的更新源",
+                    "Updates come from the source below"
                 ),
                 fontSize = 11.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -346,7 +450,9 @@ private fun UpdateSection() {
                 result = null
                 opened = null
                 scope.launch {
-                    val r = withContext(Dispatchers.IO) { Updater.check(current) }
+                    val r = withContext(Dispatchers.IO) {
+                        Updater.check(current, AppPrefs.updateSource)
+                    }
                     result = r
                     if (r.ok && r.hasUpdate) opened = openInBrowser(r.url)
                     busy = false
@@ -368,7 +474,7 @@ private fun UpdateSection() {
             CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp)
             Spacer(Modifier.width(8.dp))
             Text(
-                T("正在连接 GitHub…", "Contacting GitHub…"),
+                T("正在连接更新源…", "Contacting the update source…"),
                 fontSize = 11.5.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )

@@ -12,8 +12,10 @@ import java.net.URL
  * 用系统自带的 HttpURLConnection + org.json，不额外引依赖（走系统默认的
  * TLS 校验，任何版本都不放宽证书）。
  *
- * 通道顺序：简体中文的系统 + 简体中文的界面 → 先 Gitee（国内直连稳定），
- * 失败再 GitHub；其他语言 → 先 GitHub，失败再 Gitee。
+ * 通道顺序由设置里的「更新源」决定：用户选了 Gitee / GitHub 就先走那个，
+ * 留在「跟随系统」时看环境——简体中文的界面 + 简体中文的系统 → 先 Gitee
+ * （国内直连稳定），其他语言 → 先 GitHub。指定的通道连不上会自动换另一个
+ * 再试一次，两个都拿不到才报错。环境判断不出来时按中文用户兜底（Gitee）。
  *
  * 版本号优先从安装包文件名里取（PDFPrivacyMasker-1.4.0-arm64.apk），
  * 文件名没带版本号时退回 release 的 tag（v1.4.0）。
@@ -84,18 +86,40 @@ object Updater {
         return ALLOWED_HOSTS.any { host == it || host.endsWith(".$it") }
     }
 
-    /** 简体中文的系统 + 简体中文的界面 → 先走 Gitee */
-    fun preferGitee(): Boolean =
-        AppPrefs.lang == "zh" && java.util.Locale.getDefault().language == "zh"
+    /**
+     * 默认源是不是 Gitee。
+     *
+     * 界面明确是英文 → GitHub 优先（不把外网用户引到国内镜像）；
+     * 否则看系统语言：简体中文 → Gitee，明确是其他语言 → GitHub，
+     * 取不到（空串 / 异常）→ Gitee 兜底，宁可让海外用户多等一下，
+     * 也不让国内用户卡在连不上的 GitHub 上。
+     */
+    fun preferGitee(): Boolean {
+        if (AppPrefs.lang == "en") return false
+        val lang = try {
+            java.util.Locale.getDefault().language ?: ""
+        } catch (e: Exception) {
+            ""
+        }
+        if (lang.isBlank()) return true
+        return lang == "zh"
+    }
+
+    /** 设置里的更新源解析成「是否优先 Gitee」 */
+    fun resolve(source: String? = "auto"): Boolean = when ((source ?: "auto").lowercase()) {
+        "gitee" -> true
+        "github" -> false
+        else -> preferGitee()
+    }
 
     fun order(preferGitee: Boolean = preferGitee()): List<Channel> =
         if (preferGitee) listOf(GITEE, GITHUB) else listOf(GITHUB, GITEE)
 
-    fun check(current: String, preferGitee: Boolean = preferGitee()): Result {
+    fun check(current: String, source: String = "auto"): Result {
         val errors = ArrayList<String>()
         var noAsset: Channel? = null
 
-        for (ch in order(preferGitee)) {
+        for (ch in order(resolve(source))) {
             val text = try {
                 fetch(ch.api)
             } catch (e: Exception) {
