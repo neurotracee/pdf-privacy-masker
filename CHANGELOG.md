@@ -1,3 +1,107 @@
+# v1.4.3 版本说明（Windows + 安卓）
+
+更新级别：建议
+
+**一句话结论**：这一版主要是「把被指出的问题一条条修掉」——检查更新不再放宽证书校验、只认 GitHub/Gitee 官方下载域名；国内用户默认走 Gitee 通道，不用再靠代理；打码时连 PDF 注释和书签标题里的隐私也一起清洗掉；跨年后身份证不会因为年份上限写死而漏打。工程上把 4000 行的单文件拆开了，并加了跨端一致性测试，防止 Windows 和安卓两套规则各走各的。
+
+---
+
+## 1. 安全：更新器不再接受不可信的下载地址
+
+- **删掉了放宽证书校验的兜底分支。** 旧版在直连失败时会用 `ssl.CERT_NONE` 再试一次，等于放弃证书验证——链路上只要有人做中间人，返回的 JSON 就能把「下载地址」换成任意站点。现在只有严格校验一条路，失败就如实报错（提示里会显示是哪个通道、什么原因）。
+- **新增下载域名白名单。** GitHub 的发布资产只认 `github.com` / `objects.githubusercontent.com` / `release-assets.githubusercontent.com` / `codeload.github.com`，Gitee 只认 `gitee.com`（含子域）。白名单外的地址一律不使用，只给发布页链接。安卓端同样加了一份白名单。
+
+## 2. 新增：Gitee 更新通道（国内直连）
+
+| 环境 | 通道顺序 |
+| --- | --- |
+| 简体中文系统 + 中文界面 | 先 Gitee，失败再 GitHub |
+| 其它语言 | 先 GitHub，失败再 Gitee |
+
+判断依据是系统的界面语言（Windows 读 `GetUserDefaultUILanguage`，安卓读 `Locale`）加上软件内的语言设置，两个都是中文才走 Gitee 优先。两个通道都拿不到才报错，报错里会列出每个通道各自的失败原因。窗口标题里会标出这次结果来自哪个通道（Gitee / GitHub）。
+
+## 3. 隐私：注释与书签也一起清洗（Windows）
+
+正文打码用的是「抹除文本层 + 贴马赛克」，碰不到 PDF 的注释（批注、便签、高亮附言）和书签标题——这两类是独立对象，内容会原样留在成品里，和 README 里「文字层一并抹除」的说法确实矛盾。现在 `redact()` 末尾会再洗一遍：
+
+- **注释**：内容 / 标题 / 主题里出现手机号、身份证、银行卡、邮箱、座机，或本次正文已命中的姓名、地址 → 整条删除（改一半容易漏，尤其是回复串）。
+- **书签**：标题按同一套规则打码（`第一章 联系人 13812346780` → `第一章 联系人 138****6780`），层级和目标页保持不变，条数不变。
+- 干净的注释和书签不受影响。
+
+安卓端本来就是按页重绘成图片再组装新 PDF，注释和书签天然不会带过去，无需改动。
+
+## 4. 修复：跨年后身份证会漏打
+
+身份证合理性校验里把出生年份上限写死成了 `2026`（Python 和 Kotlin 各一处）。跨年之后，当年出生的号码会被判成「不合法」而漏打。现在改成跟随系统时钟取当前年份。
+
+## 5. 工程改动
+
+- **拆分了单文件**：`pdfmask.py` 从 4077 行降到 2644 行。首页那一整页 HTML/CSS/JS 移到 `pdfmask_webui.py`，检查更新移到 `pdfmask_update.py`。打包仍是单文件 exe，行为不变。
+- **新增跨端一致性测试**：`test/rules_golden.json` 存的是 Python 端在同一份样张上的识别结果，安卓单元测试 `RuleParityTest` 用 PDFBox 读同一份 PDF、跑 Kotlin 的 `Detector`，逐条比对 `page/type/text`。任何一端改了规则没同步，测试立刻失败。
+- **测试产物不再污染工作区**：`selfcheck.py` 及其调用的生成脚本统一写到临时目录（可用 `PDFMASK_TEST_DIR` 指定），跑完 `git status` 是干净的。
+- **Kotlin 正则提前编译**：`Detector` 里循环内反复 `Regex(...)` 的两处改为对象级常量。
+- **马赛克种子**：`hash((page, y))` 实测跨进程稳定（整数/浮点的 hash 不受 `PYTHONHASHSEED` 影响），没有改动；已加注释说明，避免以后被误判成随机种子。
+
+## 6. 下载
+
+- Windows：`PDFPrivacyMasker-1.4.3.exe`（免安装，双击即用）
+- 安卓：`PDFPrivacyMasker-1.4.3-arm64.apk`（arm64-v8a，Android 8.0+）
+
+安装包 SHA256 见 `SHA256SUMS.txt`。升级不用卸载旧版，直接覆盖安装即可。
+
+---
+
+# v1.4.3 Release Notes (Windows + Android)
+
+Update level: suggested
+
+**TL;DR** — this release is mostly "fix every issue that was reported". The updater no longer relaxes TLS verification and only accepts download links from the official GitHub/Gitee release hosts; users in mainland China now get the Gitee channel first, no proxy needed; redaction now also scrubs PDF annotations and bookmark titles; the hard-coded year cap that made ID numbers leak after New Year is gone. On the engineering side, the 4,000-line single file was split up and a cross-platform parity test was added so the Windows and Android rule sets can no longer drift apart.
+
+## 1. Security: the updater refuses untrusted download URLs
+
+- **Removed the `ssl.CERT_NONE` fallback.** The old code retried with certificate verification disabled, which is exactly what a man-in-the-middle needs to swap the "download URL" in the JSON response. Only strict verification is used now; on failure it reports the channel and the reason.
+- **Download host allowlist.** GitHub assets are only accepted from `github.com`, `objects.githubusercontent.com`, `release-assets.githubusercontent.com` and `codeload.github.com`; Gitee only from `gitee.com` (and subdomains). Anything else falls back to the release page. Same rule on Android.
+
+## 2. New: Gitee update channel
+
+| Environment | Channel order |
+| --- | --- |
+| Simplified Chinese system + Chinese UI | Gitee first, then GitHub |
+| Any other language | GitHub first, then Gitee |
+
+The decision uses the system UI language (Windows: `GetUserDefaultUILanguage`; Android: `Locale`) combined with the in-app language setting — both must be Chinese to prefer Gitee. If both channels fail, the error lists the reason for each.
+
+## 3. Privacy: annotations and bookmarks are scrubbed too (Windows)
+
+Redaction only covered page text; annotations (comments, sticky notes, highlight notes) and bookmark titles are separate objects and used to survive untouched, contradicting the README's "text layer erased as well". `redact()` now also:
+
+- **Deletes annotations** whose content / title / subject contains a phone number, ID number, bank card, email, landline, or a name/address already matched in the text.
+- **Masks bookmark titles** with the same rules (`Contact 13812346780` → `Contact 138****6780`), keeping level, target page and count unchanged.
+- Leaves clean annotations and bookmarks alone.
+
+Android renders each page to a bitmap and assembles a new PDF, so annotations and bookmarks never make it into the output — nothing to fix there.
+
+## 4. Fixed: ID numbers leaking after New Year
+
+The plausibility check capped birth year at `2026` (one place in Python, one in Kotlin), so IDs of people born in the new year were rejected and therefore not masked. It now follows the system clock.
+
+## 5. Engineering
+
+- **Single file split**: `pdfmask.py` went from 4,077 to 2,644 lines; the web UI moved to `pdfmask_webui.py`, the update logic to `pdfmask_update.py`. The packaged app is still a single exe.
+- **Cross-platform parity test**: `test/rules_golden.json` holds the Python results on a fixed sample; the Android `RuleParityTest` reads the same PDF with PDFBox, runs the Kotlin `Detector` and compares `page/type/text` item by item.
+- **Test output no longer pollutes the work tree**: `selfcheck.py` writes to a temp directory (`PDFMASK_TEST_DIR` to override).
+- **Kotlin regexes hoisted** out of loops in `Detector`.
+- **Mosaic seed**: `hash((page, y))` is in fact stable across processes (int/float hashing is not affected by `PYTHONHASHSEED`), so it was left as is with a comment.
+
+## 6. Downloads
+
+- Windows: `PDFPrivacyMasker-1.4.3.exe` (portable, no install)
+- Android: `PDFPrivacyMasker-1.4.3-arm64.apk` (arm64-v8a, Android 8.0+)
+
+SHA256 sums in `SHA256SUMS.txt`. You can install straight over the previous version.
+
+---
+
 # v1.4.2 版本说明（Windows + 安卓）
 
 > 最新一版在最上面。要发版就照这一节写 Release 正文，历史版本原样往下翻。

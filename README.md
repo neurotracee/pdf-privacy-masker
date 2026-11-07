@@ -98,7 +98,7 @@ You can also change this anytime in the Settings panel in the top-right corner �
 The same panel also has **Check for updates** and **Language (中文 / English)**:
 
 - **Automatic update check (new in v1.4.2)**: the app checks once at launch, compares versions, and if a newer build exists it opens your default browser straight at the download. Offline, the check is skipped silently — no dialog, no error, and the app stays fully usable. A window that hangs still has a close button; a release marked *strongly suggested* by the author only raises the tone (a stronger badge and one gentle nudge before you close it) — **it can always be dismissed. No release ever locks the window.**
-- **Check for updates** asks GitHub for the newest release and compares versions. If there is a newer build it opens your default browser straight at the download; if the network is blocked it shows the link, a copy button, and a short checklist (browser/security software, system proxy, firewall) — worst case you screenshot the window and use text recognition to get the link out by hand. The only thing it sends is a plain request for the public version number; no file, no personal data.
+- **Check for updates** asks Gitee and GitHub for the newest release and compares versions — on a Simplified Chinese system with the Chinese interface, Gitee is tried first (it is reachable from mainland China), then GitHub; other languages go the other way round. It also never relaxes TLS verification, and only accepts download links from the official GitHub/Gitee release hosts. If there is a newer build it opens your default browser straight at the download; if the network is blocked it shows the link, a copy button, and a short checklist (browser/security software, system proxy, firewall) — worst case you screenshot the window and use text recognition to get the link out by hand. The only thing it sends is a plain request for the public version number; no file, no personal data.
 - **Language** switches the whole interface between Chinese and English instantly, no restart. The choice is remembered in `settings.json`.
 
 ## What it can detect
@@ -362,7 +362,7 @@ https://github.com/neurotracee/pdf-privacy-masker
 同一个面板里还有**检查更新**和**界面语言（中文 / English）**：
 
 - **自动检查更新（v1.4.2 新增）**：打开程序就查一次，比当前版本新就直接用默认浏览器打开下载页。断网时静默跳过——不弹窗、不报错，照样能打码。万一卡住，窗口上有关闭按钮；作者在发布说明里标了**强烈建议更新**的版本提醒会更重，但同样能关掉（关之前会挽留一次）。**没有任何版本会锁住窗口。**
-- **检查更新**：去 GitHub 读最新发布的版本号，比当前版本新就自动用默认浏览器打开下载页；网络被拦时会把链接摆出来、给一个复制按钮，并列出该查哪几项权限（浏览器/安全软件、系统代理、防火墙），最后还能截屏用文字识别把链接抠出来。整个过程只发一个查版本号的请求，不传文件、不传个人信息。
+- **检查更新（v1.4.3 起双通道）**：简体中文系统 + 中文界面时先去 Gitee 读最新版本号（国内直连更稳），失败再走 GitHub；其它语言反过来。证书校验全程严格，下载地址只认 GitHub / Gitee 的官方发布域名，被篡改的版本号骗不到你的浏览器。比当前版本新就自动用默认浏览器打开下载页；网络被拦时会把链接摆出来、给一个复制按钮，并列出该查哪几项权限（浏览器/安全软件、系统代理、防火墙），最后还能截屏用文字识别把链接抠出来。整个过程只发一个查版本号的请求，不传文件、不传个人信息。
 - **界面语言**：中英文一键切换，立即生效不用重启，选择存在 `settings.json` 里，下次打开还是这个语言。
 
 ## 能识别什么
@@ -481,7 +481,7 @@ pyinstaller pdfmask.spec --noconfirm --clean
 - 唯一会写文件的地方：你指定的输出路径。
 - 程序会在 `%APPDATA%\PDF隐私打码工具\settings.json` 里存一个偏好文件，内容只有「默认保存路径」和两个开关，不含任何文档内容、不含任何个人信息。删掉它即恢复默认。
 - 安卓端只有 `INTERNET` 一个权限（仅检查更新时用），不做任何统计埋点，不上传文件。
-- 每次启动会自动向 GitHub 读一次公开的版本号（`/releases` 接口）。断网、超时、被拦截时静默跳过，不重试、不提示、不影响任何本地功能。
+- 每次启动会自动向 Gitee（简体中文环境优先）或 GitHub 读一次公开的版本号（`/releases` 接口）。断网、超时、被拦截时静默跳过，不重试、不提示、不影响任何本地功能。
 
 ## 许可
 
