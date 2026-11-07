@@ -1,0 +1,262 @@
+# -*- coding: utf-8 -*-
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 项目创作时为初中生
+#
+# This file is part of PDF 隐私打码工具 (PDF Privacy Masker) and is distributed
+# under the GNU Affero General Public License v3.0 or later. See LICENSE.
+
+"""检查更新：双通道（Gitee / GitHub）。
+
+安全约定（v1.4.3 起）
+----------------------
+1. **不再放宽证书校验。** 早期版本在直连失败时会用 ``ssl.CERT_NONE`` 再试一次，
+   那等于放弃证书验证：一旦链路上有人做中间人，返回的 JSON 就能把「下载地址」
+   换成任意站点。现在只有严格校验一条路，失败就如实报错。
+2. **下载地址必须落在白名单域名内。** 即使 API 返回被污染（镜像站、DNS 污染、
+   上游被接管），也不会把用户送到陌生域名去下载安装包。
+3. 全程只读公开的版本号，不上传任何本地内容。
+
+通道选择
+--------
+简体中文的界面 + 简体中文的系统 → 先 Gitee（国内直连稳定），失败再 GitHub；
+其他语言 → 先 GitHub，失败再 Gitee。两个通道都拿不到才报错。
+"""
+
+import json
+import os
+import re
+import ssl
+import urllib.parse
+import urllib.request
+
+GITHUB_REPO = "neurotracee/pdf-privacy-masker"
+GITEE_REPO = "bio234/pdf-privacy-masker"
+
+GITHUB_API = "https://api.github.com/repos/%s/releases?per_page=20" % GITHUB_REPO
+GITEE_API = "https://gitee.com/api/v5/repos/%s/releases?per_page=20" % GITEE_REPO
+GITHUB_PAGE = "https://github.com/%s/releases/latest" % GITHUB_REPO
+GITEE_PAGE = "https://gitee.com/%s/releases/latest" % GITEE_REPO
+
+UPDATE_TIMEOUT = 8       # 秒；单通道超时就换下一个通道，界面不会卡住
+
+# 允许的下载域名：GitHub 的发布资产走 objects./release-assets. 两个 CDN，
+# Gitee 的附件走 gitee.com 自身。其余域名一律不接受。
+ALLOWED_HOSTS = (
+    "github.com",
+    "objects.githubusercontent.com",
+    "release-assets.githubusercontent.com",
+    "codeload.github.com",
+    "gitee.com",
+)
+
+
+def allowed_download(url):
+    """下载地址是否可信：协议必须是 https，域名必须在白名单里（含其子域）。"""
+    try:
+        u = urllib.parse.urlparse(url or "")
+        host = (u.hostname or "").lower()
+    except Exception:
+        return False
+    if u.scheme not in ("https", ""):
+        return False
+    if not host:
+        return False
+    return any(host == h or host.endswith("." + h) for h in ALLOWED_HOSTS)
+
+
+# ---------------------------------------------------------------- 版本号工具
+
+def ver_tuple(text):
+    """把 v1.4.0 / 1.4 / 1.4.0-beta 之类统一成 (1,4,0)，取不出数字返回 None。"""
+    nums = re.findall(r"\d+", text or "")
+    if not nums:
+        return None
+    t = [int(x) for x in nums[:3]]
+    while len(t) < 3:
+        t.append(0)
+    return tuple(t)
+
+
+def asset_ver(name):
+    """从文件名里抠版本：PDFPrivacyMasker-1.4.0.exe → (1,4,0)。"""
+    m = re.search(r"(\d+\.\d+(?:\.\d+)?)", name or "")
+    return ver_tuple(m.group(1)) if m else None
+
+
+STRONG_RE = re.compile(
+    r"^[ \t]*(?:更新级别\s*[：:]\s*强烈建议|<!--\s*update\s*:\s*force\s*-->)",
+    re.I | re.M)
+
+
+def update_strong(body):
+    """发布正文里的更新级别：True 表示「强烈建议」更新。
+
+    只有两档，都只是建议，用户永远能关掉：
+      1. 正文里有一行「更新级别：强烈建议」（普通建议写「更新级别：建议」或不写）
+      2. 早期版本用过的隐藏注释 <!-- update:force -->，现在降级成「强烈建议」
+    正文里单独出现「强烈建议」几个字不算，避免说明文字被误判。
+    """
+    return bool(STRONG_RE.search(body or ""))
+
+
+# ---------------------------------------------------------------- 通道定义
+
+def _channels(prefer_gitee):
+    gitee = {"name": "gitee", "label": "Gitee", "api": GITEE_API, "page": GITEE_PAGE}
+    github = {"name": "github", "label": "GitHub", "api": GITHUB_API, "page": GITHUB_PAGE}
+    return [gitee, github] if prefer_gitee else [github, gitee]
+
+
+def system_is_chinese():
+    """系统界面语言是不是简体中文。Windows 上直接问系统，其余平台看环境变量。"""
+    if os.name == "nt":
+        try:
+            import ctypes
+            langid = ctypes.windll.kernel32.GetUserDefaultUILanguage()
+            # 0x0804 = zh-CN，0x0404 / 0x0C04 / 0x1404 = zh-TW / zh-HK / zh-MO
+            if (langid & 0x3FF) == 0x04:      # 主语言 ID 4 = 中文
+                return True
+            return False
+        except Exception:
+            pass
+    for key in ("LC_ALL", "LC_MESSAGES", "LANG", "LANGUAGE"):
+        v = os.environ.get(key) or ""
+        if v:
+            return v.lower().replace("-", "_").startswith("zh")
+    try:
+        import locale
+        code = (locale.getdefaultlocale() or ("", ""))[0] or ""
+        return code.lower().startswith("zh")
+    except Exception:
+        return False
+
+
+def prefer_gitee(ui_lang=None):
+    """简体中文的系统 + 简体中文的界面 → 先走 Gitee。
+
+    ui_lang 为 None 时只按系统语言判断；显式指定英文界面时仍然以 GitHub 优先，
+    避免外网用户被引到国内镜像。
+    """
+    if ui_lang and str(ui_lang).lower().startswith("en"):
+        return False
+    return system_is_chinese()
+
+
+# ---------------------------------------------------------------- 网络
+
+def _fetch(api, user_agent):
+    """只做严格证书校验的一次 GET；失败原样抛给上层，不再降级。"""
+    ctx = ssl.create_default_context()
+    req = urllib.request.Request(api, headers={
+        "User-Agent": user_agent,
+        "Accept": "application/vnd.github+json",
+    })
+    with urllib.request.urlopen(req, timeout=UPDATE_TIMEOUT, context=ctx) as r:
+        return json.loads(r.read().decode("utf-8", "replace"))
+
+
+def parse_releases(data, suffix, page_fallback):
+    """从 releases 里挑出本平台能用的最新版本。
+
+    优先用资产文件名里的版本（每个平台各自一个文件，最准）；
+    资产名里没有版本号时退回 tag_name（例如 v1.4.0）。
+    资产下载地址不在白名单里 → 退回发布页，绝不把用户送到陌生域名。
+    """
+    if isinstance(data, dict):
+        data = [data]
+    if not isinstance(data, list):
+        return None
+    best = None      # (ver, url, asset, strong)
+    tag_only = None  # (ver, page, tag, strong)
+    for rel in data:
+        if not isinstance(rel, dict) or rel.get("draft"):
+            continue
+        page = rel.get("html_url") or page_fallback
+        if not allowed_download(page):
+            page = page_fallback
+        tag = (rel.get("tag_name") or "").strip()
+        strong = update_strong(rel.get("body"))
+        tv = ver_tuple(tag)
+        if tv and (tag_only is None or tv > tag_only[0]):
+            tag_only = (tv, page, tag, strong)
+        for a in rel.get("assets") or []:
+            name = a.get("name") or ""
+            if not name.lower().endswith(suffix):
+                continue
+            v = asset_ver(name)
+            if not v:
+                continue
+            url = a.get("browser_download_url") or ""
+            if not allowed_download(url):
+                url = page          # 白名单外 → 只给发布页
+            if best is None or v > best[0]:
+                best = (v, url, name, strong)
+    if best:
+        return {"ver": best[0], "url": best[1], "asset": best[2], "source": "asset",
+                "strong": best[3]}
+    if tag_only:
+        return {"ver": tag_only[0], "url": tag_only[1], "asset": "", "source": "tag",
+                "strong": tag_only[3]}
+    return None
+
+
+# ---------------------------------------------------------------- 对外入口
+
+def check_update(current, suffix, t, ui_lang=None, order=None):
+    """返回给界面的字典。任何失败都转成 ok=False + 兜底链接，绝不让界面卡住。
+
+    current : 当前版本号（1.4.3）
+    suffix  : 本平台安装包后缀（.exe / .apk）
+    t       : 中英双语翻译函数 t(zh, en)
+    """
+    cur = ver_tuple(current) or (0, 0, 0)
+    chans = order or _channels(prefer_gitee(ui_lang))
+    errors = []
+    seen_no_asset = None
+    for ch in chans:
+        label = ch["label"]
+        try:
+            data = _fetch(ch["api"], "PDFPrivacyMasker/" + current)
+        except Exception as e:
+            errors.append("%s: %s: %s" % (label, e.__class__.__name__, str(e)[:100]))
+            continue
+        got = parse_releases(data, suffix, ch["page"])
+        if not got:
+            errors.append("%s: %s" % (label, t(
+                "仓库里还没有适用于本平台的安装包", "no build for this platform")))
+            seen_no_asset = ch
+            continue
+        latest = "%d.%d.%d" % got["ver"]
+        return {
+            "ok": True,
+            "current": current,
+            "latest": latest,
+            "hasUpdate": got["ver"] > cur,
+            "strong": bool(got.get("strong")),
+            "url": got["url"],
+            "asset": got["asset"],
+            "source": got["source"],
+            "channel": label,
+            "releasesUrl": ch["page"],
+        }
+    if seen_no_asset is not None:
+        return {
+            "ok": False,
+            "current": current,
+            "error": t("仓库里还没有适用于本平台的安装包，可以去发布页手动看看。",
+                       "No build for this platform in the releases yet — "
+                       "have a look at the releases page."),
+            "detail": " | ".join(errors),
+            "url": seen_no_asset["page"],
+            "releasesUrl": seen_no_asset["page"],
+        }
+    return {
+        "ok": False,
+        "current": current,
+        "error": t("连不上 Gitee 和 GitHub，可能是网络、代理或安全软件拦住了。",
+                   "Cannot reach Gitee or GitHub — network, proxy or security "
+                   "software may be blocking it."),
+        "detail": " | ".join(errors),
+        "url": GITHUB_PAGE,
+        "releasesUrl": GITHUB_PAGE,
+    }
