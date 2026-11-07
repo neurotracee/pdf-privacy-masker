@@ -35,25 +35,25 @@ class UpdaterTest {
     fun picks_newest_apk_and_flags_update() {
         val json = """
         [
-          {"tag_name":"v1.3.0","draft":false,"html_url":"https://x/1.3.0",
-           "assets":[{"name":"PDFPrivacyMasker-1.3.0-arm64.apk","browser_download_url":"https://x/a13.apk"}]},
-          {"tag_name":"v1.5.0","draft":false,"html_url":"https://x/1.5.0",
-           "assets":[{"name":"PDFPrivacyMasker-1.5.0-arm64.apk","browser_download_url":"https://x/a15.apk"},
-                     {"name":"PDFPrivacyMasker-1.5.0.exe","browser_download_url":"https://x/e15.exe"}]}
+          {"tag_name":"v1.3.0","draft":false,"html_url":"https://github.com/x/1.3.0",
+           "assets":[{"name":"PDFPrivacyMasker-1.3.0-arm64.apk","browser_download_url":"https://github.com/x/a13.apk"}]},
+          {"tag_name":"v1.5.0","draft":false,"html_url":"https://github.com/x/1.5.0",
+           "assets":[{"name":"PDFPrivacyMasker-1.5.0-arm64.apk","browser_download_url":"https://github.com/x/a15.apk"},
+                     {"name":"PDFPrivacyMasker-1.5.0.exe","browser_download_url":"https://github.com/x/e15.exe"}]}
         ]
         """.trimIndent()
         val r = parseReleasesForTest(json, "1.4.0")
         assertTrue(r.ok)
         assertEquals("1.5.0", r.latest)
         assertTrue(r.hasUpdate)
-        assertEquals("https://x/a15.apk", r.url)
+        assertEquals("https://github.com/x/a15.apk", r.url)
     }
 
     @Test
     fun no_newer_apk_means_up_to_date() {
         val json = """
-        [{"tag_name":"v1.4.0","html_url":"https://x/1.4.0",
-          "assets":[{"name":"PDFPrivacyMasker-1.4.0-arm64.apk","browser_download_url":"https://x/a14.apk"}]}]
+        [{"tag_name":"v1.4.0","html_url":"https://github.com/x/1.4.0",
+          "assets":[{"name":"PDFPrivacyMasker-1.4.0-arm64.apk","browser_download_url":"https://github.com/x/a14.apk"}]}]
         """.trimIndent()
         val r = parseReleasesForTest(json, "1.4.0")
         assertTrue(r.ok)
@@ -61,13 +61,18 @@ class UpdaterTest {
     }
 
     @Test
-    fun ignores_exe_when_looking_for_android_build() {
+    fun release_with_only_exe_falls_back_to_release_page() {
+        // 只有 exe 的版本在安卓上装不了：不认它的下载地址，
+        // 但 tag 兜底仍会告诉用户「有新版本」，链接给的是发布页而不是 .exe
         val json = """
-        [{"tag_name":"v9.9.9","html_url":"https://x/9",
-          "assets":[{"name":"PDFPrivacyMasker-9.9.9.exe","browser_download_url":"https://x/e.exe"}]}]
+        [{"tag_name":"v9.9.9","html_url":"https://github.com/x/9",
+          "assets":[{"name":"PDFPrivacyMasker-9.9.9.exe","browser_download_url":"https://github.com/x/e.exe"}]}]
         """.trimIndent()
         val r = parseReleasesForTest(json, "1.4.0")
-        assertFalse(r.ok)
+        assertTrue(r.ok)
+        assertEquals("9.9.9", r.latest)
+        // 链接是「这个版本的发布页」，而不是安卓装不了的 .exe
+        assertEquals("https://github.com/x/9", r.url)
     }
 
     @Test
@@ -92,10 +97,10 @@ class UpdaterTest {
     fun strong_flag_follows_the_newest_release() {
         val json = """
         [
-          {"tag_name":"v1.4.1","draft":false,"html_url":"https://x/1.4.1","body":"更新级别：建议",
-           "assets":[{"name":"PDFPrivacyMasker-1.4.1-arm64.apk","browser_download_url":"https://x/a141.apk"}]},
-          {"tag_name":"v1.4.2","draft":false,"html_url":"https://x/1.4.2","body":"更新级别：强烈建议",
-           "assets":[{"name":"PDFPrivacyMasker-1.4.2-arm64.apk","browser_download_url":"https://x/a142.apk"}]}
+          {"tag_name":"v1.4.1","draft":false,"html_url":"https://github.com/x/1.4.1","body":"更新级别：建议",
+           "assets":[{"name":"PDFPrivacyMasker-1.4.1-arm64.apk","browser_download_url":"https://github.com/x/a141.apk"}]},
+          {"tag_name":"v1.4.2","draft":false,"html_url":"https://github.com/x/1.4.2","body":"更新级别：强烈建议",
+           "assets":[{"name":"PDFPrivacyMasker-1.4.2-arm64.apk","browser_download_url":"https://github.com/x/a142.apk"}]}
         ]
         """.trimIndent()
         val r = parseReleasesForTest(json, "1.4.1")
@@ -105,10 +110,41 @@ class UpdaterTest {
     }
 
     @Test
+    fun download_url_outside_whitelist_falls_back_to_release_page() {
+        // 镜像站 / 被接管的 API 可能返回任意下载地址，白名单外的只给发布页
+        val json = """
+        [{"tag_name":"v1.9.0","html_url":"https://evil.example.com/1.9.0",
+          "assets":[{"name":"PDFPrivacyMasker-1.9.0-arm64.apk",
+                     "browser_download_url":"https://evil.example.com/a.apk"}]}]
+        """.trimIndent()
+        val r = parseReleasesForTest(json, "1.4.0")
+        assertTrue(r.ok)
+        assertEquals("1.9.0", r.latest)
+        assertEquals(Updater.RELEASES_PAGE, r.url)
+    }
+
+    @Test
+    fun whitelist_accepts_release_hosts_only() {
+        assertTrue(Updater.allowedDownload("https://github.com/a/b/releases/download/v1/x.apk"))
+        assertTrue(Updater.allowedDownload("https://objects.githubusercontent.com/x.apk"))
+        assertTrue(Updater.allowedDownload("https://gitee.com/bio234/pdf-privacy-masker/releases/download/v1/x.apk"))
+        assertFalse(Updater.allowedDownload("http://github.com/x.apk"))          // 必须 https
+        assertFalse(Updater.allowedDownload("https://evil-github.com/x.apk"))     // 后缀伪装
+        assertFalse(Updater.allowedDownload("https://github.com.evil.com/x.apk")) // 前缀伪装
+        assertFalse(Updater.allowedDownload(""))
+    }
+
+    @Test
+    fun channel_order_is_gitee_first_for_chinese() {
+        assertEquals("gitee", Updater.order(true).first().name)
+        assertEquals("github", Updater.order(false).first().name)
+    }
+
+    @Test
     fun plain_suggestion_is_not_strong() {
         val json = """
-        [{"tag_name":"v1.4.2","html_url":"https://x/1.4.2","body":"更新级别：建议",
-          "assets":[{"name":"PDFPrivacyMasker-1.4.2-arm64.apk","browser_download_url":"https://x/a142.apk"}]}]
+        [{"tag_name":"v1.4.2","html_url":"https://github.com/x/1.4.2","body":"更新级别：建议",
+          "assets":[{"name":"PDFPrivacyMasker-1.4.2-arm64.apk","browser_download_url":"https://github.com/x/a142.apk"}]}]
         """.trimIndent()
         val r = parseReleasesForTest(json, "1.4.1")
         assertTrue(r.hasUpdate)

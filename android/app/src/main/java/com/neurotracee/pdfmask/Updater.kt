@@ -6,9 +6,15 @@ import java.net.HttpURLConnection
 import java.net.URL
 
 /**
- * 检查更新：只向 GitHub 读一次公开的发布列表，不发送任何本地内容。
+ * 检查更新：Gitee / GitHub 双通道。
  *
- * 用系统自带的 HttpURLConnection + org.json，不额外引依赖。
+ * 只向发布页读一次公开的发布列表，不发送任何本地内容。
+ * 用系统自带的 HttpURLConnection + org.json，不额外引依赖（走系统默认的
+ * TLS 校验，任何版本都不放宽证书）。
+ *
+ * 通道顺序：简体中文的系统 + 简体中文的界面 → 先 Gitee（国内直连稳定），
+ * 失败再 GitHub；其他语言 → 先 GitHub，失败再 Gitee。
+ *
  * 版本号优先从安装包文件名里取（PDFPrivacyMasker-1.4.0-arm64.apk），
  * 文件名没带版本号时退回 release 的 tag（v1.4.0）。
  *
@@ -19,14 +25,39 @@ import java.net.URL
  */
 object Updater {
 
-    private const val REPO = "neurotracee/pdf-privacy-masker"
-    private const val API = "https://api.github.com/repos/$REPO/releases?per_page=20"
+    const val GITHUB_REPO = "neurotracee/pdf-privacy-masker"
+    const val GITEE_REPO = "bio234/pdf-privacy-masker"
 
     /** 网络不通时唯一还能用的地址：发布页 */
-    const val RELEASES_PAGE = "https://github.com/$REPO/releases/latest"
+    const val RELEASES_PAGE = "https://github.com/$GITHUB_REPO/releases/latest"
+    const val GITEE_PAGE = "https://gitee.com/$GITEE_REPO/releases/latest"
 
     /** 本平台安装包的后缀 */
     private const val ASSET_SUFFIX = ".apk"
+
+    /**
+     * 允许的下载域名：GitHub 的发布资产走 objects./release-assets. 两个 CDN，
+     * Gitee 的附件走 gitee.com 自身。白名单外的一律只给发布页。
+     */
+    val ALLOWED_HOSTS = listOf(
+        "github.com",
+        "objects.githubusercontent.com",
+        "release-assets.githubusercontent.com",
+        "codeload.github.com",
+        "gitee.com"
+    )
+
+    /** 一个更新通道 */
+    data class Channel(val name: String, val label: String, val api: String, val page: String)
+
+    val GITHUB = Channel(
+        "github", "GitHub",
+        "https://api.github.com/repos/$GITHUB_REPO/releases?per_page=20", RELEASES_PAGE
+    )
+    val GITEE = Channel(
+        "gitee", "Gitee",
+        "https://gitee.com/api/v5/repos/$GITEE_REPO/releases?per_page=20", GITEE_PAGE
+    )
 
     data class Result(
         val ok: Boolean,
@@ -36,29 +67,82 @@ object Updater {
         val url: String = RELEASES_PAGE,
         val detail: String = "",
         /** 强烈建议：发布正文里标了「更新级别：强烈建议」。仍然可以关掉，只是关的时候多劝一句 */
-        val strong: Boolean = false
+        val strong: Boolean = false,
+        /** 这次结果来自哪个通道：Gitee / GitHub */
+        val channel: String = ""
     )
 
-    fun check(current: String): Result {
-        val cur = ver(current) ?: intArrayOf(0, 0, 0)
-        val text = try {
-            fetch()
+    /** 下载地址是否可信：必须 https，域名在白名单内（含其子域） */
+    fun allowedDownload(url: String?): Boolean {
+        if (url.isNullOrBlank()) return false
+        val host = try {
+            URL(url).host?.lowercase() ?: return false
         } catch (e: Exception) {
+            return false
+        }
+        if (!url.startsWith("https://", ignoreCase = true)) return false
+        return ALLOWED_HOSTS.any { host == it || host.endsWith(".$it") }
+    }
+
+    /** 简体中文的系统 + 简体中文的界面 → 先走 Gitee */
+    fun preferGitee(): Boolean =
+        AppPrefs.lang == "zh" && java.util.Locale.getDefault().language == "zh"
+
+    fun order(preferGitee: Boolean = preferGitee()): List<Channel> =
+        if (preferGitee) listOf(GITEE, GITHUB) else listOf(GITHUB, GITEE)
+
+    fun check(current: String, preferGitee: Boolean = preferGitee()): Result {
+        val errors = ArrayList<String>()
+        var noAsset: Channel? = null
+
+        for (ch in order(preferGitee)) {
+            val text = try {
+                fetch(ch.api)
+            } catch (e: Exception) {
+                errors.add(
+                    ch.label + ": " + (e.message ?: e.javaClass.simpleName)
+                )
+                continue
+            }
+            val got = try {
+                parse(text, current, ch.page)
+            } catch (e: Exception) {
+                errors.add(ch.label + ": JSON " + (e.message ?: "parse error"))
+                continue
+            }
+            if (got == null) {
+                errors.add(ch.label + ": " + tr("没有适用于安卓的安装包", "no Android build"))
+                noAsset = ch
+                continue
+            }
+            return got.copy(channel = ch.label)
+        }
+
+        val detail = errors.joinToString(" | ")
+        if (noAsset != null) {
             return Result(
                 ok = false,
                 current = current,
-                detail = tr("连不上 GitHub，可能是网络、代理或安全软件拦住了。",
-                    "Cannot reach GitHub — network, proxy or security software may be blocking it.") +
-                    "\n" + (e.message ?: e.javaClass.simpleName)
+                url = noAsset.page,
+                detail = detail
             )
         }
+        return Result(
+            ok = false,
+            current = current,
+            detail = tr("连不上 Gitee 和 GitHub，可能是网络、代理或安全软件拦住了。",
+                "Cannot reach Gitee or GitHub — network, proxy or security software may be blocking it.") +
+                (if (detail.isBlank()) "" else "\n$detail")
+        )
+    }
 
-        val arr = try {
-            JSONArray(text)
-        } catch (e: Exception) {
-            return Result(false, current, detail = "JSON: " + (e.message ?: "parse error"))
-        }
-
+    /**
+     * 解析一段 releases JSON。返回 null 表示「没有本平台的安装包」。
+     * pageFallback 是该通道的发布页，资产地址不在白名单时用它兜底。
+     */
+    fun parse(text: String, current: String, pageFallback: String): Result? {
+        val cur = ver(current) ?: intArrayOf(0, 0, 0)
+        val arr = JSONArray(text)
         var bestVer: IntArray? = null
         var bestUrl = ""
         var bestStrong = false
@@ -69,7 +153,8 @@ object Updater {
         for (i in 0 until arr.length()) {
             val rel = arr.optJSONObject(i) ?: continue
             if (rel.optBoolean("draft")) continue
-            val page = rel.optString("html_url").ifBlank { RELEASES_PAGE }
+            val page = rel.optString("html_url").ifBlank { pageFallback }
+                .let { if (allowedDownload(it)) it else pageFallback }
             val strong = isStrongUpdate(rel.optString("body"))
 
             ver(rel.optString("tag_name"))?.let { v ->
@@ -87,10 +172,13 @@ object Updater {
                 val name = a.optString("name")
                 if (!name.lowercase().endsWith(ASSET_SUFFIX)) continue
                 val v = ver(name) ?: continue
+                val raw = a.optString("browser_download_url")
+                // 白名单外 → 只给发布页，绝不把用户送到陌生域名
+                val url = if (allowedDownload(raw)) raw else page
                 val old = bestVer
                 if (old == null || cmp(v, old) > 0) {
                     bestVer = v
-                    bestUrl = a.optString("browser_download_url").ifBlank { page }
+                    bestUrl = url
                     bestStrong = strong
                 }
             }
@@ -102,12 +190,7 @@ object Updater {
         tagVer?.let { v ->
             return Result(true, current, fmt(v), cmp(v, cur) > 0, tagUrl, strong = tagStrong)
         }
-        return Result(
-            ok = false,
-            current = current,
-            detail = tr("仓库里还没有适用于安卓的安装包，可以去发布页手动看看。",
-                "No Android build in the releases yet — have a look at the releases page.")
-        )
+        return null
     }
 
     /**
@@ -125,13 +208,15 @@ object Updater {
 
     /** 取第一段 x.y.z；取不到返回 null */
     fun ver(text: String): IntArray? {
-        val m = Regex("(\\d+)\\.(\\d+)(?:\\.(\\d+))?").find(text) ?: return null
+        val m = VER_RE.find(text) ?: return null
         return intArrayOf(
             m.groupValues[1].toIntOrNull() ?: 0,
             m.groupValues[2].toIntOrNull() ?: 0,
             m.groupValues[3].toIntOrNull() ?: 0
         )
     }
+
+    private val VER_RE = Regex("(\\d+)\\.(\\d+)(?:\\.(\\d+))?")
 
     fun cmp(a: IntArray, b: IntArray): Int {
         for (i in 0 until 3) {
@@ -144,8 +229,8 @@ object Updater {
 
     fun fmt(v: IntArray): String = "${v[0]}.${v[1]}.${v[2]}"
 
-    private fun fetch(): String {
-        val conn = URL(API).openConnection() as HttpURLConnection
+    private fun fetch(api: String): String {
+        val conn = URL(api).openConnection() as HttpURLConnection
         conn.connectTimeout = 8000
         conn.readTimeout = 8000
         conn.requestMethod = "GET"
@@ -161,33 +246,8 @@ object Updater {
     }
 }
 
-/** 给测试用的假数据入口：解析一段 JSON 文本，不发网络请求 */
+/** 给测试用的假数据入口：解析一段 JSON 文本，不发网络请求（按 GitHub 通道兜底） */
 internal fun parseReleasesForTest(text: String, current: String): Updater.Result {
-    val arr = JSONArray(text)
-    var bestVer: IntArray? = null
-    var bestUrl = ""
-    var bestStrong = false
-    for (i in 0 until arr.length()) {
-        val rel: JSONObject = arr.optJSONObject(i) ?: continue
-        val assets = rel.optJSONArray("assets") ?: continue
-        val strong = Updater.isStrongUpdate(rel.optString("body"))
-        for (j in 0 until assets.length()) {
-            val a = assets.optJSONObject(j) ?: continue
-            val name = a.optString("name")
-            if (!name.lowercase().endsWith(".apk")) continue
-            val v = Updater.ver(name) ?: continue
-            val old = bestVer
-            if (old == null || Updater.cmp(v, old) > 0) {
-                bestVer = v
-                bestUrl = a.optString("browser_download_url")
-                bestStrong = strong
-            }
-        }
-    }
-    val cur = Updater.ver(current) ?: intArrayOf(0, 0, 0)
-    bestVer?.let {
-        return Updater.Result(true, current, Updater.fmt(it), Updater.cmp(it, cur) > 0, bestUrl,
-            strong = bestStrong)
-    }
-    return Updater.Result(false, current, detail = "no apk")
+    return Updater.parse(text, current, Updater.RELEASES_PAGE)
+        ?: Updater.Result(false, current, detail = "no apk")
 }

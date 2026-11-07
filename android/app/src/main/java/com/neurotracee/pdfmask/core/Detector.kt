@@ -18,6 +18,12 @@ object Detector {
     private val RE_DIGIT_RUN = Regex("""[0-9]{11,}""")
     private val RE_BIRTH_ACROSS = Regex("""($DATE_BODY)\s*出?$""")
 
+    /** 长数字串里切出来的手机号（循环里反复用，提前编译） */
+    private val RE_PHONE_STRICT = Regex("""1[3-9][0-9]{9}""")
+
+    /** 座机字段值的样子：数字、连字符、空格、括号 */
+    private val RE_TEL_VALUE = Regex("""[0-9\-\s\(\)]{7,20}""")
+
     private val ADDR_TRIM_PREFIX = listOf(
         "现居住于", "现居住在", "现居于", "现居住", "居住于", "居住地", "住所在",
         "家住", "住在", "居所", "位于", "地址为", "为", "在"
@@ -26,6 +32,9 @@ object Detector {
     private val NAME_TAIL_SIMPLE = "省市区县镇乡村街道路号楼层室栋幢园湖山河桥站厂店铺堂馆院校系部处科室"
 
     fun isHan(c: Char) = c in HAN_START..HAN_END
+
+    /** 身份证上的出生年份上限 = 今年（跟系统时钟走，跨年不会漏打） */
+    fun maxYear(): Int = java.util.Calendar.getInstance().get(java.util.Calendar.YEAR)
 
     // ---------------------------------------------------------------- 校验
 
@@ -50,7 +59,7 @@ object Detector {
         val y = s.substring(6, 10).toIntOrNull() ?: return false
         val mo = s.substring(10, 12).toIntOrNull() ?: return false
         val d = s.substring(12, 14).toIntOrNull() ?: return false
-        return y in 1900..2026 && mo in 1..12 && d in 1..31
+        return y in 1900..maxYear() && mo in 1..12 && d in 1..31
     }
 
     fun luhnOk(s: String): Boolean {
@@ -262,7 +271,7 @@ object Detector {
             for (i in 0..(run.length - 11)) {
                 if (i < 0) break
                 val seg = run.substring(i, i + 11)
-                if (free(i, 11) && Regex("""1[3-9][0-9]{9}""").matches(seg)) take(i, 11, Kind.PHONE, "长串拆分")
+                if (free(i, 11) && RE_PHONE_STRICT.matches(seg)) take(i, 11, Kind.PHONE, "长串拆分")
             }
             if (run.length >= 22) {
                 for (i in 0..(run.length - 18)) {
@@ -304,7 +313,7 @@ object Detector {
         for (m in T.RE_TEL_LABEL.findAll(text)) {
             val g = m.groups[1] ?: continue
             val v = g.value.trim()
-            if (v.matches(Regex("""[0-9\-\s\(\)]{7,20}""")) && v.count { it == '-' } <= 2) {
+            if (v.matches(RE_TEL_VALUE) && v.count { it == '-' } <= 2) {
                 add(Kind.TEL, g.range.first, g.range.first + g.value.length, v)
             }
         }
