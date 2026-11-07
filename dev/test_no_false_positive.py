@@ -82,7 +82,8 @@ def main():
                 y = 60
             page.insert_text((50, y), ln, fontname="china-s", fontsize=11)
             y += 20
-    out = os.path.join(HERE, "..", "test", "纯净文档_无隐私.pdf")
+    from _testpaths import out as _out_path
+    out = _out_path("纯净文档_无隐私.pdf")
     doc.save(out)
     doc.close()
 

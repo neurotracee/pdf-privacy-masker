@@ -35,3 +35,15 @@ local.properties
 *.keystore
 keystore.properties
 signing.properties
+
+# ---- 自检 / 测试产物（dev/selfcheck.py 默认写到临时目录，这里再兜一层）----
+test/*_打码后.pdf
+test/after_p*.png
+test/zoom_*.png
+test/rot90*.pdf
+test/_fp.pdf
+test/误报_*.pdf
+test/blind/
+test/h25/
+test/h30/
+test/*_已打码.pdf

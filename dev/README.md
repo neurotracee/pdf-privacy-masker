@@ -39,8 +39,27 @@ python dev/test_hard3.py 2026 7 88231 5150
 | `make_ui_preview.py` | 把界面 HTML 注入假数据生成预览页，用来截图检查弹窗与勾选框 |
 | `sync_url.py` | 改仓库地址后跑一次：把 `pdfmask.py` 里的 `PROJECT_URL` 同步进所有文档与 `version_info.txt` |
 | `make_icon.py` | 生成程序图标 `app.ico` |
+| `_testpaths.py` | 路径约定：`test/` 里只放固定样本，跑测试的产物一律写临时目录 |
+| `gen_rules_golden.py` | 生成跨端一致性基准 `test/rules_golden.json`（Python 端的识别结果） |
+| `test_scrub_notes.py` | 注释与书签清洗回归：涉敏批注被删、书签标题被打码、干净的不受影响 |
 
-生成的 PDF 与截图都写到 `test/` 目录，`.gitignore` 里已排除，不会进入仓库。
+**产物不会进仓库**：`test/` 里只放应当进仓库的固定样本（生成脚本产出的「刁难文档」系列也在这里）。
+跑测试产生的 pdf / png 一律写到系统临时目录，跑完 `git status` 是干净的。
+想指定输出位置就设环境变量 `PDFMASK_TEST_DIR`。
+
+## 跨端一致性
+
+Windows 端（Python）和安卓端（Kotlin）是两套手写的识别逻辑，规则容易各走各的。
+`test/rules_golden.json` 存着 Python 端在 `test/测试文档_含隐私.pdf` 上的识别结果，
+安卓单元测试 `RuleParityTest` 用 PDFBox 读同一份 PDF、跑 Kotlin 的 `Detector`，
+逐条比对 `page / type / text`。
+
+改了识别规则之后：
+
+```bash
+python dev/gen_rules_golden.py            # 重新生成 Python 基准
+cd android && ./gradlew :app:testDebugUnitTest --tests "*RuleParityTest*"   # 看安卓端是否跟上
+```
 
 ## 测试文档里的人物都是虚构的
 

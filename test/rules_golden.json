@@ -1,0 +1,192 @@
+{
+ "source": "test/测试文档_含隐私.pdf",
+ "note": "由 dev/gen_rules_golden.py 生成，请勿手改；改规则后重新生成并与安卓端对齐",
+ "count": 37,
+ "findings": [
+  {
+   "page": 0,
+   "type": "address",
+   "text": "上海市徐汇区漕溪北路398号汇智大厦B座901室"
+  },
+  {
+   "page": 0,
+   "type": "address",
+   "text": "江苏省苏州市姑苏区干将东路88号平江华府3幢1502室"
+  },
+  {
+   "page": 0,
+   "type": "age",
+   "text": "34"
+  },
+  {
+   "page": 0,
+   "type": "age",
+   "text": "37"
+  },
+  {
+   "page": 0,
+   "type": "bankcard",
+   "text": "6222021001123456789"
+  },
+  {
+   "page": 0,
+   "type": "birth",
+   "text": "1988年11月23日"
+  },
+  {
+   "page": 0,
+   "type": "birth",
+   "text": "1992年07月18日"
+  },
+  {
+   "page": 0,
+   "type": "email",
+   "text": "chenjiahao1992@163.com"
+  },
+  {
+   "page": 0,
+   "type": "email",
+   "text": "lin.xiaowen88@qq.com"
+  },
+  {
+   "page": 0,
+   "type": "gender",
+   "text": "男"
+  },
+  {
+   "page": 0,
+   "type": "idcard",
+   "text": "31010419881123002X"
+  },
+  {
+   "page": 0,
+   "type": "idcard",
+   "text": "320582199207180019"
+  },
+  {
+   "page": 0,
+   "type": "name",
+   "text": "林晓雯"
+  },
+  {
+   "page": 0,
+   "type": "name",
+   "text": "陈嘉豪"
+  },
+  {
+   "page": 0,
+   "type": "name",
+   "text": "陈嘉豪"
+  },
+  {
+   "page": 0,
+   "type": "phone",
+   "text": "13812346780"
+  },
+  {
+   "page": 0,
+   "type": "phone",
+   "text": "15900871234"
+  },
+  {
+   "page": 0,
+   "type": "tel",
+   "text": "010-88997766"
+  },
+  {
+   "page": 0,
+   "type": "tel",
+   "text": "0512-67891234"
+  },
+  {
+   "page": 1,
+   "type": "address",
+   "text": "上海市徐汇区漕溪北路398号汇智大厦B座901室"
+  },
+  {
+   "page": 1,
+   "type": "address",
+   "text": "江苏省苏州市姑苏区干将东路88号平江华府3幢1502室"
+  },
+  {
+   "page": 1,
+   "type": "bankcard",
+   "text": "6217001234567890122"
+  },
+  {
+   "page": 1,
+   "type": "bankcard",
+   "text": "6222021001123456789"
+  },
+  {
+   "page": 1,
+   "type": "birth",
+   "text": "1992年07月18日"
+  },
+  {
+   "page": 1,
+   "type": "email",
+   "text": "chenjiahao1992@163.com"
+  },
+  {
+   "page": 1,
+   "type": "email",
+   "text": "lin.xiaowen88@qq.com"
+  },
+  {
+   "page": 1,
+   "type": "idcard",
+   "text": "320582199207180019"
+  },
+  {
+   "page": 1,
+   "type": "name",
+   "text": "林晓雯"
+  },
+  {
+   "page": 1,
+   "type": "name",
+   "text": "林晓雯"
+  },
+  {
+   "page": 1,
+   "type": "name",
+   "text": "林晓雯"
+  },
+  {
+   "page": 1,
+   "type": "name",
+   "text": "陈嘉豪"
+  },
+  {
+   "page": 1,
+   "type": "name",
+   "text": "陈嘉豪"
+  },
+  {
+   "page": 1,
+   "type": "name",
+   "text": "陈嘉豪"
+  },
+  {
+   "page": 1,
+   "type": "phone",
+   "text": "13812346780"
+  },
+  {
+   "page": 1,
+   "type": "phone",
+   "text": "15900871234"
+  },
+  {
+   "page": 1,
+   "type": "phone",
+   "text": "15900871234"
+  },
+  {
+   "page": 1,
+   "type": "tel",
+   "text": "0512-67891234"
+  }
+ ]
+}

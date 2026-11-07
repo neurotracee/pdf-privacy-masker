@@ -4,16 +4,25 @@ import hashlib
 import os
 import subprocess
 import sys
+import tempfile
 
 import pymupdf
 from PIL import Image
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, ".."))
+sys.path.insert(0, HERE)
 import pdfmask  # noqa: E402
+from _testpaths import IN_DIR, out  # noqa: E402
 
-SRC = os.path.join(HERE, "..", "test", "测试文档_含隐私.pdf")
-OUT = os.path.join(HERE, "..", "test", "测试文档_打码后.pdf")
+# 输入样本只读自 test/；本次产生的 pdf / png 全部写到临时目录，
+# 跑完不会在 git 工作区里留下任何垃圾文件。
+OUT_DIR = os.environ.get("PDFMASK_TEST_DIR") or tempfile.mkdtemp(prefix="pdfmask-selfcheck-")
+os.makedirs(OUT_DIR, exist_ok=True)
+ENV = dict(os.environ, PDFMASK_TEST_DIR=OUT_DIR)
+
+SRC = os.path.join(IN_DIR, "测试文档_含隐私.pdf")
+OUT = out("测试文档_打码后.pdf")
 
 PII = {
     "姓名": ["陈嘉豪", "林晓雯"],
@@ -195,8 +204,8 @@ def main():
 
     # --- 7. 旋转页（扫描件常见 /Rotate 90） ---
     print("\n[7] 旋转页回归")
-    rot_src = os.path.join(HERE, "..", "test", "rot90.pdf")
-    rot_out = os.path.join(HERE, "..", "test", "rot90_out.pdf")
+    rot_src = out("rot90.pdf")
+    rot_out = out("rot90_out.pdf")
     dd = pymupdf.open()
     pp = dd.new_page(width=595, height=842)
     idr = "110105199003072316"
@@ -224,9 +233,9 @@ def main():
 
     # --- 8. 无标签场景（检验是否只靠关键字） ---
     print("\n[8] 无标签 / 变体写法场景")
-    hard = os.path.join(HERE, "..", "test", "刁难文档_无标签.pdf")
+    hard = out("刁难文档_无标签.pdf")
     subprocess.run([sys.executable, os.path.join(HERE, "make_hard_pdf.py")],
-                   check=True, capture_output=True)
+                   check=True, capture_output=True, env=ENV)
     hdoc, hfs = pdfmask.detect_document(hard)
     htext = "".join(p.get_text() for p in hdoc)
     hgot = [f["text"] for f in hfs]
@@ -259,7 +268,7 @@ def main():
               "2020年05月20日", "2027年04月11日"):
         check("普通日期未被误打 %s" % d, not any(d in g for g in hgot))
     # 有标签但没有敏感内容 → 不能乱打
-    fp = os.path.join(HERE, "..", "test", "_fp.pdf")
+    fp = out("_fp.pdf")
     if os.path.exists(fp):
         fdoc, ffs = pdfmask.detect_document(fp)
         bad = [f for f in ffs if f["type"] in ("idcard", "name", "bankcard", "phone")]
@@ -269,9 +278,9 @@ def main():
     # --- 9. 纯段落无标签（刁难文档 2.0：一整段叙述 + 隐私与干扰混排） ---
     print("\n[9] 纯段落 · 隐私与干扰混排")
     subprocess.run([sys.executable, os.path.join(HERE, "make_hard2_pdf.py")],
-                   check=True, capture_output=True)
+                   check=True, capture_output=True, env=ENV)
     r2 = subprocess.run([sys.executable, os.path.join(HERE, "test_hard2.py")],
-                        capture_output=True, text=True,
+                        capture_output=True, text=True, env=ENV,
                         encoding="utf-8", errors="replace")
     for ln in (r2.stdout or "").splitlines():
         if any(k in ln for k in ("召回:", "误报:", "隐私残留", "干扰保留", "正文字数")):
@@ -281,7 +290,7 @@ def main():
     # --- 10. 假阳性专项：完全无隐私的长文不应认错任何东西 ---
     print("\n[10] 假阳性专项（1100+ 字纯净说明文）")
     r3 = subprocess.run([sys.executable, os.path.join(HERE, "test_no_false_positive.py")],
-                        capture_output=True, text=True,
+                        capture_output=True, text=True, env=ENV,
                         encoding="utf-8", errors="replace")
     for ln in (r3.stdout or "").splitlines():
         if any(k in ln for k in ("文档字数", "检出总数")):
@@ -292,16 +301,17 @@ def main():
     print("\n[11] 生成视觉对比图")
     for i in range(doc2.page_count):
         doc2[i].get_pixmap(matrix=pymupdf.Matrix(2, 2)).save(
-            os.path.join(HERE, "..", "test", "after_p%d.png" % (i + 1)))
+            out("after_p%d.png" % (i + 1)))
     a = next(f for f in findings if f["type"] == "idcard")
     cl = pymupdf.Rect(a["rect"].x0 - 6, a["rect"].y0 - 6, a["rect"].x0 + 130, a["rect"].y1 + 6)
     doc0[a["page"]].get_pixmap(clip=cl, matrix=pymupdf.Matrix(6, 6)).save(
-        os.path.join(HERE, "..", "test", "zoom_before.png"))
+        out("zoom_before.png"))
     doc2[a["page"]].get_pixmap(clip=cl, matrix=pymupdf.Matrix(6, 6)).save(
-        os.path.join(HERE, "..", "test", "zoom_after.png"))
-    print("      已输出 test/after_p*.png、zoom_before.png、zoom_after.png")
+        out("zoom_after.png"))
+    print("      对比图输出到: %s" % OUT_DIR)
 
     print("\n" + "=" * 72)
+    print("产物目录:", OUT_DIR, "（不在仓库内，git 工作区保持干净）")
     print("自检结论:", "全部通过" if ok_all else "存在未通过项")
     print("=" * 72)
     return 0 if ok_all else 1

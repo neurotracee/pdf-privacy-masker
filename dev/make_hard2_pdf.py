@@ -6,7 +6,8 @@
 import os
 import pymupdf
 
-OUT = os.path.join(os.path.dirname(__file__), "..", "test", "刁难文档2_纯段落.pdf")
+from _testpaths import out
+OUT = out("刁难文档2_纯段落.pdf")
 os.makedirs(os.path.dirname(OUT), exist_ok=True)
 
 # ---- 虚构人物（身份证校验位、银行卡 Luhn 都是真实有效的） ----

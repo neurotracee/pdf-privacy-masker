@@ -8,7 +8,8 @@ sys.path.insert(0, os.path.join(HERE, ".."))
 import pdfmask  # noqa: E402
 import make_hard2_pdf as T  # noqa: E402
 
-SRC = os.path.join(HERE, "..", "test", "刁难文档2_纯段落.pdf")
+from _testpaths import out
+SRC = out("刁难文档2_纯段落.pdf")
 
 doc, fs = pdfmask.detect_document(SRC)
 src_text = "".join(p.get_text() for p in doc)
@@ -46,10 +47,11 @@ for val in T.NOISE:
 print("\n  误报: %d/%d" % (fp, len(T.NOISE)))
 
 print("\n【三】打码后文本层残留检查")
-pdfmask.cli(SRC, os.path.join(HERE, "..", "test", "刁难文档2_打码后.pdf"), verbose=False)
+DST = out("刁难文档2_打码后.pdf")
+pdfmask.cli(SRC, DST, verbose=False)
 import pymupdf  # noqa: E402
 
-out = pymupdf.open(os.path.join(HERE, "..", "test", "刁难文档2_打码后.pdf"))
+out = pymupdf.open(DST)
 otext = "".join(p.get_text() for p in out).replace("\n", "").replace(" ", "")
 leak = [v for _, v in T.TRUTH if v in otext]
 print("  隐私残留:", "无" if not leak else leak)

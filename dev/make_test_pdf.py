@@ -3,7 +3,8 @@
 import os
 import pymupdf
 
-OUT = os.path.join(os.path.dirname(__file__), "..", "test", "测试文档_含隐私.pdf")
+from _testpaths import out
+OUT = out("测试文档_含隐私.pdf")
 os.makedirs(os.path.dirname(OUT), exist_ok=True)
 
 

@@ -4,7 +4,8 @@
 import os
 import pymupdf
 
-OUT = os.path.join(os.path.dirname(__file__), "..", "test", "刁难文档_无标签.pdf")
+from _testpaths import out
+OUT = out("刁难文档_无标签.pdf")
 
 
 def id18(body17):
