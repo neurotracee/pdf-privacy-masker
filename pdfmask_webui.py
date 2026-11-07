@@ -7,8 +7,9 @@
 
 """首页 UI：一整页 HTML（含 CSS 与前端 JS），与后端逻辑分开维护。
 
-这个字符串里出现的 __TOKEN__ / __VERSION__ / __URL__ / __CREDIT__ /
-__URLSHORT__ / __THANKS__ 占位符由 pdfmask.Handler 在返回页面时替换。
+这个字符串里出现的 __TOKEN__ / __VERSION__ / __URL__ / __URLGITEE__ /
+__CREDIT__ / __URLSHORT__ / __URLSHORT_GITEE__ / __THANKS__ 占位符
+由 pdfmask.Handler 在返回页面时替换。
 """
 
 HTML_UI = r"""<html lang="zh-CN">
@@ -244,6 +245,7 @@ main{flex:1;min-height:0;display:flex;overflow:hidden}
 .seg-btn{flex:1;border:0;background:transparent;padding:8px 0;border-radius:8px;
   font-size:12.5px;color:var(--ink2);cursor:pointer}
 .seg-btn.on{background:#fff;color:var(--ink);font-weight:600;box-shadow:0 1px 2px rgba(16,24,40,.08)}
+#updSrcSeg .seg-btn{font-size:12px;line-height:1.25;padding:7px 4px}
 .ver-row{display:flex;align-items:center;gap:10px;justify-content:space-between}
 .ver-cur{font-size:12.5px;color:var(--ink2)}
 .ver-cur b{color:var(--ink)}
@@ -326,6 +328,7 @@ main{flex:1;min-height:0;display:flex;overflow:hidden}
       <div class="credit">
         <span>__CREDIT__</span>
         <span class="credit-url" id="footUrl" data-url="__URL__" title="点击复制原项目地址">原项目地址：__URLSHORT__</span>
+        <span class="credit-url" id="footUrlGitee" data-url="__URLGITEE__" title="点击复制 Gitee 镜像地址">Gitee: __URLSHORT_GITEE__</span>
       </div>
     </section>
 
@@ -403,6 +406,7 @@ main{flex:1;min-height:0;display:flex;overflow:hidden}
       <dt>开发</dt><dd>__DEVELOPER__</dd>
       <dt>开源协议</dt><dd>__LICENSE__</dd>
       <dt>原项目地址</dt><dd class="url" id="aboutUrl" data-url="__URL__" title="点击复制">__URL__</dd>
+      <dt>Gitee 镜像</dt><dd class="url" id="aboutUrlGitee" data-url="__URLGITEE__" title="点击复制">__URLGITEE__</dd>
     </dl>
     <p class="about-note" data-en-html='<b>Maintenance:</b> I don’t usually have enough time or energy, so I only check in once every month or two — replies will be slow, don’t expect instant answers. All the code is public: if something doesn’t work for you, feel free to fix it or keep building on it. Commercial use is fine too — no fee, no need to ask me, just follow the three points below.'>
       <b>关于维护：</b>我平时没有充足的时间和精力，大概一两个月才上来看一两次，
@@ -497,13 +501,29 @@ main{flex:1;min-height:0;display:flex;overflow:hidden}
     </div>
 
     <div class="set-sec">
+      <label class="field-label">更新检查方式 / Update checking</label>
+      <div class="seg" id="updModeSeg">
+        <button class="seg-btn" data-updmode="auto">自动检查（启动时）</button>
+        <button class="seg-btn" data-updmode="manual">手动检查</button>
+      </div>
+      <div class="modal-note" style="margin-top:8px">自动：每次启动在后台静默查一次，没有网络就不响。手动：只有你点下面的「检查更新」才联网。</div>
+
+      <label class="field-label" style="margin-top:14px">更新源 / Update source</label>
+      <div class="seg" id="updSrcSeg">
+        <button class="seg-btn" data-updsrc="gitee">Gitee（建议中国大陆用户）</button>
+        <button class="seg-btn" data-updsrc="github">GitHub</button>
+      </div>
+      <div class="modal-note" style="margin-top:8px">默认按系统语言自动选（简体中文 → Gitee）。选中的源连不上时会自动换另一个再试。点一下立即生效。</div>
+    </div>
+
+    <div class="set-sec">
       <label class="field-label">版本与更新</label>
       <div class="ver-row">
         <span class="ver-cur"><span id="verLabel1">当前版本</span> v<b id="curVer">__VERSION__</b> ·
           <span id="verLabel2">仓库最新</span> <b id="latestVer">—</b></span>
         <button class="btn" id="checkBtn">检查更新</button>
       </div>
-      <div class="modal-note" style="margin-top:8px">启动时会自动查一次更新；没有网络就静默跳过，不会打扰你。这里可以随时手动再查。</div>
+      <div class="modal-note" style="margin-top:8px">开着「自动检查」时启动会静默查一次；关掉后只有点这里才会联网。查到的更新来自上面选定的源。</div>
       <div class="upd-box" id="updBox" hidden>
         <div id="updText"></div>
         <div class="upd-detail" id="updDetail" hidden></div>
@@ -558,6 +578,7 @@ const DICT = {
   '重新选择文件':'Choose another file', '生成打码 PDF':'Generate masked PDF',
   '处理中…':'Working…',
   '指导作者':'Advisor', '开发':'Built by', '开源协议':'License', '原项目地址':'Upstream',
+  'Gitee 镜像':'Gitee mirror',
   '本地离线运行':'runs fully offline',
   '腾讯 WorkBuddy × DeepSeek-V4.1-Flash':'Tencent WorkBuddy × DeepSeek-V4.1-Flash',
   '需求、识别规则的设计、验收测试全部由本人完成。':
@@ -598,7 +619,17 @@ const DICT = {
   '恢复默认':'Reset', '保存':'Save',
   '版本与更新':'Version & updates', '当前版本':'Current', '仓库最新':'latest',
   '检查更新':'Check for updates',
-  '启动时会自动查一次更新；没有网络就静默跳过，不会打扰你。这里可以随时手动再查。':'Updates are checked once at launch; offline, the check is skipped silently. You can also check again here at any time.', '用浏览器打开下载':'Open download in browser',
+  '更新检查方式 / Update checking':'Update checking',
+  '自动检查（启动时）':'Automatic (at launch)', '手动检查':'Manual only',
+  '自动：每次启动在后台静默查一次，没有网络就不响。手动：只有你点下面的「检查更新」才联网。':
+    'Automatic: one silent check at every launch, skipped when offline. Manual: only connects when you tap “Check for updates” below.',
+  '更新源 / Update source':'Update source',
+  'Gitee（建议中国大陆用户）':'Gitee (recommended in mainland China)',
+  '默认按系统语言自动选（简体中文 → Gitee）。选中的源连不上时会自动换另一个再试。点一下立即生效。':
+    'Picked from your system language by default (Simplified Chinese → Gitee). If the chosen source is unreachable, the other one is tried automatically. Applies immediately.',
+  '开着「自动检查」时启动会静默查一次；关掉后只有点这里才会联网。查到的更新来自上面选定的源。':
+    'With automatic checking on, one silent check runs at launch; with it off, only this button goes online. Updates come from the source picked above.',
+  '开着「自动检查」时启动会静默查一次；关掉后只有点这里才会联网。查到的更新来自上面选定的源。':'Updates are checked once at launch; offline, the check is skipped silently. You can also check again here at any time.', '用浏览器打开下载':'Open download in browser',
   '复制链接':'Copy link',
   '扫描件是纯图片、没有文字层，无法自动识别，请用「框选手动打码」':
     'A scan is just an image with no text layer, so it cannot be detected — use the manual box tool',
@@ -672,6 +703,7 @@ function applyLang(){
   document.title = T('PDF 隐私打码工具', 'PDF Privacy Masker');
   document.querySelectorAll('.seg-btn').forEach(b=>b.classList.toggle('on', b.dataset.lang === LANG));
   renderMeta(); renderList(); renderStats(S.stats); syncBar(); renderUpdate();
+  syncUpdSeg();
 }
 
 const TYPE_COLOR = {phone:'#f59e0b', idcard:'#e5484d', bankcard:'#7c5cff', email:'#12a150',
@@ -978,7 +1010,8 @@ function drawBand(a,b){
 }
 
 /* ---------- 设置 / 保存位置 ---------- */
-let CFG = {saveDir:'', rememberDir:true, noAsk:false, defaultDir:'', effectiveDir:''};
+let CFG = {saveDir:'', rememberDir:true, noAsk:false, defaultDir:'', effectiveDir:'',
+           lang:'zh', autoCheck:true, updateSource:'auto', resolvedSource:'gitee'};
 
 async function loadCfg(){
   try{
@@ -987,6 +1020,45 @@ async function loadCfg(){
   }catch(e){}
   return CFG;
 }
+
+/* 更新方式 / 更新源：点一下立刻存盘，不用按「保存」 */
+function syncUpdSeg(){
+  const mode = (CFG.autoCheck === false) ? 'manual' : 'auto';
+  document.querySelectorAll('#updModeSeg .seg-btn').forEach(b=>{
+    b.classList.toggle('on', b.dataset.updmode === mode);
+  });
+  let src = CFG.updateSource;
+  if (src !== 'gitee' && src !== 'github') src = CFG.resolvedSource || 'gitee';
+  document.querySelectorAll('#updSrcSeg .seg-btn').forEach(b=>{
+    b.classList.toggle('on', b.dataset.updsrc === src);
+  });
+}
+async function saveUpdSeg(patch){
+  syncUpdSeg();
+  try{
+    await api('/api/settings', {method:'POST', headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(patch)});
+    await loadCfg();
+    toast(T('设置已保存', 'Settings saved'));
+  }catch(e){ toast(e.message, true); }
+  syncUpdSeg();
+  if (UPD) renderUpdate();
+}
+$('updModeSeg').addEventListener('click', e=>{
+  const b = e.target.closest('.seg-btn');
+  if(!b) return;
+  const auto = b.dataset.updmode !== 'manual';
+  if (auto === (CFG.autoCheck !== false)) return;
+  CFG.autoCheck = auto;
+  saveUpdSeg({autoCheck: auto});
+});
+$('updSrcSeg').addEventListener('click', e=>{
+  const b = e.target.closest('.seg-btn');
+  if(!b) return;
+  if (b.dataset.updsrc === CFG.updateSource) return;
+  CFG.updateSource = b.dataset.updsrc;
+  saveUpdSeg({updateSource: b.dataset.updsrc});
+});
 
 async function pickDir(inputId){
   const cur = ($(inputId).value || '').trim();
@@ -1060,6 +1132,7 @@ $('setBtn').addEventListener('click', async ()=>{
   $('setAsk').checked = !CFG.noAsk;
   $('setMask').hidden = false;
   applyLang();                 // 顺带把语言按钮的选中态同步一下
+  syncUpdSeg();
   if (UPD) renderUpdate();
 });
 $('setBrowse').addEventListener('click', ()=>pickDir('setPath'));
@@ -1071,6 +1144,7 @@ $('setOk').addEventListener('click', async ()=>{
     await api('/api/settings', {method:'POST', headers:{'Content-Type':'application/json'},
       body:JSON.stringify({saveDir:v, noAsk:!ask})});
     await loadCfg();
+    syncUpdSeg();
     $('setMask').hidden = true;
     toast(T('设置已保存', 'Settings saved'));
   }catch(e){ toast(e.message, true); }
@@ -1079,8 +1153,9 @@ $('setReset').addEventListener('click', async ()=>{
   $('setPath').value = ''; $('setAsk').checked = true;
   try{
     await api('/api/settings', {method:'POST', headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({saveDir:'', noAsk:false})});
-    await loadCfg(); toast(T('已恢复默认设置', 'Defaults restored'));
+      body:JSON.stringify({saveDir:'', noAsk:false, autoCheck:true, updateSource:'auto'})});
+    await loadCfg(); syncUpdSeg();
+    toast(T('已恢复默认设置', 'Defaults restored'));
   }catch(e){ toast(e.message, true); }
 });
 
@@ -1371,6 +1446,7 @@ function autoUpdAskLater(){
 
 async function autoCheckUpdates(){
   if (!$('autoUpdMask')) return;
+  if (CFG && CFG.autoCheck === false) return;   // 用户选了手动检查，就不联网
   AUTO.skipped = false;
   AUTO.pled = false;
   let settled = false;
@@ -1439,7 +1515,7 @@ if (aboutStarBtn) aboutStarBtn.onclick = async ()=>{
   if (!await openUpdateUrl(url)) copyText(url, T('已复制仓库地址：', 'Repository URL copied: '));
 };
 /* 项目地址：点一下就复制，方便二次开发者把来源留在自己版本里 */
-['aboutUrl', 'footUrl'].forEach(id=>{
+['aboutUrl', 'aboutUrlGitee', 'footUrl', 'footUrlGitee'].forEach(id=>{
   const el = $(id);
   if (el) el.addEventListener('click', ()=>{ copyProjectUrl(el); });
 });

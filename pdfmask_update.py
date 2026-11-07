@@ -18,8 +18,13 @@
 
 通道选择
 --------
-简体中文的界面 + 简体中文的系统 → 先 Gitee（国内直连稳定），失败再 GitHub；
-其他语言 → 先 GitHub，失败再 Gitee。两个通道都拿不到才报错。
+用户在设置里可以自己指定更新源（Gitee / GitHub），也可以留在「跟随系统」：
+简体中文的界面 + 简体中文的系统 → 先 Gitee（国内直连稳定）；
+其他语言 → 先 GitHub。指定的（或自动选中的）通道连不上时，会自动换另一个
+再试一次，两个都拿不到才报错——不会因为选错源就彻底查不了更新。
+
+系统语言问不出来时（ctypes 被拦、locale 异常等）一律按中文用户处理，
+默认走 Gitee：宁可让海外用户多等一下，也不让国内用户卡在连不上的 GitHub 上。
 """
 
 import json
@@ -107,50 +112,82 @@ def _channels(prefer_gitee):
     return [gitee, github] if prefer_gitee else [github, gitee]
 
 
-def system_is_chinese():
-    """系统界面语言是不是简体中文。Windows 上直接问系统，其余平台看环境变量。"""
+def system_lang_state():
+    """系统界面语言：``"zh"`` / ``"other"`` / ``None``（问不出来）。
+
+    做成三态是因为「判断失败」和「明确是外语系统」要区别对待：
+    前者按中文用户兜底（默认 Gitee），后者才让 GitHub 优先。
+    """
     if os.name == "nt":
         try:
             import ctypes
             langid = ctypes.windll.kernel32.GetUserDefaultUILanguage()
             # 0x0804 = zh-CN，0x0404 / 0x0C04 / 0x1404 = zh-TW / zh-HK / zh-MO
-            if (langid & 0x3FF) == 0x04:      # 主语言 ID 4 = 中文
-                return True
-            return False
+            return "zh" if (langid & 0x3FF) == 0x04 else "other"
         except Exception:
-            pass
+            return None
     for key in ("LC_ALL", "LC_MESSAGES", "LANG", "LANGUAGE"):
         v = os.environ.get(key) or ""
         if v:
-            return v.lower().replace("-", "_").startswith("zh")
+            return "zh" if v.lower().replace("-", "_").startswith("zh") else "other"
     try:
         import locale
         code = (locale.getdefaultlocale() or ("", ""))[0] or ""
-        return code.lower().startswith("zh")
+        if not code:
+            return None
+        return "zh" if code.lower().startswith("zh") else "other"
     except Exception:
-        return False
+        return None
+
+
+def system_is_chinese():
+    """系统语言是不是中文。判断不出来按「是」处理（同一套兜底逻辑）。"""
+    return system_lang_state() != "other"
 
 
 def prefer_gitee(ui_lang=None):
-    """简体中文的系统 + 简体中文的界面 → 先走 Gitee。
+    """默认源是不是 Gitee。
 
-    ui_lang 为 None 时只按系统语言判断；显式指定英文界面时仍然以 GitHub 优先，
-    避免外网用户被引到国内镜像。
+    界面明确是英文 → 以 GitHub 优先（避免把外网用户引到国内镜像）；
+    否则看系统语言，判断不出来也走 Gitee。
     """
     if ui_lang and str(ui_lang).lower().startswith("en"):
         return False
-    return system_is_chinese()
+    return system_lang_state() != "other"
+
+
+def resolve_source(pref=None, ui_lang=None):
+    """把设置里的 updateSource 解析成具体通道：``"gitee"`` 或 ``"github"``。
+
+    ``pref`` 为 "auto" / 空 / 非法值时按环境自动选。
+    """
+    p = (pref or "auto").strip().lower()
+    if p in ("gitee", "github"):
+        return p
+    return "gitee" if prefer_gitee(ui_lang) else "github"
 
 
 # ---------------------------------------------------------------- 网络
 
-def _fetch(api, user_agent):
-    """只做严格证书校验的一次 GET；失败原样抛给上层，不再降级。"""
+def _fetch(api, user_agent, bypass_proxy=False):
+    """严格证书校验的一次 GET。
+
+    ``bypass_proxy`` 只影响「走不走系统代理」，不放松任何证书校验：
+    有些机器的系统代理是残留的坏配置（指向一个已经不存在的端口），
+    这时直连反而通——所以每个通道失败后都会再直连试一次。
+    """
     ctx = ssl.create_default_context()
     req = urllib.request.Request(api, headers={
         "User-Agent": user_agent,
         "Accept": "application/vnd.github+json",
     })
+    if bypass_proxy:
+        opener = urllib.request.build_opener(
+            urllib.request.ProxyHandler({}),
+            urllib.request.HTTPSHandler(context=ctx),
+        )
+        with opener.open(req, timeout=UPDATE_TIMEOUT) as r:
+            return json.loads(r.read().decode("utf-8", "replace"))
     with urllib.request.urlopen(req, timeout=UPDATE_TIMEOUT, context=ctx) as r:
         return json.loads(r.read().decode("utf-8", "replace"))
 
@@ -202,24 +239,32 @@ def parse_releases(data, suffix, page_fallback):
 
 # ---------------------------------------------------------------- 对外入口
 
-def check_update(current, suffix, t, ui_lang=None, order=None):
+def check_update(current, suffix, t, ui_lang=None, source=None, order=None):
     """返回给界面的字典。任何失败都转成 ok=False + 兜底链接，绝不让界面卡住。
 
     current : 当前版本号（1.4.3）
     suffix  : 本平台安装包后缀（.exe / .apk）
     t       : 中英双语翻译函数 t(zh, en)
+    source  : 设置里的更新源："auto" / "gitee" / "github"
     """
     cur = ver_tuple(current) or (0, 0, 0)
-    chans = order or _channels(prefer_gitee(ui_lang))
+    src = resolve_source(source, ui_lang)
+    # 指定源优先；它连不上时仍然回退到另一个通道，保证「有网就能查到更新」
+    chans = order or _channels(src == "gitee")
     errors = []
     seen_no_asset = None
     for ch in chans:
         label = ch["label"]
+        ua = "PDFPrivacyMasker/" + current
         try:
-            data = _fetch(ch["api"], "PDFPrivacyMasker/" + current)
+            data = _fetch(ch["api"], ua)
         except Exception as e:
-            errors.append("%s: %s: %s" % (label, e.__class__.__name__, str(e)[:100]))
-            continue
+            # 系统代理坏了（残留配置指向死端口）时直连往往能通，再试一次
+            try:
+                data = _fetch(ch["api"], ua, bypass_proxy=True)
+            except Exception as e2:
+                errors.append("%s: %s: %s" % (label, e.__class__.__name__, str(e2)[:100]))
+                continue
         got = parse_releases(data, suffix, ch["page"])
         if not got:
             errors.append("%s: %s" % (label, t(
@@ -237,6 +282,7 @@ def check_update(current, suffix, t, ui_lang=None, order=None):
             "asset": got["asset"],
             "source": got["source"],
             "channel": label,
+            "preferred": src,
             "releasesUrl": ch["page"],
         }
     if seen_no_asset is not None:

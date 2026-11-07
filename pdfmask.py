@@ -88,9 +88,12 @@ CREDIT_LINE = "指导作者：%s · 由 %s 开发 · %s 开源" % (
 # ---- 附加条款（AGPL-3.0 第 7 条 b 项）：二次开发 / 商用必须标注原项目地址 ----
 # 这几行会出现在首页页脚、「关于」窗口和 --about 输出里，删掉即违反附加条款。
 URL_SHORT = PROJECT_URL.replace("https://", "").replace("http://", "")
+# Gitee 镜像：国内访问更稳，和 GitHub 地址并列展示（声明里两个都给，任一个都能追溯来源）
+URL_SHORT_GITEE = GITEE_URL.replace("https://", "").replace("http://", "")
 ATTRIB_NOTICE = ("二次开发或商用必须保留作者署名，并在程序中标注原项目地址：%s"
                  % PROJECT_URL)
-FORK_NOTICE = ("本程序基于 %s 修改，非原作者发布。" % PROJECT_URL)
+FORK_NOTICE = ("本程序基于 %s 修改（镜像：%s），非原作者发布。"
+               % (PROJECT_URL, GITEE_URL))
 
 # ---- 用户设置（保存位置等）存到 %APPDATA%\PDF隐私打码工具\settings.json ----
 SETTINGS_DIR = os.path.join(
@@ -101,7 +104,17 @@ SETTINGS_PATH = os.path.join(SETTINGS_DIR, "settings.json")
 # rememberDir: 记住上一次选择的目录，下次作为默认值
 # noAsk      : 不再每次都问，直接存到 saveDir
 # lang       : 界面语言 zh / en
-DEFAULT_SETTINGS = {"saveDir": "", "rememberDir": True, "noAsk": False, "lang": "zh"}
+DEFAULT_SETTINGS = {
+    "saveDir": "",
+    "rememberDir": True,
+    "noAsk": False,
+    "lang": "zh",
+    # 启动时自动查一次更新？关掉就是纯手动（设置里仍可随时点「检查更新」）
+    "autoCheck": True,
+    # 更新源："auto" 跟随环境（简中 → Gitee，其他 → GitHub，判断不出来 → Gitee）
+    "updateSource": "auto",
+}
+UPDATE_SOURCES = ("auto", "gitee", "github")
 
 
 def _L(zh, en):
@@ -1880,6 +1893,9 @@ def _load_settings():
             out["rememberDir"] = bool(raw.get("rememberDir", True))
             out["noAsk"] = bool(raw.get("noAsk", False))
             out["lang"] = "en" if raw.get("lang") == "en" else "zh"
+            out["autoCheck"] = bool(raw.get("autoCheck", True))
+            src = raw.get("updateSource")
+            out["updateSource"] = src if src in UPDATE_SOURCES else "auto"
     except Exception:
         pass
     return out
@@ -1914,7 +1930,8 @@ def _update_settings(**kw):
 
 
 # ---------------------------------------------------------------------------
-# 检查更新：只去 GitHub 读一个版本号，不发送任何本地文件或个人信息
+# 检查更新：只读公开的版本号，不发送任何本地文件或个人信息
+# 通道（Gitee / GitHub）由设置决定，默认按系统语言选
 # ---------------------------------------------------------------------------
 
 def check_update():
@@ -1923,8 +1940,10 @@ def check_update():
     具体通道顺序、证书校验、下载域名白名单都在 pdfmask_update 里，
     这里只负责把当前版本号、平台后缀和翻译函数传进去。
     """
+    cfg = _get_settings() or {}
     return _upd.check_update(VERSION, UPDATE_ASSET_SUFFIX, _L,
-                             ui_lang=(_get_settings() or {}).get("lang", "zh"))
+                             ui_lang=cfg.get("lang", "zh"),
+                             source=cfg.get("updateSource", "auto"))
 
 
 _USER_DIRS_CACHE = []
@@ -2017,6 +2036,10 @@ def _settings_payload(src_path=None):
         "configured": bool(saved),
         "settingsPath": SETTINGS_PATH,
         "lang": cfg.get("lang", "zh"),
+        "autoCheck": cfg.get("autoCheck", True),
+        "updateSource": cfg.get("updateSource", "auto"),
+        # 实际会走哪个源（"auto" 时由系统语言 + 界面语言算出），界面用它高亮
+        "resolvedSource": _upd.resolve_source(cfg.get("updateSource"), cfg.get("lang", "zh")),
         "version": VERSION,
     }
 
@@ -2348,8 +2371,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 "__DEVELOPER__", DEVELOPER).replace(
                 "__LICENSE__", LICENSE_NAME).replace(
                 "__URL__", PROJECT_URL).replace(
+                "__URLGITEE__", GITEE_URL).replace(
                 "__CREDIT__", CREDIT_LINE).replace(
                 "__URLSHORT__", URL_SHORT).replace(
+                "__URLSHORT_GITEE__", URL_SHORT_GITEE).replace(
                 "__THANKS__", QR_PNG_B64)
             self._send(200, html, "text/html; charset=utf-8")
             return
@@ -2456,6 +2481,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     kw["noAsk"] = bool(data["noAsk"])
                 if data.get("lang") in ("zh", "en"):
                     kw["lang"] = data["lang"]
+                if "autoCheck" in data:
+                    kw["autoCheck"] = bool(data["autoCheck"])
+                if data.get("updateSource") in UPDATE_SOURCES:
+                    kw["updateSource"] = data["updateSource"]
                 cfg = _update_settings(**kw)
                 return self._json({"ok": True, "settings": cfg,
                                    "path": SETTINGS_PATH})
@@ -2613,6 +2642,7 @@ def about_text():
         "",
         CREDIT_LINE,
         "原项目地址：%s" % PROJECT_URL,
+        "镜像地址（Gitee）：%s" % GITEE_URL,
         "开源协议：%s（附 AGPL-3.0 第 7 条(b) 附加条款）" % LICENSE_NAME,
         "",
         "二次开发或商用必须保留作者署名，并在程序中标注上述原项目地址；",
