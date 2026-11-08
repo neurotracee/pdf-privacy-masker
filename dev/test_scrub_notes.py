@@ -23,6 +23,9 @@ from _testpaths import out  # noqa: E402
 ID18 = "320582199207180019"
 PHONE = "13812346780"
 NAME = "陈嘉豪"
+# 下面这两个只在注释/书签里出现，正文完全没有——用来验证「不靠正文命中也能认出来」
+NAME_ONLY = "赵子墨"
+ADDR_ONLY = "江苏省苏州市姑苏区干将东路88号"
 MAIL = "chenjiahao1992@163.com"
 
 ok_all = True
@@ -57,7 +60,8 @@ def build():
     p2 = doc.new_page(width=595, height=842)
     p2.insert_text((60, 100), "第三页", fontname="china-s", fontsize=14)
     doc.set_toc([[1, "第一章 联系人 %s" % PHONE, 1],
-                 [1, "第二章 正常章节", 2]])
+                 [1, "第二章 正常章节", 2],
+                 [1, "附件：%s 体检报告" % NAME_ONLY, 2]])
     path = out("scrub_notes_src.pdf")
     doc.save(path)
     doc.close()
@@ -83,13 +87,17 @@ def main():
     for probe in (PHONE, ID18, NAME):
         check("注释里不再出现 %s" % probe, probe not in blob, blob[:60])
     check("干净批注被保留", any("排版" in x for x in annots), str(len(annots)))
+    check("正文没出现、只在注释里的姓名也被清掉", NAME_ONLY not in blob, blob[:80])
+    check("正文没出现、只在注释里的地址也被清掉", ADDR_ONLY not in blob, blob[:80])
 
     # --- 书签 ---
     toc = d.get_toc()
     titles = "\n".join(t for _, t, _ in toc)
     check("书签标题里不再出现手机号", PHONE not in titles, titles.replace("\n", " / "))
     check("干净书签标题被保留", "第二章 正常章节" in titles)
-    check("书签条数不变", len(toc) == 2, "共 %d 条" % len(toc))
+    check("书签名里只出现的姓名也被打码", NAME_ONLY not in titles, titles.replace("\n", " / "))
+    check("书签名保留姓氏", "赵" in titles, titles.replace("\n", " / "))
+    check("书签条数不变", len(toc) == 3, "共 %d 条" % len(toc))
     d.close()
 
     # --- 原始文件里的隐私确实会被正文打码带走 ---

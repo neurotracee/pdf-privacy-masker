@@ -6,6 +6,7 @@ import android.graphics.pdf.PdfRenderer
 import android.os.ParcelFileDescriptor
 import android.content.Context
 import com.tom_roush.pdfbox.android.PDFBoxResourceLoader
+import com.tom_roush.pdfbox.cos.COSName
 import com.tom_roush.pdfbox.pdmodel.PDDocument
 import com.tom_roush.pdfbox.pdmodel.PDPage
 import com.tom_roush.pdfbox.pdmodel.PDPageContentStream
@@ -43,6 +44,14 @@ object PdfMasker {
         PDFBoxResourceLoader.init(context.applicationContext)
         val pfd = ParcelFileDescriptor.open(src, ParcelFileDescriptor.MODE_READ_ONLY)
         val renderer = PdfRenderer(pfd)
+        // 注释（批注、便签、FreeText）不在正文文字流里，PdfRenderer 会把它们
+        // 连同文字一起画进位图——号码就成了像素，永远不会被识别到。所以先用
+        // PDFBox 读出注释文字，命中敏感内容就把该注释整块区域也盖上马赛克。
+        val srcDoc: PDDocument? = try {
+            PDDocument.load(src)
+        } catch (_: Exception) {
+            null
+        }
         val total = renderer.pageCount
         val doc = PDDocument()
         val stats = LinkedHashMap<String, Int>()
@@ -74,6 +83,19 @@ object PdfMasker {
                     Mosaic.apply(bmp, items, w / pw, h / ph)
                 }
 
+                val annotRects = annotationRects(srcDoc, i)
+                if (annotRects.isNotEmpty()) {
+                    hitPages.add(i)
+                    count += annotRects.size
+                    val lab = if (com.neurotracee.pdfmask.AppPrefs.isEn) Kind.labelEn(Kind.ANNOT)
+                    else Kind.label(Kind.ANNOT)
+                    stats[lab] = (stats[lab] ?: 0) + annotRects.size
+                    Mosaic.apply(
+                        bmp, annotRects.map { Finding(i, Kind.ANNOT, "", it) },
+                        w / pw, h / ph
+                    )
+                }
+
                 val bos = ByteArrayOutputStream()
                 bmp.compress(Bitmap.CompressFormat.JPEG, options.quality, bos)
                 bmp.recycle()
@@ -94,6 +116,10 @@ object PdfMasker {
             } catch (_: Exception) {
             }
             try {
+                srcDoc?.close()
+            } catch (_: Exception) {
+            }
+            try {
                 renderer.close()
             } catch (_: Exception) {
             }
@@ -103,6 +129,68 @@ object PdfMasker {
             }
         }
         return MaskSummary(total, count, stats, hitPages.size)
+    }
+
+    /**
+     * 本页里内容涉敏的注释区域，坐标以页面左上角为原点、单位 PDF 点。
+     *
+     * 只判断「有没有敏感内容」，不做逐字定位：注释的排版由阅读器自己决定，
+     * 与其猜字形位置，不如整块盖掉——FreeText 的内容就长在它的矩形里。
+     * 页面带 /Rotate 时按顺时针角度换算到渲染后的方向。
+     */
+    private fun annotationRects(doc: PDDocument?, index: Int): List<Rect> {
+        if (doc == null || index < 0 || index >= doc.numberOfPages) return emptyList()
+        val page = try {
+            doc.getPage(index)
+        } catch (_: Exception) {
+            return emptyList()
+        }
+        val annots = try {
+            page.annotations
+        } catch (_: Exception) {
+            null
+        } ?: return emptyList()
+        val box = try {
+            page.cropBox ?: page.mediaBox
+        } catch (_: Exception) {
+            return emptyList()
+        }
+        val pw = box.width
+        val ph = box.height
+        if (pw <= 0f || ph <= 0f) return emptyList()
+        val rot = ((page.rotation % 360) + 360) % 360
+        val out = mutableListOf<Rect>()
+        for (a in annots) {
+            val txt = try {
+                val co = a.cosObject
+                listOfNotNull(
+                    co.getString(COSName.CONTENTS),
+                    co.getString(COSName.SUBJ),
+                    co.getString(COSName.getPDFName("T"))
+                ).joinToString(" ").trim()
+            } catch (_: Exception) {
+                ""
+            }
+            if (txt.isEmpty() || !Detector.looksSensitive(txt)) continue
+            val r = try {
+                a.rectangle
+            } catch (_: Exception) {
+                null
+            } ?: continue
+            val x0 = r.lowerLeftX - box.lowerLeftX
+            val x1 = r.upperRightX - box.lowerLeftX
+            val y0 = ph - (r.upperRightY - box.lowerLeftY)
+            val y1 = ph - (r.lowerLeftY - box.lowerLeftY)
+            val mapped = when (rot) {
+                90 -> Rect(ph - y1, x0, ph - y0, x1)
+                180 -> Rect(pw - x1, ph - y1, pw - x0, ph - y0)
+                270 -> Rect(y0, pw - x1, y1, pw - x0)
+                else -> Rect(x0, y0, x1, y1)
+            }
+            if (mapped.width < 2f || mapped.height < 2f) continue
+            out.add(mapped)
+        }
+        return out
     }
 }
 

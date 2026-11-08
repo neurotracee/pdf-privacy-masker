@@ -67,7 +67,7 @@ from pdfmask_webui import HTML_UI   # 首页 HTML（含 CSS/JS），与逻辑代
 from thanks_asset import QR_PNG_B64  # 赞赏码图片（base64 内嵌，单文件打包不丢）
 
 APP_NAME = "PDF 隐私打码工具"
-VERSION = "1.4.3"
+VERSION = "1.4.4"
 
 # ---- 署名信息（开源后请勿删除，AGPL-3.0 第 5 条要求保留版权声明） ----
 AUTHOR = "项目创作时为初中生"
@@ -191,6 +191,11 @@ RE_EMAIL = re.compile(r"[A-Za-z0-9._%+\-]+@[A-Za-z0-9\-]+(?:\.[A-Za-z0-9\-]+)*\.
 RE_ID18 = re.compile(r"(?<![0-9A-Za-z])[0-9]{17}[0-9Xx](?![0-9A-Za-z])")
 RE_ID15 = re.compile(r"(?<![0-9A-Za-z])[0-9]{15}(?![0-9A-Za-z])")
 RE_BANK = re.compile(r"(?<![0-9])[0-9]{16,19}(?![0-9])")
+# 卡面印法：4 位一组、空格或短横分隔。真实卡片和银行回单几乎都是这种写法，
+# 直接按 16~19 位连续数字找会整串漏掉。
+RE_BANK_GROUPED = re.compile(
+    r"(?<![0-9])[0-9]{4}(?:[ \-][0-9]{4}){2,3}(?:[ \-][0-9]{1,4})?(?![0-9])"
+)
 
 # 校验位/校验和不过时的兜底：字段名明确就照打（应对 OCR 错一位）
 RE_ID_LABEL_FB = re.compile(
@@ -198,7 +203,8 @@ RE_ID_LABEL_FB = re.compile(
     r"([0-9]{17}[0-9Xx]|[0-9]{15})"
 )
 RE_BANK_LABEL_FB = re.compile(
-    r"(?:银行卡号|卡\s*号|账\s*号|账号|账户号)\s*[:：]?\s*([0-9]{16,19})"
+    r"(?:银行卡号|银行卡|储蓄卡|信用卡|卡\s*号|账\s*号|账号|账户号)\s*[:：]?\s*"
+    r"([0-9][0-9 \-]{14,24})"
 )
 
 RE_NAME_LABEL = re.compile(
@@ -760,17 +766,24 @@ def _scan_line(text, entries, pno):
         for (a, b) in taken:
             if start < b and end > a:
                 return
-        r = _span_rect(entries, start, end)
-        if r is None or (r.width < 0.8 and r.height < 0.8):
+        # entries 为 None 表示这段文字没有版面坐标（注释正文、书签标题），
+        # 只关心命中位置，不生成矩形。
+        r = _span_rect(entries, start, end) if entries is not None else None
+        if entries is not None and (r is None or (r.width < 0.8 and r.height < 0.8)):
             return
         taken.append((start, end))
-        found.append({
+        item = {
             "type": kind,
             "text": raw if raw is not None else text[start:end].strip(),
             "rect": r,
             "page": pno,
             "note": note,
-        })
+        }
+        if entries is None:
+            # 自由文本模式：把偏移一并带出去，调用方按位置替换
+            item["start"] = start
+            item["end"] = end
+        found.append(item)
 
     # 1. 身份证
     for m in RE_ID18.finditer(text):
@@ -788,6 +801,11 @@ def _scan_line(text, entries, pno):
         s = m.group(0)
         if _luhn_ok(s) and len(set(s)) >= 5:
             add("bankcard", m.start(), m.end(), s)
+    # 2b. 卡面那种「4 位一组」的写法：去掉分隔符后再做长度与 Luhn 校验
+    for m in RE_BANK_GROUPED.finditer(text):
+        digits = re.sub(r"[^0-9]", "", m.group(0))
+        if 16 <= len(digits) <= 19 and _luhn_ok(digits) and len(set(digits)) >= 5:
+            add("bankcard", m.start(), m.end(), m.group(0))
     for m in RE_BANK_LABEL_FB.finditer(text):
         add("bankcard", m.start(1), m.end(1), m.group(1), "标签兜底")
 
@@ -1424,10 +1442,13 @@ def _mask_text(kind, s):
     s = (s or "").strip()
     if kind == "phone" and len(s) >= 7:
         return s[:3] + "****" + s[-4:]
+    if kind == "tel" and len(s) >= 9:
+        return s[:4] + "****" + s[-4:]
     if kind == "idcard":
         return (s[:4] + "*" * (len(s) - 8) + s[-4:]) if len(s) > 8 else "*" * len(s)
     if kind == "bankcard":
-        return (s[:4] + " **** **** " + s[-4:]) if len(s) >= 10 else "*" * len(s)
+        d = re.sub(r"[^0-9]", "", s)
+        return (d[:4] + " **** **** " + d[-4:]) if len(d) >= 10 else "*" * len(s)
     if kind == "email" and "@" in s:
         a, b = s.split("@", 1)
         return (a[:2] + "***@" + b) if len(a) > 2 else ("***@" + b)
@@ -1498,15 +1519,8 @@ def _merge_rects(rects, pad=0.35):
 
 # ---------------------------------------------------------------- 注释 / 书签
 # 正文打码动不到这两处：PDF 的注释（批注、便签、高亮附言）和书签标题是独立
-# 的对象，内容原样留在文件里。这里用同一套规则再洗一遍。
-
-_RE_SCRUB_ID18 = re.compile(
-    r"(?<![0-9])[1-9]\d{5}(?:19|20)\d{2}(?:0[1-9]|1[0-2])"
-    r"(?:0[1-9]|[12]\d|3[01])\d{3}[\dXx](?![0-9])")
-_RE_SCRUB_BANK = re.compile(r"(?<![0-9])\d{16,19}(?![0-9])")
-_RE_SCRUB_PHONE = re.compile(r"(?<![0-9])(?:\+?86[-\s]?)?1[3-9]\d{9}(?![0-9])")
-_RE_SCRUB_MAIL = re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+")
-_RE_SCRUB_TEL = re.compile(r"(?<![0-9])0\d{2,3}-\d{7,8}(?![0-9])")
+# 的对象，内容原样留在文件里。这里把这段文字直接喂给行内识别器（_scan_line）
+# 再洗一遍，因此注释里独自出现的姓名、地址也能认出来，不必依赖正文命中。
 
 
 def _scrub_values(findings):
@@ -1523,26 +1537,37 @@ def _scrub_values(findings):
 
 
 def _scrub_text(text, vals):
-    """把一段自由文本里的隐私换成掩码。注释和书签标题都走这里。"""
+    """把一段自由文本里的隐私换成掩码。注释和书签标题都走这里。
+
+    这里不能只认「正文已命中的值」：注释/书签是独立对象，正文里没出现过
+    的姓名和地址，在正文扫描时根本不会进 vals。所以先用行内识别器
+    （_scan_line）把这段文字本身当作输入跑一遍——号码、姓名、地址、
+    出生日期都能就地认出来——最后再用 vals 兜一遍漏网的。
+    """
     if not text:
         return text
-    out = text
-    for rx, kind, check in (
-            (_RE_SCRUB_ID18, "idcard", _id_plausible),
-            (_RE_SCRUB_BANK, "bankcard", lambda s: _luhn_ok(s) and len(set(s)) >= 5),
-            (_RE_SCRUB_TEL, "tel", None),
-            (_RE_SCRUB_PHONE, "phone", None),
-            (_RE_SCRUB_MAIL, "email", None)):
-        def _rep(m, kind=kind, check=check):
-            s = m.group(0)
-            if check is not None and not check(s):
-                return s
-            return _mask_text(kind, s)
-        out = rx.sub(_rep, out)
+    spans = []
+    try:
+        for f in _scan_line(text, None, -1):
+            if "start" in f and f["end"] > f["start"]:
+                spans.append((f["start"], f["end"], f["type"], f["text"]))
+    except Exception:
+        spans = []
+    # 从后往前替换，前面的偏移才不会失效
+    for s, e, kind, raw in sorted(spans, key=lambda x: -x[0]):
+        seg = text[s:e]
+        if not seg.strip():
+            continue
+        if kind == "name":
+            # 识别出的区间已经不含姓氏（姓氏本就保留），这里要把名字全盖掉
+            new = "*" * len(seg)
+        else:
+            new = _mask_text(kind, seg)
+        text = text[:s] + new + text[e:]
     for value, kind in vals:
-        if value and value in out:
-            out = out.replace(value, _mask_text(kind, value))
-    return out
+        if value and value in text:
+            text = text.replace(value, _mask_text(kind, value))
+    return text
 
 
 def _scrub_annotations(doc, vals):

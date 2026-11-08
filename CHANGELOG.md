@@ -1,3 +1,127 @@
+# v1.4.4 版本说明（Windows + 安卓）
+
+**中文** | [English](#v144-release-notes-windows--android)
+
+更新级别：建议
+
+**一句话结论**：这一版补掉上一版留下的三处同类残口——注释和书签里**只出现**姓名或地址时不再漏打；安卓端注释里的文字会被渲染成像素、原来永远打不到，现在按注释矩形整块盖马赛克；顺带把「4 位一组」印法的银行卡号纳入识别，并修正座机号在列表里没有遮挡的问题。校验和文件这次也一起挂到发布页了。
+
+---
+
+## 1. 修复：注释和书签里独自出现的姓名、地址会漏（Windows）
+
+上一版清洗注释和书签时，只把「正文已经命中的值」当匹配表。问题是注释和书签是独立对象——正文里压根没出现过的姓名、地址，根本不会进这张表，于是原样留着：
+
+```
+书签: 附件：赵子墨 体检报告                ← 没打
+注释: 复核：赵子墨 江苏省苏州市姑苏区干将东路88号   ← 整条保留
+```
+
+现在把注释的正文 / 主题 / 标题、以及书签标题本身，直接喂给行内识别器（`_scan_line`）跑一遍，号码、姓名、地址、出生日期都能就地认出来，不再依赖正文命中：
+
+```
+书签: 附件：赵** 体检报告
+注释: 整条删除（注释的弹出内容、作者名都可能带残留，改一半容易漏）
+```
+
+姓氏仍然保留，干净的书签和注释不动。
+
+## 2. 修复：安卓端注释里的文字会变成像素，永远打不到（安卓）
+
+安卓打码是「整页渲染成位图 → 在命中处做马赛克 → 重组成新 PDF」。注释对象确实不会跟着进新文件，但 **PdfRenderer 渲染整页时会把注释一起画进位图**：FreeText（自由文本）和高亮附言里的号码，就在渲染那一刻变成了像素，正文文字识别永远看不到它们。
+
+所以上一版发布说明里那句「安卓整页重绘、注释不会带过去，无需改动」不准确，这里更正：普通便签通常只剩一个小图标，风险低；FreeText 是实打实会漏的。
+
+修法是打码时先用 PDFBox 读出每页注释的内容、主题和标题，命中敏感内容就把该注释的矩形整块做像素马赛克（页面带 `/Rotate` 时按顺时针角度换算到渲染方向），结果里统计为「注释」。宁可整块盖掉，也不去猜注释内部的字形位置——注释的排版由阅读器决定。
+
+## 3. 新增：认得出「4 位一组」印法的银行卡号（Windows + 安卓）
+
+真实卡面和银行回单几乎都是 `6222 0212 3456 7890` 这种 4 位一组的写法，原来只认连续 16~19 位数字，整串被漏掉。现在两种写法都认，去掉分隔符后仍然要过 Luhn 和「至少 5 种不同数字」两道校验，所以订单号之类的不会被误判（实测「订单号 2026 1112 3344 5566」不打码）。另外标签兜底里补上了「银行卡 / 储蓄卡 / 信用卡」这几种写法。
+
+## 4. 修复：座机号在列表里没有被遮住（Windows + 安卓）
+
+掩码函数里没有座机号分支，`0512-66881234` 会原样显示在结果列表和注释打码里。现在与手机号一致：`0512****1234`。
+
+## 5. 工程：注释 / 书签回归并进主自检
+
+- `dev/test_scrub_notes.py` 增加了「正文里没有、只在注释或书签里出现」的姓名和地址用例，正好是这次修的那一类；
+- `dev/selfcheck.py` 主流程新增第 12 项，自动跑上面那套注释/书签用例——以前只靠单独执行，改别的地方时容易忘。
+
+## 6. 已知限制（补充说明）
+
+- **安卓端的输出是图片**：整页重绘为 JPEG 再组装，所以打码后的 PDF 不能搜索、不能复制文字，体积通常也比原文件大；Windows 版保留矢量版面、只抹掉命中处的文字层。这是为了「彻底抹除文字层」有意做的取舍，之前的发版说明没有写清楚，这次补上。
+- 注释是整块盖掉的：如果一条注释里既有敏感内容、又有需要保留的说明，那整条都会没。想保留就单独再写一条干净注释。
+
+## 7. 下载
+
+- Windows：`PDFPrivacyMasker-1.4.4.exe`（免安装，双击即用）
+- 安卓：`PDFPrivacyMasker-1.4.4-arm64.apk`（arm64-v8a，Android 8.0+）
+- 校验和：`SHA256SUMS.txt`（这次随发布一起上传）
+
+升级不用卸载旧版，直接覆盖安装即可。
+
+---
+
+# v1.4.4 Release Notes (Windows + Android)
+
+[中文](#v144-版本说明windows--安卓) | **English**
+
+Update level: suggested
+
+**TL;DR** — this release closes the three related gaps left by the previous one: names and addresses that appear **only** inside annotations or bookmarks are no longer missed; on Android, text inside annotations was being rendered into pixels and could never be masked, so those annotation boxes are now mosaicked whole; on top of that, bank cards printed in groups of four are now detected, and landline numbers are masked in the result list. The checksum file is attached to the release this time as well.
+
+## 1. Fixed: names and addresses that only appear in annotations or bookmarks (Windows)
+
+The previous release scrubbed annotations and bookmarks by reusing only the values already found in the body text. Annotations and bookmarks are separate objects, so a name or address that never appeared in the body was not in that list and stayed untouched:
+
+```
+bookmark: 附件：赵子墨 体检报告                <- not masked
+annotation: 复核：赵子墨 江苏省苏州市姑苏区干将东路88号   <- kept as is
+```
+
+The scrubber now feeds the annotation's contents / subject / title and the bookmark title through the same line scanner used for the body (`_scan_line`), so numbers, names, addresses and birth dates are recognised in place, with no dependency on the body:
+
+```
+bookmark: 附件：赵** 体检报告
+annotation: deleted entirely (popup contents and author name can carry leftovers; a partial rewrite is easy to get wrong)
+```
+
+Surnames are still preserved, and clean bookmarks/annotations are left alone.
+
+## 2. Fixed: text inside annotations became pixels on Android and was never masked (Android)
+
+Android redaction renders each page to a bitmap, mosaics the hits, then assembles a new PDF. The annotation objects themselves do not carry over — but **PdfRenderer draws annotations into that bitmap**. A phone number inside a FreeText annotation or a highlight note becomes pixels at render time, so text detection can never see it.
+
+That makes the previous release note ("Android re-renders the page, annotations never make it into the output — nothing to fix there") inaccurate. Correcting it: a plain sticky note usually leaves only a small icon, which is low risk; FreeText genuinely leaks.
+
+The fix reads each page's annotation contents, subject and title with PDFBox before masking, and mosaics the annotation's whole rectangle when it contains sensitive content (converted for `/Rotate` when present); the tally shows up as "Comment". Covering the whole box beats guessing where the glyphs sit inside an annotation — its layout is up to the reader.
+
+## 3. New: bank cards printed in groups of four (Windows + Android)
+
+Real cards and bank receipts almost always read `6222 0212 3456 7890`; only contiguous 16–19 digit runs were detected before, so the whole number was missed. Both forms are accepted now, and the digits still have to pass Luhn plus the "at least 5 distinct digits" check, so order numbers are not flagged (measured: `订单号 2026 1112 3344 5566` stays untouched). The label fallback also accepts 银行卡 / 储蓄卡 / 信用卡.
+
+## 4. Fixed: landline numbers were not masked in the result list (Windows + Android)
+
+The masking helper had no landline branch, so `0512-66881234` was displayed verbatim in the result list and in annotation scrubbing. It now matches the mobile rule: `0512****1234`.
+
+## 5. Engineering: annotation/bookmark regression joined the main self-check
+
+- `dev/test_scrub_notes.py` gained cases for names and addresses that appear only inside annotations or bookmarks — exactly the gap fixed here;
+- `dev/selfcheck.py` gained step 12, which runs that suite automatically. Previously it was a separate script and easy to forget.
+
+## 6. Known limitations (added)
+
+- **Android output is images**: pages are re-rendered as JPEG and assembled, so the redacted PDF is not searchable, its text cannot be copied, and the file is usually larger. The Windows build keeps the vector layout and only removes the text layer at the hits. This is a deliberate trade for wiping the text layer, and earlier release notes never spelled it out — now they do.
+- Annotations are covered as a whole: if one annotation holds both sensitive content and text worth keeping, the entire annotation goes. Write a separate clean note in that case.
+
+## 7. Downloads
+
+- Windows: `PDFPrivacyMasker-1.4.4.exe` (portable, no install)
+- Android: `PDFPrivacyMasker-1.4.4-arm64.apk` (arm64-v8a, Android 8.0+)
+- Checksums: `SHA256SUMS.txt` (uploaded with the release this time)
+
+You can install straight over the previous version.
+
 # v1.4.3 版本说明（Windows + 安卓）
 
 更新级别：建议

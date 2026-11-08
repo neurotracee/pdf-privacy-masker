@@ -48,7 +48,10 @@ object Kind {
     /** 手动框选，text 为空，只在 rect 上打码 */
     const val MANUAL = "manual"
 
-    val ORDER = listOf(IDCARD, BANKCARD, PHONE, TEL, EMAIL, ADDRESS, NAME, BIRTH, GENDER, AGE, MANUAL)
+    /** 注释区域：内容涉敏、整块盖掉（打码阶段生成，不出现在识别列表里） */
+    const val ANNOT = "annot"
+
+    val ORDER = listOf(IDCARD, BANKCARD, PHONE, TEL, EMAIL, ADDRESS, NAME, BIRTH, GENDER, AGE, MANUAL, ANNOT)
 
     fun labelEn(k: String): String = when (k) {
         IDCARD -> "ID number"
@@ -62,6 +65,7 @@ object Kind {
         GENDER -> "Gender"
         AGE -> "Age"
         MANUAL -> "Manual"
+        ANNOT -> "Comment"
         else -> k
     }
 
@@ -77,6 +81,7 @@ object Kind {
         GENDER -> "性别"
         AGE -> "年龄"
         MANUAL -> "手动框选"
+        ANNOT -> "注释"
         else -> k
     }
 }

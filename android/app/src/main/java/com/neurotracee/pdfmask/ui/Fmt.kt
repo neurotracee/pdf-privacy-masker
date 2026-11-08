@@ -8,6 +8,7 @@ fun maskPreview(kind: String, value0: String): String {
     val s = value0.trim()
     return when (kind) {
         Kind.PHONE -> if (s.length >= 7) s.substring(0, 3) + "****" + s.substring(s.length - 4) else s
+        Kind.TEL -> if (s.length >= 9) s.substring(0, 4) + "****" + s.substring(s.length - 4) else s
         Kind.IDCARD -> if (s.length > 8) s.substring(0, 4) + "*".repeat(s.length - 8) + s.substring(s.length - 4) else "*".repeat(s.length)
         Kind.BANKCARD -> if (s.length >= 10) s.substring(0, 4) + " **** **** " + s.substring(s.length - 4) else "*".repeat(s.length)
         Kind.EMAIL -> {

@@ -310,6 +310,18 @@ def main():
         out("zoom_after.png"))
     print("      对比图输出到: %s" % OUT_DIR)
 
+    # --- 12. 注释 / 书签 ---
+    # 这两类对象不在正文文字流里，必须单独验；并进主流程，免得改别处时忘跑。
+    print("\n[12] 注释与书签")
+    r = subprocess.run([sys.executable, os.path.join(HERE, "test_scrub_notes.py")],
+                       capture_output=True, text=True, encoding="utf-8", errors="replace",
+                       env=ENV)
+    ok = r.returncode == 0
+    check("注释/书签里的隐私已清（含只出现在注释里的姓名、地址）", ok,
+          "" if ok else (r.stdout or r.stderr or "")[-300:])
+    if not ok:
+        print((r.stdout or "")[-1200:])
+
     print("\n" + "=" * 72)
     print("产物目录:", OUT_DIR, "（不在仓库内，git 工作区保持干净）")
     print("自检结论:", "全部通过" if ok_all else "存在未通过项")

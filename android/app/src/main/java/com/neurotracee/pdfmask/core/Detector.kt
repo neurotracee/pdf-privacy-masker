@@ -127,6 +127,38 @@ object Detector {
 
     // ---------------------------------------------------------------- 单行
 
+    /**
+     * 随便一段文字里有没有敏感内容。
+     *
+     * 注释正文、批注标题不在页面正文流里，走不了 scanLine（没有字形坐标）。
+     * 命中时打码会把该注释的整块区域盖掉——FreeText 这类注释会被
+     * PdfRenderer 直接渲染进位图，只有整块马赛克才盖得住。
+     */
+    fun looksSensitive(text0: String): Boolean {
+        val text = text0.trim()
+        if (text.isEmpty()) return false
+        if (T.RE_MOBILE.containsMatchIn(text)) return true
+        if (T.RE_MOBILE_SEP.containsMatchIn(text)) return true
+        if (T.RE_EMAIL.containsMatchIn(text)) return true
+        if (T.RE_TEL.containsMatchIn(text)) return true
+        if (T.RE_TEL_LABEL.containsMatchIn(text)) return true
+        if (T.RE_ID_LABEL_FB.containsMatchIn(text)) return true
+        if (T.RE_BANK_LABEL_FB.containsMatchIn(text)) return true
+        if (T.RE_ADDR_FREE.containsMatchIn(text)) return true
+        if (T.RE_ADDR_LABEL.containsMatchIn(text)) return true
+        for (m in T.RE_ID18.findAll(text)) if (id18Ok(m.value)) return true
+        for (m in T.RE_ID15.findAll(text)) if (id15Ok(m.value)) return true
+        for (m in T.RE_BANK.findAll(text)) {
+            if (luhnOk(m.value) && m.value.toSet().size >= 5) return true
+        }
+        for (m in T.RE_BANK_GROUPED.findAll(text)) {
+            val d = m.value.filter { it.isDigit() }
+            if (d.length in 16..19 && luhnOk(d) && d.toSet().size >= 5) return true
+        }
+        if (scanNamesProse(text).isNotEmpty()) return true
+        return false
+    }
+
     private fun spanRect(chars: List<CharBox?>, start: Int, end: Int): Rect? {
         var r: Rect? = null
         val e = min(end, chars.size)
@@ -227,6 +259,13 @@ object Detector {
         for (m in T.RE_BANK.findAll(text)) {
             val s = m.value
             if (luhnOk(s) && s.toSet().size >= 5) add(Kind.BANKCARD, m.range.first, m.range.last + 1, s)
+        }
+        // 2b. 卡面那样 4 位一组的写法：去掉分隔符后校验长度与 Luhn
+        for (m in T.RE_BANK_GROUPED.findAll(text)) {
+            val d = m.value.filter { it.isDigit() }
+            if (d.length in 16..19 && luhnOk(d) && d.toSet().size >= 5) {
+                add(Kind.BANKCARD, m.range.first, m.range.last + 1, m.value)
+            }
         }
         for (m in T.RE_BANK_LABEL_FB.findAll(text)) {
             val g = m.groups[1] ?: continue
