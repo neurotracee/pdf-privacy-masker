@@ -546,6 +546,17 @@ internal fun UpdateResultCard(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
+            // 有新版时：一行摘要 + 按 Windows / 安卓 分开的详细条目，
+            // 和启动时自动检查弹出的窗口用的是同一套组件。
+            if (r.hasUpdate) {
+                Spacer(Modifier.height(8.dp))
+                UpdateNotesBlock(
+                    r = r,
+                    accent = accent,
+                    onOpenPage = { onOpen(r.page) }
+                )
+            }
+
             if (!r.ok || r.hasUpdate) {
                 Row(
                     Modifier.padding(top = 6.dp),

@@ -322,6 +322,19 @@ def main():
     if not ok:
         print((r.stdout or "")[-1200:])
 
+    # --- 13. 检查更新弹窗文案 ---
+    # 发布正文被拆成「一句话摘要 + 分平台详细」，这段跑在网络返回之后，
+    # 出问题只会在弹窗里显示成乱码，肉眼很难发现，所以放进来一起跑。
+    print("\n[13] 更新弹窗文案（发布正文解析）")
+    r = subprocess.run([sys.executable, os.path.join(HERE, "test_release_digest.py")],
+                       capture_output=True, text=True, encoding="utf-8", errors="replace",
+                       env=ENV)
+    ok = r.returncode == 0
+    fails = [ln for ln in (r.stdout or "").splitlines() if ln.startswith("[FAIL]")]
+    check("发布正文能拆成 100 字内摘要 + 分平台详细", ok, "；".join(fails[:3]))
+    if not ok:
+        print((r.stdout or "")[-800:])
+
     print("\n" + "=" * 72)
     print("产物目录:", OUT_DIR, "（不在仓库内，git 工作区保持干净）")
     print("自检结论:", "全部通过" if ok_all else "存在未通过项")

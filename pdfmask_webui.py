@@ -263,6 +263,33 @@ main{flex:1;min-height:0;display:flex;overflow:hidden}
 .upd-help b{color:var(--ink2)}
 .upd-help ol{margin:6px 0 0;padding-left:18px}
 
+/* ---------- 更新弹窗里的「一句话摘要 + 分平台详细」（v1.4.4） ----------
+   摘要来自发布正文里那句「一句话」，控制在 100 字内；下面按 Windows / 安卓
+   列出各条目，超出高度先滚动；末尾一条「具体详见 Release 页面」给全文。 */
+.brief{margin-top:8px;padding:8px 10px;border-radius:9px;background:#fff;
+  border:1px solid var(--line);font-size:12.5px;line-height:1.65;color:var(--ink);
+  white-space:pre-line}
+.au-brief{background:#f7f9fc}
+.notes{margin-top:9px;max-height:220px;overflow:auto;padding:1px 10px;
+  border:1px solid var(--line2);border-radius:9px;background:#fbfcfe;scrollbar-width:thin}
+.upd-notes,.au-notes{max-height:220px}
+.notes::-webkit-scrollbar{width:8px}
+.notes::-webkit-scrollbar-thumb{background:#d7dde7;border-radius:4px}
+.notes::-webkit-scrollbar-track{background:transparent}
+.note{padding:7px 0;border-bottom:1px dashed var(--line2)}
+.note:last-child{border-bottom:0}
+.note-h{display:flex;gap:6px;align-items:baseline;flex-wrap:wrap;font-size:12px;
+  line-height:1.5;color:var(--ink)}
+.note-tag{flex:0 0 auto;font-size:10.5px;padding:1px 6px;border-radius:999px;
+  background:#eef1f6;color:var(--ink2);white-space:nowrap}
+.note-tag.win{background:#eef4ff;color:#2b5bd0}
+.note-tag.android{background:#eaf7ee;color:#1a7f45}
+.note-tag.both{background:#f3eefe;color:#6b3fc4}
+.note-b{margin-top:2px;font-size:11.5px;line-height:1.7;color:var(--ink3);white-space:pre-line}
+.more{margin-top:7px;font-size:11.5px;color:var(--ink3)}
+.more a{color:var(--accent);text-decoration:none;cursor:pointer}
+.more a:hover{text-decoration:underline}
+
 /* ---------- 启动自动检查更新（v1.4.2） ---------- */
 #autoUpdMask{z-index:900}
 .auto-upd{position:relative;width:min(470px,100%)}
@@ -452,6 +479,9 @@ main{flex:1;min-height:0;display:flex;overflow:hidden}
     <div class="au-badge" id="autoUpdBadge" hidden></div>
     <h3 id="autoUpdTitle">正在检查更新</h3>
     <p class="sub" id="autoUpdText"></p>
+    <div class="brief au-brief" id="autoUpdBrief" hidden></div>
+    <div class="notes au-notes" id="autoUpdNotes" hidden></div>
+    <div class="more au-more" id="autoUpdMore" hidden><a id="autoUpdMoreLink"></a></div>
     <div class="au-spin" id="autoUpdSpin" hidden><i></i><span id="autoUpdSpinText"></span></div>
     <div class="au-url" id="autoUpdUrl" hidden></div>
     <div class="au-acts" id="autoUpdActs" hidden></div>
@@ -526,6 +556,9 @@ main{flex:1;min-height:0;display:flex;overflow:hidden}
       <div class="modal-note" style="margin-top:8px">开着「自动检查」时启动会静默查一次；关掉后只有点这里才会联网。查到的更新来自上面选定的源。</div>
       <div class="upd-box" id="updBox" hidden>
         <div id="updText"></div>
+        <div class="brief" id="updBrief" hidden></div>
+        <div class="notes" id="updNotes" hidden></div>
+        <div class="more" id="updMore" hidden><a id="updMoreLink"></a></div>
         <div class="upd-detail" id="updDetail" hidden></div>
         <div class="upd-url" id="updUrl" hidden></div>
         <div class="upd-actions" id="updActions" hidden>
@@ -1173,6 +1206,66 @@ $('langSeg').addEventListener('click', async e=>{
 
 let UPD = null;      // {r: 后端返回, opened: 浏览器是否被成功唤起}
 
+/* ---------- 发布正文 → 弹窗里的两段文字 ----------
+   后端已经把发布页正文拆好：一句 100 字以内的摘要 + 按 Windows / 安卓
+   归类的条目。两个窗口（启动自动检查、设置里手动检查）共用这一套渲染，
+   保证用户看到的东西完全一样：
+     摘要（顶部一行，极简）
+     详细（可滚动，每条前面标 Windows / 安卓 / 两端）
+     具体详见 Release 页面 → */
+function digestOf(r){
+  const d = r && r.digest;
+  if(!d) return null;
+  // 先按当前界面语言取，那份是空的就退回另一种语言（发布页只有中文时也能显示）
+  const pick = o => {
+    if(!o) return null;
+    const first = o[LANG];
+    if(first && (!Array.isArray(first) ? first : first.length)) return first;
+    if(o.zh && (!Array.isArray(o.zh) ? o.zh : o.zh.length)) return o.zh;
+    if(o.en && (!Array.isArray(o.en) ? o.en : o.en.length)) return o.en;
+    return null;
+  };
+  const brief = (pick(d.brief) || '').trim();
+  const items = pick(d.notes) || [];
+  let html = '';
+  for(const it of items){
+    const p = (it.p === 'win' || it.p === 'android') ? it.p : 'both';
+    const tag = p === 'win' ? 'Windows'
+              : (p === 'android' ? T('安卓', 'Android') : T('两端', 'Both'));
+    html += '<div class="note"><div class="note-h"><span class="note-tag ' + p + '">' + tag +
+            '</span><b>' + esc(it.t) + '</b></div>';
+    if(it.b && it.b.length){
+      html += '<div class="note-b">' + esc(it.b.join('\n')) + '</div>';
+    }
+    html += '</div>';
+  }
+  return {brief:brief, notes:html};
+}
+
+/* prefix = 'upd' 或 'autoUpd'，对应 HTML 里的 Brief / Notes / More / MoreLink 四个 id */
+function fillDigest(prefix, r){
+  const briefEl = $(prefix + 'Brief'), notesEl = $(prefix + 'Notes');
+  const moreEl = $(prefix + 'More'), link = $(prefix + 'MoreLink');
+  if(!briefEl || !notesEl || !moreEl) return;
+  const dig = digestOf(r);
+  briefEl.hidden = !(dig && dig.brief);
+  briefEl.textContent = (dig && dig.brief) || '';
+  notesEl.hidden = !(dig && dig.notes);
+  notesEl.innerHTML = (dig && dig.notes) || '';
+  moreEl.hidden = !(dig && (dig.brief || dig.notes));
+  if(link){
+    link.textContent = T('具体详见 Release 页面 →', 'Full notes on the release page →');
+    link.onclick = ()=> openUpdateUrl((r && (r.releasesUrl || r.url)) || '');
+  }
+}
+
+function clearDigest(prefix){
+  ['Brief', 'Notes', 'More'].forEach(k=>{
+    const el = $(prefix + k);
+    if(el){ el.hidden = true; }
+  });
+}
+
 function setHelp(){
   $('updHelp').innerHTML = T(
     '还是打不开？按顺序试：<ol>' +
@@ -1193,6 +1286,7 @@ function renderUpdate(){
   const urlBox = $('updUrl'), acts = $('updActions'), help = $('updHelp');
   box.hidden = false;
   urlBox.hidden = true; acts.hidden = true; help.hidden = true;
+  clearDigest('upd');
   const detail = $('updDetail');
   detail.hidden = true; detail.textContent = '';
   if(!r || !r.ok){
@@ -1221,6 +1315,8 @@ function renderUpdate(){
         'New version v' + r.latest + ' is out (you have v' + r.current + '). Your browser is downloading it now.')
     : T('发现新版本 v' + r.latest + '（当前 v' + r.current + '），但没能自动打开浏览器，点下面的按钮再试一次。',
         'New version v' + r.latest + ' is out (you have v' + r.current + '), but the browser did not open — try the button below.');
+  // 有发布正文就给摘要和详细，没有就保持原来的样子（不影响任何老版本）
+  fillDigest('upd', r);
   urlBox.textContent = r.url || '';
   urlBox.hidden = !urlBox.textContent;
   acts.hidden = false; help.hidden = false;
@@ -1333,6 +1429,7 @@ function autoUpdOpen(){
   $('autoUpdActs').innerHTML = '';
   $('autoUpdActs').hidden = true;
   $('autoUpdClose').hidden = false;
+  clearDigest('autoUpd');
   return true;
 }
 
@@ -1390,11 +1487,18 @@ function autoUpdNew(r, opened){
     ? T('强烈建议更新', 'Strongly suggested')
     : T('建议更新', 'Suggested');
   $('autoUpdTitle').textContent = (strong ? T('强烈建议更新到 ', 'Strongly suggested: ') : T('发现新版本 ', 'New version ')) + 'v' + r.latest;
-  $('autoUpdText').textContent = strong
-    ? T('你当前是 v' + r.current + '。这一版修了一直在影响使用的问题，强烈建议尽快换上——更新只要一分钟，原来的功能都在，文件也始终留在你的电脑里。',
-        'You are on v' + r.current + '. This build fixes problems that keep getting in the way, so updating is strongly suggested — it takes a minute, everything keeps working, and your files never leave your computer.')
-    : T('你当前是 v' + r.current + '。新版修了几个已知问题，也更稳——不更新也能继续用，但建议尽快换上。',
-        'You are on v' + r.current + '. The new build fixes a few known problems and is more reliable — you can keep using this version, but updating is worth it.');
+  // 发布页写了「一句话」就用它当正文，不再堆模板话术；没写就退回原来的通用说明
+  const dig = digestOf(r);
+  const hasDigest = !!(dig && (dig.brief || dig.notes));
+  $('autoUpdText').textContent = hasDigest
+    ? T('你当前是 v' + r.current + '。这一版的关键改动就是下面这几条，完整说明在 Release 页面。',
+        'You are on v' + r.current + '. The key changes are listed below; the full notes are on the release page.')
+    : (strong
+      ? T('你当前是 v' + r.current + '。这一版修了一直在影响使用的问题，强烈建议尽快换上——更新只要一分钟，原来的功能都在，文件也始终留在你的电脑里。',
+          'You are on v' + r.current + '. This build fixes problems that keep getting in the way, so updating is strongly suggested — it takes a minute, everything keeps working, and your files never leave your computer.')
+      : T('你当前是 v' + r.current + '。新版修了几个已知问题，也更稳——不更新也能继续用，但建议尽快换上。',
+          'You are on v' + r.current + '. The new build fixes a few known problems and is more reliable — you can keep using this version, but updating is worth it.'));
+  fillDigest('autoUpd', r);
   $('autoUpdUrl').hidden = false;
   $('autoUpdUrl').textContent = r.url || r.releasesUrl || '';
   autoUpdBtn(T('暂不更新', 'Not now'), false, autoUpdAskLater);
@@ -1426,6 +1530,7 @@ function autoUpdAskLater(){
   if (!autoUpdOpen()) return;
   AUTO.state = 'plea';
   const strong = AUTO.strong;
+  clearDigest('autoUpd');
   $('autoUpdTitle').textContent = strong
     ? T('再看一眼，好吗？', 'One more look?')
     : T('确定先不更新吗？', 'Skip this update?');

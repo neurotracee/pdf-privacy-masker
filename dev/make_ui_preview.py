@@ -41,7 +41,8 @@ MOCK = r"""
              settingsPath:'C:\\Users\\YB\\AppData\\Roaming\\PDF隐私打码工具\\settings.json'};
   window.__UPD = {ok:true, current:'1.4.2', latest:'1.5.0', hasUpdate:false, strong:false,
     url:'https://github.com/neurotracee/pdf-privacy-masker/releases/download/v1.5.0/PDFPrivacyMasker-1.5.0.exe',
-    releasesUrl:'https://github.com/neurotracee/pdf-privacy-masker/releases/latest'};
+    releasesUrl:'https://github.com/neurotracee/pdf-privacy-masker/releases/latest',
+    digest: __DIGEST__};
   function json(o){ return new Response(JSON.stringify(o),
       {status:200, headers:{'content-type':'application/json; charset=utf-8'}}); }
 
@@ -130,6 +131,13 @@ STEPS = {
     "ui_10_update_latest": ("function(){ window.__UPD.hasUpdate = false; window.__UPD.latest = '1.4.0';"
                             " document.getElementById('setBtn').click();"
                             " setTimeout(function(){ document.getElementById('checkBtn').click(); }, 120); }"),
+    # 英文界面下同一份发布正文：摘要和条目要切成英文
+    "ui_20_update_new_en": ("function(){ window.__UPD.hasUpdate = true;"
+                            " document.getElementById('setBtn').click();"
+                            " setTimeout(function(){"
+                            "  document.querySelector('.seg-btn[data-lang=en]').click();"
+                            "  setTimeout(function(){ document.getElementById('checkBtn').click(); }, 80);"
+                            " }, 120); }"),
     "ui_11_update_fail": ("function(){ window.__UPD = {ok:false, error:'TimeoutError: timed out'};"
                           " document.getElementById('setBtn').click();"
                           " setTimeout(function(){ document.getElementById('checkBtn').click(); }, 120); }"),
@@ -162,6 +170,13 @@ PER_PAGE = {
 
 def build():
     os.makedirs(OUT, exist_ok=True)
+    # 弹窗文案用真实发布正文解析出来，预览里看到的就是用户会看到的那两段
+    notes = os.path.join(ROOT, "release", "v%s" % pdfmask.VERSION, "RELEASE-NOTES.md")
+    digest = {"brief": {"zh": "", "en": ""}, "notes": {"zh": [], "en": []}}
+    if os.path.exists(notes):
+        import pdfmask_update
+        digest = pdfmask_update.parse_digest(open(notes, encoding="utf-8").read())
+    digest_js = json.dumps(digest, ensure_ascii=False)
     base = pdfmask.HTML_UI
     base = (base.replace("__TOKEN__", "testtoken")
                 .replace("__BOOT__", '""')
@@ -174,7 +189,7 @@ def build():
                 .replace("__URL__", pdfmask.PROJECT_URL)
                 .replace("__THANKS__", pdfmask.QR_PNG_B64))
     for name, step in STEPS.items():
-        mock = MOCK
+        mock = MOCK.replace("__DIGEST__", digest_js)
         if name.startswith("ui_06"):
             mock = mock.replace("noAsk:false", "noAsk:true").replace(
                 "saveDir:''", "saveDir:'D:\\\\HugoMoveData\\\\User\\\\YB\\\\Downloads'")

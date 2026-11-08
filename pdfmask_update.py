@@ -104,6 +104,231 @@ def update_strong(body):
     return bool(STRONG_RE.search(body or ""))
 
 
+# ------------------------------------------------------- 发布正文 → 弹窗文案
+#
+# 发布页正文是我们自己写的 Markdown，格式约定（v1.4.4 起）：
+#
+#   更新级别：建议
+#   > **一句话**：不超过 100 字，只说最关键的那几条
+#   ## 1. 修复：xxx（Windows）
+#   ## 2. 修复：xxx（安卓）
+#
+# 弹窗里先给那句摘要，再把各条目按 Windows / 安卓 归类列出来，
+# 末尾写「具体详见 Release 页面」。解析只做保守的兜底：
+# 找不到摘要标记就取正文第一段，找不到小标题就不给详细——
+# 宁可少显示，也不要显示一堆 Markdown 记号。
+
+_MD_HEAD = re.compile(r"^(#{1,6})\s+(.*)$")
+_MD_FENCE_LINE = re.compile(r"^\s*(`{3,}|~{3,})")
+_BRIEF_MARK = re.compile(
+    r"(?:一句话(?:结论|概括)?|一行概括|摘要|要点|"
+    r"in\s+one\s+line|at\s+a\s+glance|tl;?dr|summary|highlight)",
+    re.I)
+_PLAT_TAIL = re.compile(r"[（(]\s*([^）)]{0,24}?)\s*[）)]\s*$")
+_NAV_RE = re.compile(r"^\**[^\n]{0,12}\**\s*\|\s*\[", re.I)
+# 「更新级别：建议」这类配置行不是摘要，别把它顶到弹窗顶上
+_CONFIG_RE = re.compile(r"^(?:更新级别|更新说明|版本(?:说明)?|update\s*level|version)\s*[：:]", re.I)
+_SKIP_TITLE = ("下载", "download", "校验", "checksum", "目录", "contents")
+
+MAX_BRIEF_ZH = 100        # 用户要求：一行摘要控制在 100 字以内
+MAX_BRIEF_EN = 150        # 英文同样长度会更长，给 150 字符，读起来才不至于半句
+MAX_ITEMS = 8             # 弹窗只列最关键的前几条，其余去发布页看
+MAX_ITEM_CHARS = 360      # 单条正文上限，避免弹窗里一大坨字
+
+
+def _plain(text):
+    """去掉 Markdown 记号，只留能直接显示的文字。
+
+    反引号里的内容原样保留（`` `0512****1234` `` 这种打码示例不能被吃掉星号），
+    加粗只按成对的 ``**…**`` 剥，孤零零的 ``****`` 不当记号处理。
+    """
+    s = text or ""
+    codes = []
+
+    def keep(m):
+        codes.append(m.group(1))
+        return "\x00%d\x00" % (len(codes) - 1)
+
+    s = re.sub(r"`([^`]*)`", keep, s)
+    s = re.sub(r"!\[[^\]]*\]\([^)]*\)", "", s)          # 图片
+    s = re.sub(r"\[([^\]]+)\]\([^)]*\)", r"\1", s)      # 链接留文字
+    s = re.sub(r"^\s*(?:>\s*)+", "", s)                 # 引用
+    s = re.sub(r"\*\*(.+?)\*\*", r"\1", s)              # 成对加粗
+    s = re.sub(r"__(.+?)__", r"\1", s)
+    s = re.sub(r"^\s*[-*+]\s+", "", s)                  # 列表符号
+    s = re.sub(r"\x00(\d+)\x00", lambda m: codes[int(m.group(1))], s)
+    return s.strip()
+
+
+def _clip(text, limit):
+    """截到 limit 以内，尽量在句号处断开，实在不行截断加省略号。"""
+    s = (text or "").strip()
+    if len(s) <= limit:
+        return s
+    head = s[:limit]
+    cut = max(head.rfind(c) for c in "。！？；.!?;")
+    if cut >= limit * 0.5:
+        return head[:cut + 1]
+    return head[:limit - 1].rstrip("，,、 ") + "…"
+
+
+def split_lang(body):
+    """把中英双语正文切成 (中文段, 英文段)。
+
+    英文段的起点是第一个「完全不含汉字、且带 Release Notes / Release」的一级标题。
+    没有这种标题时整篇按中文处理（英文段为空），弹窗就只用中文那份。
+    """
+    lines = (body or "").replace("\r\n", "\n").replace("\r", "\n").split("\n")
+    for i, ln in enumerate(lines):
+        if not _MD_HEAD.match(ln) or not ln.startswith("# "):
+            continue
+        if re.search(r"[\u4e00-\u9fff]", ln):
+            continue
+        if re.search(r"release\s*notes?|what'?s\s*new", ln, re.I):
+            return "\n".join(lines[:i]), "\n".join(lines[i:])
+    return "\n".join(lines), ""
+
+
+def _brief(section, limit):
+    """那一行摘要。
+
+    先找带标记的行（一句话 / TL;DR / Summary …），标记后面的文字就是摘要；
+    没有标记时退回正文第一段话——作者偷懒也不会让弹窗空着。
+    """
+    lines = section.split("\n")
+    for ln in lines:
+        s = ln.strip()
+        if not s:
+            continue
+        if s.startswith("#"):
+            if s.startswith("## "):
+                break          # 已经进到条目正文，摘要区结束了
+            continue           # 一级标题（# v1.4.4 版本说明）跳过
+        if _NAV_RE.match(s) or _CONFIG_RE.match(_plain(s)):
+            continue
+        m = _BRIEF_MARK.search(s[:24])
+        if m:
+            # 标记后面常跟着「**：」，这些记号先剥掉，剩下的才是摘要正文
+            cand = re.sub(r"^[\s*_]*[：:\-—.。]*[\s*_]*", "", s[m.end():])
+            cand = _plain(cand)
+            cand = re.sub(r"^[\s:：\-—.。*]+", "", cand)
+            if len(cand) >= 8:
+                return _clip(cand, limit)
+    # 兜底：第一段正文（跳过标题、列表、导航、分隔线、代码块）
+    para = []
+    in_code = False
+    for ln in lines:
+        s = ln.strip()
+        if _MD_FENCE_LINE.match(s):
+            in_code = not in_code
+            continue
+        if in_code:
+            continue
+        if not s or s.startswith("#") or s.startswith("---") or s.startswith("|"):
+            if para:
+                break
+            continue
+        if s[0] in "-*>" or _NAV_RE.match(s) or _CONFIG_RE.match(_plain(s)):
+            if para:
+                break
+            continue
+        para.append(_plain(s))
+        if s.endswith(("。", ".", "！", "!", "？", "?")) and sum(len(x) for x in para) > 30:
+            break
+    cand = " ".join(x for x in para if x)
+    return _clip(cand, limit) if len(cand) >= 10 else ""
+
+
+def _platform(title):
+    """标题尾巴上的平台标注：``both`` / ``win`` / ``android`` / ``""``（未标注）。"""
+    m = _PLAT_TAIL.search(title)
+    if not m:
+        return ""
+    tag = m.group(1).lower()
+    has_win = "windows" in tag or "桌面" in tag
+    has_and = ("安卓" in tag or "android" in tag or "手机" in tag)
+    if has_win and has_and:
+        return "both"
+    if has_win:
+        return "win"
+    if has_and:
+        return "android"
+    return ""
+
+
+def _items(section, limit_items=MAX_ITEMS):
+    """把 ``## …`` 小标题拆成弹窗条目：[{t: 标题, p: 平台, b: [正文行]}]。"""
+    items = []
+    cur = None
+    buf = []
+    in_code = False
+
+    def flush():
+        if not cur:
+            return
+        body, used = [], 0
+        for ln in buf:
+            if not ln:
+                continue
+            left = MAX_ITEM_CHARS - used
+            if left <= 20:
+                break
+            # 单段特别长（英文常见）时截断这一段，而不是把整条丢掉
+            body.append(ln if len(ln) <= left else _clip(ln, left))
+            used += min(len(ln), left)
+        if body:
+            cur["b"] = body
+            items.append(cur)
+
+    for raw in section.split("\n"):
+        s = raw.rstrip()
+        if _MD_FENCE_LINE.match(s):
+            in_code = not in_code
+            continue
+        m = _MD_HEAD.match(s)
+        if m and len(m.group(1)) <= 3 and not in_code:
+            if len(m.group(1)) == 1:
+                continue
+            flush()
+            title = _plain(m.group(2))
+            plat = _platform(title)
+            if plat:
+                title = _PLAT_TAIL.sub("", title).strip()
+            title = re.sub(r"^\d+\s*[.、)]\s*", "", title).strip()
+            if not title or any(k in title.lower() for k in _SKIP_TITLE):
+                cur = None
+                buf = []
+                continue
+            cur = {"t": title, "p": plat or "both"}
+            buf = []
+            continue
+        if cur is None:
+            continue
+        if not s or s.startswith("---") or s.startswith("|"):
+            continue
+        if _NAV_RE.match(s.strip()) or _BRIEF_MARK.search(_plain(s)[:24]) and "：" in s[:28]:
+            continue
+        line = _plain(s)
+        if line:
+            buf.append(line)
+        if len(items) >= limit_items and not buf:
+            break
+    flush()
+    return items[:limit_items]
+
+
+def parse_digest(body, items=True):
+    """发布正文 → 弹窗用的 ``{"brief": {zh,en}, "notes": {zh,en}}``。"""
+    zh, en = split_lang(body)
+    out = {"brief": {"zh": _brief(zh, MAX_BRIEF_ZH),
+                     "en": _brief(en, MAX_BRIEF_EN) if en else ""},
+           "notes": {"zh": [], "en": []}}
+    if items:
+        out["notes"]["zh"] = _items(zh)
+        out["notes"]["en"] = _items(en) if en else []
+    return out
+
+
 # ---------------------------------------------------------------- 通道定义
 
 def _channels(prefer_gitee):
@@ -203,8 +428,8 @@ def parse_releases(data, suffix, page_fallback):
         data = [data]
     if not isinstance(data, list):
         return None
-    best = None      # (ver, url, asset, strong)
-    tag_only = None  # (ver, page, tag, strong)
+    best = None      # (ver, url, asset, strong, body)
+    tag_only = None  # (ver, page, tag, strong, body)
     for rel in data:
         if not isinstance(rel, dict) or rel.get("draft"):
             continue
@@ -212,10 +437,11 @@ def parse_releases(data, suffix, page_fallback):
         if not allowed_download(page):
             page = page_fallback
         tag = (rel.get("tag_name") or "").strip()
-        strong = update_strong(rel.get("body"))
+        body = rel.get("body") or ""
+        strong = update_strong(body)
         tv = ver_tuple(tag)
         if tv and (tag_only is None or tv > tag_only[0]):
-            tag_only = (tv, page, tag, strong)
+            tag_only = (tv, page, tag, strong, body)
         for a in rel.get("assets") or []:
             name = a.get("name") or ""
             if not name.lower().endswith(suffix):
@@ -227,13 +453,13 @@ def parse_releases(data, suffix, page_fallback):
             if not allowed_download(url):
                 url = page          # 白名单外 → 只给发布页
             if best is None or v > best[0]:
-                best = (v, url, name, strong)
+                best = (v, url, name, strong, body)
     if best:
         return {"ver": best[0], "url": best[1], "asset": best[2], "source": "asset",
-                "strong": best[3]}
+                "strong": best[3], "body": best[4]}
     if tag_only:
         return {"ver": tag_only[0], "url": tag_only[1], "asset": "", "source": "tag",
-                "strong": tag_only[3]}
+                "strong": tag_only[3], "body": tag_only[4]}
     return None
 
 
@@ -283,6 +509,8 @@ def check_update(current, suffix, t, ui_lang=None, source=None, order=None):
             "source": got["source"],
             "channel": label,
             "preferred": src,
+            # 弹窗要显示的两段东西：一行摘要 + 按平台归类的详细条目
+            "digest": parse_digest(got.get("body") or ""),
             "releasesUrl": ch["page"],
         }
     if seen_no_asset is not None:

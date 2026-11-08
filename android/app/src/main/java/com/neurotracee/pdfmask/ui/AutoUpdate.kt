@@ -134,6 +134,7 @@ fun AutoUpdateGate() {
             r = res,
             opened = opened,
             onOpen = { opened = openUrlInBrowser(ctx, res.url) },
+            onOpenPage = { openUrlInBrowser(ctx, res.page) },
             onClose = { result = null }
         )
     }
@@ -145,11 +146,15 @@ private fun AutoUpdateResult(
     r: Updater.Result,
     opened: Boolean,
     onOpen: () -> Unit,
+    onOpenPage: () -> Unit,
     onClose: () -> Unit
 ) {
     val ctx = LocalContext.current
     val strong = r.strong
     val accent = if (strong) Color(0xFFE5484D) else MaterialTheme.colorScheme.primary
+    // 发布正文里写了摘要或条目 → 正文不再堆模板话术，直接让用户看下面那几条
+    val dig = r.digest?.pick(AppPrefs.isEn)
+    val hasDigest = dig != null && (dig.brief.isNotBlank() || dig.items.isNotEmpty())
 
     // 第一次想关：先换成挽留界面；再点一次「仍然用旧版」就真的放行，不再纠缠
     var pleading by remember(r) { mutableStateOf(false) }
@@ -220,6 +225,12 @@ private fun AutoUpdateResult(
                                 "and is steadier.\n\nYou will be reminded once more next time, so you can " +
                                 "always switch later."
                         )
+                        hasDigest -> T(
+                            "当前是 v" + r.current + "。这一版的关键改动就是下面这几条，" +
+                                "完整说明在 Release 页面。",
+                            "You are on v" + r.current + ". The key changes are listed below; " +
+                                "the full notes are on the release page."
+                        )
                         strong -> T(
                             "当前是 v" + r.current + "。这一版修了一直在影响使用的问题，强烈建议尽快换上——" +
                                 "更新只要一分钟，原来的功能都在，文件也始终留在你的手机里。",
@@ -238,6 +249,16 @@ private fun AutoUpdateResult(
                     lineHeight = 20.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+
+                if (!pleading) {
+                    Spacer(Modifier.height(10.dp))
+                    // 发布正文里有摘要/条目时，这里就是这一版到底改了什么
+                    UpdateNotesBlock(
+                        r = r,
+                        accent = accent,
+                        onOpenPage = onOpenPage
+                    )
+                }
 
                 if (!pleading) {
                     Spacer(Modifier.height(12.dp))

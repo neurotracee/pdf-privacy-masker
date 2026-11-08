@@ -71,7 +71,11 @@ object Updater {
         /** 强烈建议：发布正文里标了「更新级别：强烈建议」。仍然可以关掉，只是关的时候多劝一句 */
         val strong: Boolean = false,
         /** 这次结果来自哪个通道：Gitee / GitHub */
-        val channel: String = ""
+        val channel: String = "",
+        /** 发布正文拆出来的弹窗文案：一行摘要 + 按平台归类的详细条目 */
+        val digest: ReleaseDigest.Digest? = null,
+        /** 这个通道的发布页：详细说明都在那儿 */
+        val page: String = RELEASES_PAGE
     )
 
     /** 下载地址是否可信：必须 https，域名在白名单内（含其子域） */
@@ -170,16 +174,19 @@ object Updater {
         var bestVer: IntArray? = null
         var bestUrl = ""
         var bestStrong = false
+        var bestBody = ""
         var tagVer: IntArray? = null
         var tagUrl = ""
         var tagStrong = false
+        var tagBody = ""
 
         for (i in 0 until arr.length()) {
             val rel = arr.optJSONObject(i) ?: continue
             if (rel.optBoolean("draft")) continue
             val page = rel.optString("html_url").ifBlank { pageFallback }
                 .let { if (allowedDownload(it)) it else pageFallback }
-            val strong = isStrongUpdate(rel.optString("body"))
+            val body = rel.optString("body")
+            val strong = isStrongUpdate(body)
 
             ver(rel.optString("tag_name"))?.let { v ->
                 val old = tagVer
@@ -187,6 +194,7 @@ object Updater {
                     tagVer = v
                     tagUrl = page
                     tagStrong = strong
+                    tagBody = body
                 }
             }
 
@@ -204,15 +212,18 @@ object Updater {
                     bestVer = v
                     bestUrl = url
                     bestStrong = strong
+                    bestBody = body
                 }
             }
         }
 
         bestVer?.let { v ->
-            return Result(true, current, fmt(v), cmp(v, cur) > 0, bestUrl, strong = bestStrong)
+            return Result(true, current, fmt(v), cmp(v, cur) > 0, bestUrl, strong = bestStrong,
+                digest = ReleaseDigest.of(bestBody), page = pageFallback)
         }
         tagVer?.let { v ->
-            return Result(true, current, fmt(v), cmp(v, cur) > 0, tagUrl, strong = tagStrong)
+            return Result(true, current, fmt(v), cmp(v, cur) > 0, tagUrl, strong = tagStrong,
+                digest = ReleaseDigest.of(tagBody), page = pageFallback)
         }
         return null
     }

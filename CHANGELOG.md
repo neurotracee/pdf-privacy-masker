@@ -4,7 +4,9 @@
 
 更新级别：建议
 
-**一句话结论**：这一版补掉上一版留下的三处同类残口——注释和书签里**只出现**姓名或地址时不再漏打；安卓端注释里的文字会被渲染成像素、原来永远打不到，现在按注释矩形整块盖马赛克；顺带把「4 位一组」印法的银行卡号纳入识别，并修正座机号在列表里没有遮挡的问题。校验和文件这次也一起挂到发布页了。
+> **一句话**：注释和书签里只出现的姓名地址不再漏打；安卓注释文字改成整块马赛克；4 位一组的银行卡认得出；座机号在列表里也遮住了；更新弹窗先给一句话摘要，再按 Windows / 安卓分开列详细。
+
+这一版补掉上一版留下的三处同类残口：注释和书签里**只出现**姓名或地址时不再漏打；安卓端注释里的文字会被渲染成像素、原来永远打不到，现在按注释矩形整块盖马赛克；顺带把「4 位一组」印法的银行卡号纳入识别，并修正座机号在列表里没有遮挡的问题。校验和文件这次也一起挂到发布页了。
 
 ---
 
@@ -47,12 +49,22 @@
 - `dev/test_scrub_notes.py` 增加了「正文里没有、只在注释或书签里出现」的姓名和地址用例，正好是这次修的那一类；
 - `dev/selfcheck.py` 主流程新增第 12 项，自动跑上面那套注释/书签用例——以前只靠单独执行，改别的地方时容易忘。
 
-## 6. 已知限制（补充说明）
+## 6. 改进：更新弹窗先给一句话，再按平台列详细（Windows + 安卓）
+
+检查更新的弹窗（启动时自动检查、设置里手动检查，两个都一样）现在分成三层：
+
+1. **一行摘要**：取自发布页正文里那句「一句话」，控制在 100 字内，只说最要紧的几条；
+2. **详细条目**：按 Windows / 安卓 分开标注，可以上下翻看，不用跳出去；
+3. **末尾一条「具体详见 Release 页面」**：想看全文点这里。
+
+摘要是从仓库的发布页正文里读的，不是写死在程序里——以后发版只要正文里带上那行「一句话」，弹窗自动就跟着变；正文没写也不会报错，弹窗就和以前一样。
+
+## 7. 已知限制（补充说明）
 
 - **安卓端的输出是图片**：整页重绘为 JPEG 再组装，所以打码后的 PDF 不能搜索、不能复制文字，体积通常也比原文件大；Windows 版保留矢量版面、只抹掉命中处的文字层。这是为了「彻底抹除文字层」有意做的取舍，之前的发版说明没有写清楚，这次补上。
 - 注释是整块盖掉的：如果一条注释里既有敏感内容、又有需要保留的说明，那整条都会没。想保留就单独再写一条干净注释。
 
-## 7. 下载
+## 8. 下载
 
 - Windows：`PDFPrivacyMasker-1.4.4.exe`（免安装，双击即用）
 - 安卓：`PDFPrivacyMasker-1.4.4-arm64.apk`（arm64-v8a，Android 8.0+）
@@ -68,7 +80,9 @@
 
 Update level: suggested
 
-**TL;DR** — this release closes the three related gaps left by the previous one: names and addresses that appear **only** inside annotations or bookmarks are no longer missed; on Android, text inside annotations was being rendered into pixels and could never be masked, so those annotation boxes are now mosaicked whole; on top of that, bank cards printed in groups of four are now detected, and landline numbers are masked in the result list. The checksum file is attached to the release this time as well.
+> **In one line**: Annotation and bookmark leaks fixed; Android comment text now mosaicked; grouped bank cards and landlines covered; the update dialog now leads with a one-line summary and splits the details by platform.
+
+This release closes the three related gaps left by the previous one: names and addresses that appear **only** inside annotations or bookmarks are no longer missed; on Android, text inside annotations was being rendered into pixels and could never be masked, so those annotation boxes are now mosaicked whole; on top of that, bank cards printed in groups of four are now detected, and landline numbers are masked in the result list. The checksum file is attached to the release this time as well.
 
 ## 1. Fixed: names and addresses that only appear in annotations or bookmarks (Windows)
 
@@ -109,12 +123,20 @@ The masking helper had no landline branch, so `0512-66881234` was displayed verb
 - `dev/test_scrub_notes.py` gained cases for names and addresses that appear only inside annotations or bookmarks — exactly the gap fixed here;
 - `dev/selfcheck.py` gained step 12, which runs that suite automatically. Previously it was a separate script and easy to forget.
 
-## 6. Known limitations (added)
+## 6. Improved: the update dialog leads with one line, then lists details per platform (Windows + Android)
+
+The update dialog (both the automatic check at launch and the manual one under Settings) now has three layers:/n/n1. **A one-line summary** — taken from the “In one line” line in the release body, kept under 100 characters, only the changes that matter most;
+2. **Detailed items** — tagged Windows / Android, scrollable in place, no need to leave the app;
+3. **“Full notes on the release page”** at the bottom — click through for everything.
+
+The summary is read from the release page body at runtime, not hard-coded: keep that line in the release notes and the dialog follows automatically. If a release omits it, nothing breaks — the dialog looks like it used to.
+
+## 7. Known limitations (added)
 
 - **Android output is images**: pages are re-rendered as JPEG and assembled, so the redacted PDF is not searchable, its text cannot be copied, and the file is usually larger. The Windows build keeps the vector layout and only removes the text layer at the hits. This is a deliberate trade for wiping the text layer, and earlier release notes never spelled it out — now they do.
 - Annotations are covered as a whole: if one annotation holds both sensitive content and text worth keeping, the entire annotation goes. Write a separate clean note in that case.
 
-## 7. Downloads
+## 8. Downloads
 
 - Windows: `PDFPrivacyMasker-1.4.4.exe` (portable, no install)
 - Android: `PDFPrivacyMasker-1.4.4-arm64.apk` (arm64-v8a, Android 8.0+)
