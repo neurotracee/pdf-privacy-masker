@@ -40,6 +40,7 @@ MOCK = r"""
              effectiveDir:OUTDIR, configured:false, lang:'zh',
              settingsPath:'C:\\Users\\YB\\AppData\\Roaming\\PDF隐私打码工具\\settings.json'};
   window.__UPD = {ok:true, current:'1.4.2', latest:'1.5.0', hasUpdate:false, strong:false,
+    channel:'Gitee', fallbackFrom:'',
     url:'https://github.com/neurotracee/pdf-privacy-masker/releases/download/v1.5.0/PDFPrivacyMasker-1.5.0.exe',
     releasesUrl:'https://github.com/neurotracee/pdf-privacy-masker/releases/latest',
     digest: __DIGEST__};
@@ -138,6 +139,11 @@ STEPS = {
                             "  document.querySelector('.seg-btn[data-lang=en]').click();"
                             "  setTimeout(function(){ document.getElementById('checkBtn').click(); }, 80);"
                             " }, 120); }"),
+    # 首选 Gitee 没连上、自动改用 GitHub：界面要说清原因，别让人以为设置被改了
+    "ui_21_update_fallback": ("function(){ window.__UPD.hasUpdate = true;"
+                              " window.__UPD.channel = 'GitHub'; window.__UPD.fallbackFrom = 'Gitee';"
+                              " document.getElementById('setBtn').click();"
+                              " setTimeout(function(){ document.getElementById('checkBtn').click(); }, 120); }"),
     "ui_11_update_fail": ("function(){ window.__UPD = {ok:false, error:'TimeoutError: timed out'};"
                           " document.getElementById('setBtn').click();"
                           " setTimeout(function(){ document.getElementById('checkBtn').click(); }, 120); }"),

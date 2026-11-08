@@ -16,7 +16,7 @@ sys.path.insert(0, os.path.join(HERE, ".."))
 import pdfmask_update as U  # noqa: E402
 
 ROOT = os.path.join(HERE, "..")
-NOTES = os.path.join(ROOT, "release", "v1.4.4", "RELEASE-NOTES.md")
+NOTES = os.path.join(ROOT, "release", "v1.4.5", "RELEASE-NOTES.md")
 
 ok_all = True
 
@@ -88,7 +88,13 @@ def main():
           not any(re.search(r"[（(](Windows|安卓|Android)[^）)]*[）)]$", it["t"]) for it in items))
     joined = "\n".join("\n".join(it.get("b") or []) for it in items)
     check("条目标题/正文没有 Markdown 记号", not mask_leftover(joined), str(mask_leftover(joined)))
-    check("打码示例的星号没被吃掉（0512****1234）", "0512****1234" in joined)
+    # 这条不能依赖某一版正文里正好有打码示例，自己造一段才稳定
+    sample = U.parse_digest(
+        "# v9.9.9\n\n> **一句话**：这是一段足够长的摘要文字，用来验证解析。\n\n"
+        "## 修复（Windows）\n\n- 座机号显示成 `0512****1234`，姓名显示成 `赵**`。\n")
+    s_join = "\n".join("\n".join(it.get("b") or []) for it in sample["notes"]["zh"])
+    check("打码示例的星号没被吃掉（0512****1234 / 赵**）",
+          "0512****1234" in s_join and "赵**" in s_join, s_join[:80])
     check("下载章节不重复列进弹窗", not any("下载" in it["t"] for it in items))
     check("英文条目也解析出来了", len(d["notes"]["en"]) >= 3)
 

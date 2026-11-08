@@ -335,6 +335,20 @@ def main():
     if not ok:
         print((r.stdout or "")[-800:])
 
+    # --- 14. 默认更新源 ---
+    # 默认源曾经把「界面语言」当成「人在不在国内」：界面切英文就跑去 GitHub，
+    # 启动早期还会因为进程默认 Locale 没就绪而抖动（一进来 GitHub、关掉窗口又变 Gitee）。
+    # 规则已改成「默认 Gitee，只有语言非中文且时区非东八区才用 GitHub」，这里钉住。
+    print("\n[14] 默认更新源（不看界面语言，默认 Gitee）")
+    r = subprocess.run([sys.executable, os.path.join(HERE, "test_source_pick.py")],
+                       capture_output=True, text=True, encoding="utf-8", errors="replace",
+                       env=ENV)
+    ok = r.returncode == 0
+    fails = [ln.strip() for ln in (r.stdout or "").splitlines() if ln.strip().startswith("FAIL:")]
+    check("默认源始终 Gitee（界面语言不参与判断）", ok, "；".join(fails[:3]))
+    if not ok:
+        print((r.stdout or "")[-800:])
+
     print("\n" + "=" * 72)
     print("产物目录:", OUT_DIR, "（不在仓库内，git 工作区保持干净）")
     print("自检结论:", "全部通过" if ok_all else "存在未通过项")

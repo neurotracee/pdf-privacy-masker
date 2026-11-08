@@ -42,7 +42,9 @@ GITEE_API = "https://gitee.com/api/v5/repos/%s/releases?per_page=20" % GITEE_REP
 GITHUB_PAGE = "https://github.com/%s/releases/latest" % GITHUB_REPO
 GITEE_PAGE = "https://gitee.com/%s/releases/latest" % GITEE_REPO
 
-UPDATE_TIMEOUT = 8       # 秒；单通道超时就换下一个通道，界面不会卡住
+UPDATE_TIMEOUT = 10      # 秒；单通道超时就换下一个通道，界面不会卡住。
+                         # 原来是 8 秒，移动网络/首次解析常常刚过线就被判死，
+                         # 于是「默认 Gitee」悄悄变成了 GitHub。
 
 # 允许的下载域名：GitHub 的发布资产走 objects./release-assets. 两个 CDN，
 # Gitee 的附件走 gitee.com 自身。其余域名一律不接受。
@@ -128,7 +130,10 @@ _PLAT_TAIL = re.compile(r"[（(]\s*([^）)]{0,24}?)\s*[）)]\s*$")
 _NAV_RE = re.compile(r"^\**[^\n]{0,12}\**\s*\|\s*\[", re.I)
 # 「更新级别：建议」这类配置行不是摘要，别把它顶到弹窗顶上
 _CONFIG_RE = re.compile(r"^(?:更新级别|更新说明|版本(?:说明)?|update\s*level|version)\s*[：:]", re.I)
-_SKIP_TITLE = ("下载", "download", "校验", "checksum", "目录", "contents")
+# 只跳过「标题就是下载/校验/目录」这类章节。以前是「标题里出现 download 就跳过」，
+# 结果「Fixed: Android downloads arrived as .apk.zip」这种正经修复条目被整条丢掉。
+_SKIP_TITLE = re.compile(
+    r"^(?:下载|校验|目录|附件|(?:downloads?|checksums?|contents)\b)", re.I)
 
 MAX_BRIEF_ZH = 100        # 用户要求：一行摘要控制在 100 字以内
 MAX_BRIEF_EN = 150        # 英文同样长度会更长，给 150 字符，读起来才不至于半句
@@ -295,7 +300,7 @@ def _items(section, limit_items=MAX_ITEMS):
             if plat:
                 title = _PLAT_TAIL.sub("", title).strip()
             title = re.sub(r"^\d+\s*[.、)]\s*", "", title).strip()
-            if not title or any(k in title.lower() for k in _SKIP_TITLE):
+            if not title or _SKIP_TITLE.match(title):
                 cur = None
                 buf = []
                 continue
@@ -370,15 +375,40 @@ def system_is_chinese():
     return system_lang_state() != "other"
 
 
+def utc_offset_hours():
+    """本机当前时区相对 UTC 的小时数；问不出来返回 None。"""
+    try:
+        import datetime
+        off = datetime.datetime.now().astimezone().utcoffset()
+        if off is None:
+            return None
+        return off.total_seconds() / 3600.0
+    except Exception:
+        return None
+
+
 def prefer_gitee(ui_lang=None):
     """默认源是不是 Gitee。
 
-    界面明确是英文 → 以 GitHub 优先（避免把外网用户引到国内镜像）；
-    否则看系统语言，判断不出来也走 Gitee。
+    只看系统环境，**不看界面语言**：用户可能只是把界面切成英文，那不代表他在海外，
+    不该因此把他引到可能连不上的 GitHub。
+
+    判断顺序（任何一步问不出来都按 Gitee 兜底）：
+      1. 系统语言是中文 → Gitee；
+      2. 语言不是中文，但时区在东八区（中国大陆、中国港澳台、新加坡等）→ 仍按 Gitee；
+      3. 两项都指向海外 → GitHub。
+
+    ``ui_lang`` 只为兼容旧调用保留，不再参与判断。
     """
-    if ui_lang and str(ui_lang).lower().startswith("en"):
-        return False
-    return system_lang_state() != "other"
+    state = system_lang_state()
+    if state is None:
+        return True
+    if state == "zh":
+        return True
+    off = utc_offset_hours()
+    if off is None:
+        return True
+    return abs(off - 8.0) < 0.01
 
 
 def resolve_source(pref=None, ui_lang=None):
@@ -477,6 +507,7 @@ def check_update(current, suffix, t, ui_lang=None, source=None, order=None):
     src = resolve_source(source, ui_lang)
     # 指定源优先；它连不上时仍然回退到另一个通道，保证「有网就能查到更新」
     chans = order or _channels(src == "gitee")
+    wanted_label = chans[0]["label"] if chans else ""
     errors = []
     seen_no_asset = None
     for ch in chans:
@@ -508,6 +539,8 @@ def check_update(current, suffix, t, ui_lang=None, source=None, order=None):
             "asset": got["asset"],
             "source": got["source"],
             "channel": label,
+            # 首选通道连不上、自动换了一个时据实说明，免得用户以为「默认 Gitee 怎么用了 GitHub」
+            "fallbackFrom": "" if label == wanted_label else wanted_label,
             "preferred": src,
             # 弹窗要显示的两段东西：一行摘要 + 按平台归类的详细条目
             "digest": parse_digest(got.get("body") or ""),

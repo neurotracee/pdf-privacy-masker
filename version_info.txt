@@ -2,8 +2,8 @@
 # exe 文件属性（右键 → 属性 → 详细信息 里显示的内容）
 VSVersionInfo(
   ffi=FixedFileInfo(
-    filevers=(1, 4, 4, 0),
-    prodvers=(1, 4, 4, 0),
+    filevers=(1, 4, 5, 0),
+    prodvers=(1, 4, 5, 0),
     mask=0x3f,
     flags=0x0,
     OS=0x40004,
@@ -17,13 +17,13 @@ VSVersionInfo(
         '080404B0',
         [StringStruct('CompanyName', '项目创作时为初中生（指导作者）'),
          StringStruct('FileDescription', 'PDF 隐私打码工具 — 本地离线 PDF 隐私信息自动打码'),
-         StringStruct('FileVersion', '1.4.4.0'),
+         StringStruct('FileVersion', '1.4.5.0'),
          StringStruct('InternalName', 'pdfmask'),
          StringStruct('LegalCopyright', 'Copyright (C) 2026 项目创作时为初中生. GNU AGPL-3.0-or-later. 二次开发或商用须保留署名与本地址：https://github.com/neurotracee/pdf-privacy-masker'),
          StringStruct('LegalTrademarks', ''),
          StringStruct('OriginalFilename', 'PDF隐私打码工具.exe'),
          StringStruct('ProductName', 'PDF 隐私打码工具 (PDF Privacy Masker)'),
-         StringStruct('ProductVersion', '1.4.4'),
+         StringStruct('ProductVersion', '1.4.5'),
          StringStruct('Comments', '指导作者：项目创作时为初中生 | 开发：腾讯 WorkBuddy x DeepSeek-V4.1-Flash | 开源协议：AGPL-3.0-or-later | 原项目地址：https://github.com/neurotracee/pdf-privacy-masker')]
       )
     ]),

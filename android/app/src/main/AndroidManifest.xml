@@ -3,14 +3,20 @@
 
     <!--
       权限说明：
-        · 只有一个网络权限（INTERNET），只在你主动点「设置 → 检查更新」时用一次：
-          向 api.github.com 读一个公开的版本号，不传文件、不传任何个人信息。
-          其它任何操作（识别、打码、保存）都在本地完成，不联网。
+        · 网络权限（INTERNET）：只在你主动点「检查更新」（或开启启动时自动检查）时用，
+          向 Gitee / GitHub 读一个公开的版本号；点了更新之后，再从同一个发布页下载
+          安装包本身。除此之外不联网——识别、打码、保存全在本机完成，不传文件、
+          不传任何个人信息，也没有后台联网。
+        · 安装应用（REQUEST_INSTALL_PACKAGES）：只用于一件事——更新时把下载好的
+          新版本交给系统安装器。系统会再问你一次「是否安装」，你不点就不会装。
+          之所以要自己下载：Gitee 的安装包附件返回的类型是 application/zip，
+          浏览器会把文件存成「xxx.apk.zip」，用户点了装不上，只能由应用自己下。
         · 选文件走系统文件选择器（SAF），只拿到用户主动挑中的那一个文件的临时读权限
         · 存文件走系统「另存为」，写到哪里由用户当场决定
-      因此没有存储权限、没有定位权限，也没有后台联网。
+      因此没有存储权限、没有定位权限、没有后台服务。
     -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
     <application
         android:allowBackup="false"
@@ -53,6 +59,17 @@
                 <data android:mimeType="application/pdf" />
             </intent-filter>
         </activity>
+
+        <!-- 更新时把缓存目录里的安装包交给系统安装器；只暴露 cache/update/ 这一层 -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="com.neurotracee.pdfmask.updatefile"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/update_paths" />
+        </provider>
     </application>
 
 </manifest>

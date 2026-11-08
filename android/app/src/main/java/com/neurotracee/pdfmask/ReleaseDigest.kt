@@ -52,7 +52,13 @@ object ReleaseDigest {
     private val NAV = Regex("""^\**[^\n]{0,12}\**\s*\|\s*\[""", RegexOption.IGNORE_CASE)
     private val CONFIG = Regex("""^(?:更新级别|更新说明|版本(?:说明)?|update\s*level|version)\s*[：:]""",
         RegexOption.IGNORE_CASE)
-    private val SKIP_TITLE = listOf("下载", "download", "校验", "checksum", "目录", "contents")
+    // 只跳过「标题本身就是下载 / 校验 / 目录」的章节。
+    // 以前是「标题里出现 download 就跳过」，结果
+    // 「Fixed: Android downloads arrived as .apk.zip」这种正经修复条目被整条丢掉。
+    private val SKIP_TITLE = Regex(
+        "^(?:下载|校验|目录|附件|(?:downloads?|checksums?|contents)\\b)",
+        RegexOption.IGNORE_CASE
+    )
     private val LIST_MARK = Regex("""^\s*[-*+]\s+""")
     private val QUOTE_MARK = Regex("""^\s*(?:>\s*)+""")
 
@@ -201,7 +207,7 @@ object ReleaseDigest {
                 val p = platform(t)
                 if (p.isNotEmpty()) t = PLAT_TAIL.replace(t, "").trim()
                 t = Regex("""^\d+\s*[.、)]\s*""").replace(t, "").trim()
-                if (t.isEmpty() || SKIP_TITLE.any { t.lowercase().contains(it) }) {
+                if (t.isEmpty() || SKIP_TITLE.containsMatchIn(t)) {
                     title = null; plat = "both"; buf = ArrayList()
                 } else {
                     title = t

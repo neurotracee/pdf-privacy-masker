@@ -355,7 +355,6 @@ private fun UpdateSection() {
     val current = BuildConfig.VERSION_NAME
     var busy by remember { mutableStateOf(false) }
     var result by remember { mutableStateOf<Updater.Result?>(null) }
-    var opened by remember { mutableStateOf<Boolean?>(null) }
 
     fun openInBrowser(url: String): Boolean = try {
         ctx.startActivity(
@@ -415,8 +414,11 @@ private fun UpdateSection() {
     Spacer(Modifier.height(6.dp))
     Text(
         T(
-            "默认按系统语言自动选（简体中文 → Gitee）。选中的源连不上会自动换另一个再试。",
-            "Picked from your system language by default (Simplified Chinese → Gitee). If it is unreachable, the other one is tried."
+            "没得选的时候默认就是 Gitee。只有系统语言不是中文、时区也不在东八区（明显在海外）才默认改用 GitHub；" +
+                "环境判断不出来一律按 Gitee。选中的源连不上会自动换另一个再试，换的时候界面上会说明。",
+            "Gitee is the default. GitHub is only picked when the system language is not Chinese and the time zone " +
+                "is not UTC+8 (clearly outside mainland China); if the environment cannot be determined, Gitee is " +
+                "used. If the chosen source is unreachable the other one is tried, and the UI says so."
         ),
         fontSize = 11.sp,
         lineHeight = 16.sp,
@@ -448,13 +450,11 @@ private fun UpdateSection() {
             onClick = {
                 busy = true
                 result = null
-                opened = null
                 scope.launch {
                     val r = withContext(Dispatchers.IO) {
                         Updater.check(current, AppPrefs.updateSource)
                     }
                     result = r
-                    if (r.ok && r.hasUpdate) opened = openInBrowser(r.url)
                     busy = false
                 }
             }
@@ -486,8 +486,7 @@ private fun UpdateSection() {
     Spacer(Modifier.height(10.dp))
     UpdateResultCard(
         r = r,
-        opened = opened,
-        onOpen = { url -> opened = openInBrowser(url) },
+        onOpen = { url -> openInBrowser(url) },
         onCopy = { url -> copyLink(url) }
     )
 }
@@ -496,7 +495,6 @@ private fun UpdateSection() {
 @Composable
 internal fun UpdateResultCard(
     r: Updater.Result,
-    opened: Boolean?,
     onOpen: (String) -> Unit,
     onCopy: (String) -> Unit
 ) {
@@ -526,16 +524,10 @@ internal fun UpdateResultCard(
             Text(
                 when {
                     !r.ok -> r.detail
-                    r.hasUpdate -> if (opened == true)
-                        T(
-                            "当前 v" + r.current + "，已经让浏览器去下载了。",
-                            "You have v" + r.current + "; your browser is fetching the new build."
-                        )
-                    else
-                        T(
-                            "当前 v" + r.current + "，但没能自动打开浏览器，点下面的按钮再试一次。",
-                            "You have v" + r.current + ", but the browser did not open — try the buttons below."
-                        )
+                    r.hasUpdate -> T(
+                        "当前 v" + r.current + "，下面可以直接下载并安装，不用经过浏览器。",
+                        "You have v" + r.current + " — download and install right below, no browser needed."
+                    )
                     else -> T(
                         "当前 v" + r.current + "，仓库里最新的也是这个版本。",
                         "You have v" + r.current + ", which is already the newest release."
@@ -546,6 +538,11 @@ internal fun UpdateResultCard(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
+            if (r.ok) {
+                Spacer(Modifier.height(3.dp))
+                SourceNote(r)
+            }
+
             // 有新版时：一行摘要 + 按 Windows / 安卓 分开的详细条目，
             // 和启动时自动检查弹出的窗口用的是同一套组件。
             if (r.hasUpdate) {
@@ -555,39 +552,28 @@ internal fun UpdateResultCard(
                     accent = accent,
                     onOpenPage = { onOpen(r.page) }
                 )
+                Spacer(Modifier.height(10.dp))
+                UpdateActionBlock(
+                    r = r,
+                    accent = accent,
+                    onOpenBrowser = { onOpen(r.url) },
+                    onCopyLink = { onCopy(r.url) }
+                )
             }
 
-            if (!r.ok || r.hasUpdate) {
-                Row(
-                    Modifier.padding(top = 6.dp),
-                    horizontalArrangement = Arrangement.spacedBy(2.dp)
-                ) {
-                    if (r.hasUpdate) {
-                        TextButton(onClick = { onOpen(r.url) }) {
-                            Text(T("用浏览器下载", "Download"), fontSize = 12.sp)
-                        }
-                    }
-                    TextButton(onClick = { onOpen(r.url) }) {
-                        Text(T("打开发布页", "Open page"), fontSize = 12.sp)
-                    }
-                    TextButton(onClick = { onCopy(r.url) }) {
-                        Text(T("复制链接", "Copy link"), fontSize = 12.sp)
-                    }
-                }
+            if (!r.ok) {
                 Text(
                     T(
-                        "跳不过去？按顺序看：\n" +
+                        "打不开？按顺序看：\n" +
                             "① 网络：是不是开了飞行模式；校园网、公司网常会拦 GitHub。\n" +
-                            "② 浏览器：设置 → 应用 → 默认应用，看看浏览器有没有被停用。\n" +
-                            "③ 本应用的网络权限：个别安全软件会单独限制，去权限管理里放开。\n" +
-                            "都不行就点「复制链接」自己粘到浏览器；最后还可以截屏这一屏，" +
-                            "用微信「提取文字」把链接抠出来手动输入。",
+                            "② 应用权限：个别安全软件会单独限制本应用的联网，去权限管理里放开。\n" +
+                            "③ 更新源：设置 → 更新源，换成另一个源再试一次。\n" +
+                            "都不行就点「复制链接」自己粘到发布页。",
                         "Still blocked? Check in order:\n" +
                             "① Network: is airplane mode on? Campus and corporate Wi-Fi often block GitHub.\n" +
-                            "② Browser: Settings → Apps → Default apps — is a browser installed and enabled?\n" +
-                            "③ This app's network permission: some security suites restrict it separately.\n" +
-                            "Otherwise tap “Copy link” and paste it yourself — or screenshot this screen and " +
-                            "use text recognition to pull the link out."
+                            "② App permission: some security suites restrict this app's network access separately.\n" +
+                            "③ Update source: Settings → Update source, try the other one.\n" +
+                            "Otherwise tap “Copy link” and open the release page yourself."
                     ),
                     fontSize = 11.sp,
                     lineHeight = 17.sp,

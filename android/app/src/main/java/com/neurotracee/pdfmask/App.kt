@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.provider.DocumentsContract
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContract
 import androidx.activity.result.contract.ActivityResultContracts
@@ -48,6 +49,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.neurotracee.pdfmask.ui.AppInfoDialog
 import com.neurotracee.pdfmask.ui.AutoUpdateGate
 import com.neurotracee.pdfmask.ui.HomeScreen
+import com.neurotracee.pdfmask.ui.LeaveConfirmDialog
 import com.neurotracee.pdfmask.ui.RedTag
 import com.neurotracee.pdfmask.ui.SaveTargetDialog
 import com.neurotracee.pdfmask.ui.SettingsDialog
@@ -80,6 +82,23 @@ fun AppRoot(vm: AppViewModel = viewModel()) {
     var showSettings by remember { mutableStateOf(false) }
     var showAbout by remember { mutableStateOf(false) }
     var showSaveAsk by remember { mutableStateOf(false) }
+    // 手里还有文件时按返回：先问一句，别直接退出应用
+    var showLeaveAsk by remember { mutableStateOf(false) }
+    // 「保存后离开」：保存成功后再回主页，用这个标记告诉回调该收尾了
+    var leaveAfterSave by remember { mutableStateOf(false) }
+
+    /**
+     * 真的离开当前文件：正在打码就先中断，然后回主页。
+     * 注意是回主页，不是结束进程——用户还能重新选文件，不会一下子被踢出应用。
+     */
+    fun finishLeaving() {
+        leaveAfterSave = false
+        showLeaveAsk = false
+        scope.launch {
+            if (vm.stage == Stage.MASKING) vm.cancelMasking()
+            vm.reset()
+        }
+    }
     val fold = rememberFold()
 
     val config = LocalConfiguration.current
@@ -108,9 +127,14 @@ fun AppRoot(vm: AppViewModel = viewModel()) {
 
     val saver = rememberLauncherForActivityResult(CreatePdfDocument()) { uri ->
         if (uri == null) {
+            // 用户取消了另存：顺手清掉「保存后离开」的意图，免得下次保存时突然离开
+            leaveAfterSave = false
             vm.cancelMasking()
         } else {
-            vm.writeTo(uri) { name -> savedMsg(name) }
+            vm.writeTo(uri) { name ->
+                savedMsg(name)
+                if (leaveAfterSave) finishLeaving()
+            }
         }
     }
 
@@ -119,7 +143,10 @@ fun AppRoot(vm: AppViewModel = viewModel()) {
         if (u == null) {
             saver.launch(vm.suggestOutName() to null)
         } else {
-            vm.saveToTree(u) { name -> savedMsg(name) }
+            vm.saveToTree(u) { name ->
+                savedMsg(name)
+                if (leaveAfterSave) finishLeaving()
+            }
         }
     }
 
@@ -185,13 +212,38 @@ fun AppRoot(vm: AppViewModel = viewModel()) {
         AppInfoDialog(onClose = { showAbout = false })
     }
 
+    // 手里有文件时，返回（含全面屏手势左右滑）先问一句：
+    // 继续编辑 / 保存后离开 / 直接离开。以前这里没人接，系统直接退出应用，
+    // 用户刚框好、刚打完还没存的东西全丢。
+    BackHandler(enabled = vm.stage != Stage.HOME) {
+        showLeaveAsk = true
+    }
+
+    if (showLeaveAsk) {
+        LeaveConfirmDialog(
+            stage = vm.stage,
+            onStay = { showLeaveAsk = false },
+            onSaveAndLeave = if (vm.stage == Stage.DONE) {
+                {
+                    leaveAfterSave = true
+                    showLeaveAsk = false
+                    startSave()
+                }
+            } else null,
+            onLeave = { finishLeaving() }
+        )
+    }
+
     // 启动先自动查一次版本：断网静默跳过，慢的话给一个能关掉的提示
     AutoUpdateGate()
 
     if (showSaveAsk) {
         SaveTargetDialog(
             onPickDir = { dirPicker.launch(null) },
-            onCancel = { showSaveAsk = false },
+            onCancel = {
+                showSaveAsk = false
+                leaveAfterSave = false
+            },
             onConfirm = {
                 showSaveAsk = false
                 if (AppPrefs.saveTreeUri != null) saveToDefaultDir()

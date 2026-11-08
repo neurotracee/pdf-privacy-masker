@@ -543,7 +543,7 @@ main{flex:1;min-height:0;display:flex;overflow:hidden}
         <button class="seg-btn" data-updsrc="gitee">Gitee（建议中国大陆用户）</button>
         <button class="seg-btn" data-updsrc="github">GitHub</button>
       </div>
-      <div class="modal-note" style="margin-top:8px">默认按系统语言自动选（简体中文 → Gitee）。选中的源连不上时会自动换另一个再试。点一下立即生效。</div>
+      <div class="modal-note" style="margin-top:8px">默认就是 Gitee。只有系统语言不是中文、时区也不在东八区（明显在海外）才默认改用 GitHub，判断不出来一律按 Gitee。界面语言不参与判断；选中的源连不上会自动换另一个再试，并在结果里写明这次用的是哪个源。点一下立即生效。</div>
     </div>
 
     <div class="set-sec">
@@ -581,6 +581,15 @@ const TOKEN = "__TOKEN__";
 const BOOT = __BOOT__;
 const S = {docId:null, name:'', pages:[], findings:[], sel:new Set(), page:0, zoom:1.2,
            mask:true, drawing:false, hi:null, scanned:[], outDir:'', stats:null, size:0};
+
+/* 工作区里还开着文件时，关标签页 / 刷新前先让浏览器问一句。
+   浏览器只允许这一种拦截方式，文案由浏览器决定（改不了），但足以避免
+   「手一滑关掉，刚框好的选区全没了」——安卓端有对应的离开确认窗口。 */
+window.addEventListener('beforeunload', e => {
+  if (!S.docId) return;
+  e.preventDefault();
+  e.returnValue = '';
+});
 
 const $ = id => document.getElementById(id);
 
@@ -658,8 +667,8 @@ const DICT = {
     'Automatic: one silent check at every launch, skipped when offline. Manual: only connects when you tap “Check for updates” below.',
   '更新源 / Update source':'Update source',
   'Gitee（建议中国大陆用户）':'Gitee (recommended in mainland China)',
-  '默认按系统语言自动选（简体中文 → Gitee）。选中的源连不上时会自动换另一个再试。点一下立即生效。':
-    'Picked from your system language by default (Simplified Chinese → Gitee). If the chosen source is unreachable, the other one is tried automatically. Applies immediately.',
+  '默认就是 Gitee。只有系统语言不是中文、时区也不在东八区（明显在海外）才默认改用 GitHub，判断不出来一律按 Gitee。界面语言不参与判断；选中的源连不上会自动换另一个再试，并在结果里写明这次用的是哪个源。点一下立即生效。':
+    'Gitee is the default. GitHub is only picked when the system language is not Chinese and the time zone is not UTC+8, i.e. clearly abroad; if either cannot be determined, Gitee is used. The interface language takes no part. If the chosen source is unreachable the other one is tried and the result says which source was used. Applies immediately.',
   '开着「自动检查」时启动会静默查一次；关掉后只有点这里才会联网。查到的更新来自上面选定的源。':
     'With automatic checking on, one silent check runs at launch; with it off, only this button goes online. Updates come from the source picked above.',
   '开着「自动检查」时启动会静默查一次；关掉后只有点这里才会联网。查到的更新来自上面选定的源。':'Updates are checked once at launch; offline, the check is skipped silently. You can also check again here at any time.', '用浏览器打开下载':'Open download in browser',
@@ -1303,10 +1312,16 @@ function renderUpdate(){
     return;
   }
   $('latestVer').textContent = 'v' + r.latest;
+  // 从哪个源读到的：自动换源时说清原因，免得用户以为「默认 Gitee 怎么跑去 GitHub」
+  const srcLine = !r.channel ? ''
+    : (r.fallbackFrom
+        ? T('（' + r.fallbackFrom + ' 这次没连上，已经自动改用 ' + r.channel + '）',
+            ' (' + r.fallbackFrom + ' could not be reached, so ' + r.channel + ' was used)')
+        : T('（本次从 ' + r.channel + ' 读取）', ' (read from ' + r.channel + ')'));
   if(!r.hasUpdate){
     box.className = 'upd-box ok';
     txt.textContent = T('已是最新版本（v' + r.current + '）。',
-                        'You are on the latest version (v' + r.current + ').');
+                        'You are on the latest version (v' + r.current + ').') + srcLine;
     return;
   }
   box.className = 'upd-box new';
@@ -1315,6 +1330,7 @@ function renderUpdate(){
         'New version v' + r.latest + ' is out (you have v' + r.current + '). Your browser is downloading it now.')
     : T('发现新版本 v' + r.latest + '（当前 v' + r.current + '），但没能自动打开浏览器，点下面的按钮再试一次。',
         'New version v' + r.latest + ' is out (you have v' + r.current + '), but the browser did not open — try the button below.');
+  txt.textContent += srcLine;
   // 有发布正文就给摘要和详细，没有就保持原来的样子（不影响任何老版本）
   fillDigest('upd', r);
   urlBox.textContent = r.url || '';

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  只把应用自己的缓存目录里 update/ 这一层暴露给系统安装器，
+  别处一概不给。装完 / 取消后文件会被清掉。
+-->
+<paths>
+    <cache-path name="update" path="update/" />
+</paths>

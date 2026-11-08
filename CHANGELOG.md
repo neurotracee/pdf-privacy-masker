@@ -1,3 +1,177 @@
+# v1.4.5 版本说明（Windows + 安卓）
+
+**中文** | [English](#v145-release-notes-windows--android)
+
+更新级别：建议
+
+> **一句话**：安卓更新不再下成「.apk.zip」；默认更新源稳定走 Gitee，只有明显海外环境才用 GitHub；返回手势先问一句，能先保存再走。
+
+这一版修的都是「用着用着才撞上」的问题：更新下载下来的安装包被浏览器加了个 `.zip`；明明默认 Gitee，更新却跑到 GitHub 去读；还有全面屏手势往边上一滑，应用直接没了，刚框好还没保存的东西全丢。三条都在这版里堵住了。
+
+---
+
+## 1. 修复：安卓更新下到的包变成「.apk.zip」，装不上（安卓）
+
+**现象**：在应用里点「立即更新」，跳去浏览器下载，下载完文件名变成 `PDFPrivacyMasker-1.4.4-arm64.apk.zip`，点开装不了；而去发布页手动点下载又是正常的 `.apk`。
+
+**原因不在文件本身**。Gitee 的附件 CDN 对 `.apk` 返回的类型是 `application/zip`（同一个仓库的 `.exe` 返回的是 `application/vnd.microsoft.portable-executable`，是正常的）。APK 本来就是 zip 容器，字节完全一致，只是类型标注错了；浏览器按类型命名，就给它补了一个 `.zip`。这是服务器端的类型标注问题，客户端改不了。
+
+**改法**：不再把安装包交给浏览器。
+
+1. 应用自己下载到应用缓存目录，文件名由我们自己定，永远是 `.apk`；
+2. 下完先核对四件事：头 4 字节是 `PK`、大小和服务器给的一致、包名是 `com.neurotracee.pdfmask`、版本号等于这次要装的版本——任何一项不对就当失败处理，绝不让用户去装一个看不懂的文件；
+3. 校验通过后交给系统安装器，系统会再问一次「是否安装」，你不点就不会装；
+4. 装完或取消后缓存的安装包会被清掉。
+
+浏览器那条路还留着（「用浏览器下载」），万一应用内下载被网络拦了还能走，旁边写明了「文件末尾被加了 .zip 就把 .zip 去掉」。
+
+因为多了这一步，安卓端新增了一个「安装应用」权限（`REQUEST_INSTALL_PACKAGES`），只用于把下载好的新版本交给系统安装器，不联网、不读任何文件。清单里的权限说明已同步更新。
+
+## 2. 修复：默认更新源会莫名其妙跑到 GitHub（Windows + 安卓）
+
+**现象**：明明没手动选过 GitHub，默认就是 Gitee，但启动时的更新检查却从 GitHub 读；把窗口关掉再看，又变回 Gitee 了。
+
+**有两个原因，都在判断逻辑上**：
+
+- 判断「该不该用 Gitee」时把**界面语言**当成了「用户人在哪里」——界面切成英文就判定为海外，直接去 GitHub。可用户只是换了个界面语言。
+- 安卓端每次调用都现读进程默认的语言环境。这个值在应用刚启动、系统配置还没应用时可能还是英文，界面渲染完之后才变成中文，于是同一个「自动」在启动那一刻判成 GitHub，过一会儿又变回 Gitee——就是用户看到的「一进来 GitHub、关掉窗口又 Gitee」。
+
+**改法**：
+
+- 判断只看系统本身，**界面语言不再参与**；
+- 启动时算一次就固定下来，全程一致，不再抖动；
+- 规则改成：中文系统 → Gitee；语言不是中文但时区在东八区（中国大陆、中国港澳台、新加坡等）→ 仍然 Gitee；只有「语言不是中文 + 时区也不在东八区」这种明确的海外环境才用 GitHub；任何一项取不到，一律按 Gitee 兜底；
+- 单个通道的超时从 8 秒放宽到 10 秒（安卓 10 / 12 秒）：移动网络首包稍慢就会被判死，一超时就静默换下一个通道，用户只看到来源莫名其妙变了；
+- 真的发生自动换源时，界面上会写明「Gitee 这次没连上，已经自动改用 GitHub」，不再让人猜。
+
+`dev/test_source_pick.py` 把这几条规则钉成了用例（含「界面语言是英文也不该把中文用户赶到 GitHub」），并进了主自检第 14 项。
+
+## 3. 新增：安卓按返回 / 左右滑手势，先问一句再离开（安卓）
+
+**现象**：文件已经选好、框也画好了，手一滑从屏幕边缘返回，应用直接退到桌面——没保存的东西全没了，也没有任何挽回的机会。
+
+**改法**：工作区里还有文件时，返回键和全面屏手势都会被接住，弹一个小窗口，给三个出口：
+
+- **继续编辑**（主按钮，默认最安全）；
+- **保存后离开**：只有已经打出结果时才出现，存完再回主页；
+- **直接离开**：回到应用主页（不是杀进程），随时能重新选文件。
+
+按返回不再等于「退出应用」：第一下返回是回主页，在主页再返回才是退出。
+
+## 4. 改进：Windows 关标签页前也会提醒（Windows）
+
+Windows 版是本地页面 + 默认浏览器，没有原生窗口可以拦，所以用的是浏览器唯一允许的方式：工作区里开着文件时，关标签页或刷新会先弹浏览器的「确定要离开吗」。文案由浏览器决定、改不了，但足够避免手一滑把刚框好的选区关掉。
+
+另外，Windows 端的更新弹窗也补上了「本次从 Gitee / GitHub 读取」以及自动换源的说明。
+
+## 5. 工程：自检新增默认更新源回归
+
+- 新增 `dev/test_source_pick.py`：中文系统、非中文但东八区、明确海外、环境取不到、界面语言干扰、手动指定优先级，六组用例；
+- 接进 `dev/selfcheck.py` 第 14 项，和前面的正文解析、注释/书签回归一起跑；
+- 顺带把 `UPDATE_TIMEOUT` 的注释写清楚，说明为什么是 10 秒。
+
+## 6. 已知限制（未变）
+
+- 安卓端的输出仍是整页图片（JPEG 重绘再组装），打码后不能搜索、不能复制文字，体积通常更大；Windows 版保留矢量版面，只抹掉命中处的文字层。
+- 注释是整块盖掉的：一条注释里既有敏感内容又有需要保留的说明时，整条都会没。
+
+## 7. 下载
+
+- Windows：`PDFPrivacyMasker-1.4.5.exe`（免安装，双击即用）
+- 安卓：`PDFPrivacyMasker-1.4.5-arm64.apk`（arm64-v8a，Android 8.0+）
+- 校验和：`SHA256SUMS.txt`
+
+升级不用卸载旧版，直接覆盖安装即可。**安卓从 v1.4.3 / v1.4.4 升上来时**，如果下载到的文件名末尾被加了 `.zip`，那是旧版本还在走浏览器下载，把结尾的 `.zip` 去掉就能安装；装上这一版之后就不会再出现了。
+
+---
+
+# v1.4.5 Release Notes (Windows + Android)
+
+[中文](#v145-版本说明windows--安卓) | **English**
+
+Update level: suggested
+
+> **In one line**: Android updates no longer arrive as “.apk.zip”; Gitee stays the default update source; the back gesture now asks before discarding unsaved work.
+
+Everything fixed here is something you only hit after using the app for a while: the downloaded installer picked up a `.zip` suffix, updates went to GitHub even though Gitee is the default, and a swipe from the screen edge closed the app with unsaved work still in it. All three are closed in this build.
+
+---
+
+## 1. Fixed: Android downloads arrived as “.apk.zip” and would not install (Android)
+
+**Symptom**: tapping “Update now” opened a browser, and the downloaded file was named `PDFPrivacyMasker-1.4.4-arm64.apk.zip` — uninstallable. Downloading the same file from the release page by hand produced a normal `.apk`.
+
+**The file was never the problem.** Gitee's attachment CDN serves `.apk` with the type `application/zip` (the same repository's `.exe` comes back as `application/vnd.microsoft.portable-executable`, which is correct). An APK is a zip container, so the bytes are identical — only the type label is wrong, and browsers name the file after the type. That is a server-side labelling problem the client cannot fix.
+
+**Fix**: stop handing the download to the browser.
+
+1. The app downloads the file itself into its own cache directory and names it, so the extension is always `.apk`;
+2. Four checks before anything is installed: the first four bytes are `PK`, the byte count matches the server's, the package name is `com.neurotracee.pdfmask`, and the version equals the one being installed. Any mismatch is treated as a failure — never ask the user to install an unknown file;
+3. The system installer then asks you to confirm; nothing installs unless you tap it;
+4. The cached installer is removed after installing or cancelling.
+
+The browser route stays as a fallback (“Browser”), with a note that a trailing `.zip` just needs deleting.
+
+This adds one Android permission (`REQUEST_INSTALL_PACKAGES`), used only to hand a verified installer to the system. It does not go online and reads no files. The permission notes in the manifest were updated to say so.
+
+## 2. Fixed: the default update source kept landing on GitHub (Windows + Android)
+
+**Symptom**: GitHub was never selected by hand and Gitee is the default, yet the update check at launch read from GitHub — and after closing that window it showed Gitee again.
+
+**Two causes, both in the decision logic**:
+
+- The “should this be Gitee?” check treated the **interface language** as “where the user is”. An English interface was read as “abroad” and sent the check to GitHub. The user had only changed the interface language.
+- On Android the check re-read the process-default locale on every call. Right at launch, before the system configuration is applied, that value can still be English and only becomes Chinese after the UI renders — so the same “auto” decision was GitHub at that instant and Gitee a moment later. That is exactly the “GitHub on launch, Gitee after closing the window” behaviour.
+
+**Fix**:
+
+- The decision looks only at the system, **the interface language no longer takes part**;
+- It is computed once at launch and cached, so it cannot flip mid-session;
+- The rule: Chinese system → Gitee; non-Chinese but UTC+8 (mainland China, Hong Kong/Macao/Taiwan of China, Singapore, etc.) → still Gitee; GitHub only when the language is non-Chinese **and** the time zone is not UTC+8; if either cannot be determined, Gitee is the fallback;
+- Per-channel timeout went from 8s to 10s (Android 10s connect / 12s read): a slow first packet on mobile data used to be judged as dead and silently fell through to the next channel;
+- When a fallback does happen, the UI now says “Gitee could not be reached, so GitHub was used” instead of leaving the user to guess.
+
+`dev/test_source_pick.py` pins these rules (including “an English interface must not push Chinese users to GitHub”) and runs as step 14 of the main self-check.
+
+## 3. New: the back button / edge swipe asks before leaving (Android)
+
+**Symptom**: file loaded, boxes drawn, one swipe from the screen edge — the app closed and the unsaved work was gone, with no chance to save.
+
+**Fix**: while a file is open, both the back button and the full-screen gestures are caught, and a small dialog offers three ways out:
+
+- **Keep editing** (primary, the safe default);
+- **Save, then leave** — only shown once a masked result exists; it saves first, then returns;
+- **Leave anyway** — returns to the app's home screen (not a process kill), where another file can be picked.
+
+Back no longer means “exit”: the first back goes to the home screen, and back from there exits.
+
+## 4. Improved: Windows warns before the tab is closed (Windows)
+
+The Windows build is a local page in your default browser, with no native window to intercept, so it uses the only mechanism browsers allow: while a file is open, closing or reloading the tab raises the browser's “leave this page?” prompt. The wording is the browser's and cannot be customised, but it does prevent a stray close from discarding your selection.
+
+The Windows update dialog also now says which source the result came from, and when a fallback happened.
+
+## 5. Engineering: a regression suite for the default update source
+
+- New `dev/test_source_pick.py`: six groups — Chinese system, non-Chinese in UTC+8, clearly abroad, undeterminable environment, interface-language interference, explicit choice wins;
+- Wired into `dev/selfcheck.py` as step 14, alongside the release-body and annotation/bookmark suites;
+- `UPDATE_TIMEOUT` is documented, so nobody "optimises" it back to 8s.
+
+## 6. Known limitations (unchanged)
+
+- Android output is still full-page images (JPEG re-render, then assembled): the masked PDF is not searchable, its text cannot be copied, and it is usually larger. The Windows build keeps the vector layout and removes only the text layer at the hits.
+- Annotations are covered whole: if one annotation mixes sensitive content with text worth keeping, the whole annotation goes.
+
+## 7. Downloads
+
+- Windows: `PDFPrivacyMasker-1.4.5.exe` (portable, no install)
+- Android: `PDFPrivacyMasker-1.4.5-arm64.apk` (arm64-v8a, Android 8.0+)
+- Checksums: `SHA256SUMS.txt`
+
+Install straight over the previous version. **When upgrading from v1.4.3 / v1.4.4 on Android**, a trailing `.zip` on the downloaded file means the old build still used the browser — delete the `.zip` and it installs. After this build it no longer happens.
+
+---
+
 # v1.4.4 版本说明（Windows + 安卓）
 
 **中文** | [English](#v144-release-notes-windows--android)

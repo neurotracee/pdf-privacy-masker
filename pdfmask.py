@@ -67,7 +67,7 @@ from pdfmask_webui import HTML_UI   # 首页 HTML（含 CSS/JS），与逻辑代
 from thanks_asset import QR_PNG_B64  # 赞赏码图片（base64 内嵌，单文件打包不丢）
 
 APP_NAME = "PDF 隐私打码工具"
-VERSION = "1.4.4"
+VERSION = "1.4.5"
 
 # ---- 署名信息（开源后请勿删除，AGPL-3.0 第 5 条要求保留版权声明） ----
 AUTHOR = "项目创作时为初中生"

@@ -19,8 +19,8 @@ android {
         applicationId = "com.neurotracee.pdfmask"
         minSdk = 26
         targetSdk = 34
-        versionCode = 11
-        versionName = "1.4.4"
+        versionCode = 12
+        versionName = "1.4.5"
 
         // 只打 arm64-v8a
         ndk {

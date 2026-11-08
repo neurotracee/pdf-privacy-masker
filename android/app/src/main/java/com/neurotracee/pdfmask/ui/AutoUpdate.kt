@@ -53,8 +53,9 @@ import kotlinx.coroutines.withTimeoutOrNull
 /** 网络慢到什么程度才值得弹一个「正在检查」——快的时候连提示都不闪 */
 private const val SLOW_HINT_MS = 1_200L
 
-/** 自动检查的总预算：超了就当成网络不通，静默放行 */
-private const val AUTO_BUDGET_MS = 12_000L
+/** 自动检查的总预算：超了就当成网络不通，静默放行。
+ *  给了 20s：单个通道最长 12s，两个通道都慢时才不至于连结果都拿不到。 */
+private const val AUTO_BUDGET_MS = 20_000L
 
 /**
  * 启动时的自动检查更新。和「设置 → 检查更新」走同一套 [Updater]，
@@ -63,7 +64,9 @@ private const val AUTO_BUDGET_MS = 12_000L
  * 行为约定（对应 v1.4.2 的需求）：
  * - 断网 / 超时 / 已是最新：什么都不显示，直接进主程序；
  * - 检查超过 1.2 秒还没回来：显示「正在检查」，右上角有关闭按钮，随时能跳过；
- * - 发现新版本：自动用默认浏览器打开发布页，同时给「用浏览器下载」和「复制链接」两条路；
+ * - 发现新版本：弹出说明窗口，点「立即更新」在应用内下载并交给系统安装器
+ *   （不再自动把用户扔进浏览器——Gitee 的 APK 附件返回 application/zip，
+ *   浏览器会把文件存成 xxx.apk.zip，装不上，见 UpdateApk 的说明）；
  * - 发布正文标了「更新级别：强烈建议」：提醒更醒目，但还是能关；
  * - 用户点「暂不更新」：先劝一次（挽留），点「仍然用旧版」就真的放行，不再纠缠。
  */
@@ -74,7 +77,6 @@ fun AutoUpdateGate() {
     var skipped by remember { mutableStateOf(false) }
     var stuck by remember { mutableStateOf(false) }
     var result by remember { mutableStateOf<Updater.Result?>(null) }
-    var opened by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         // 用户选了「手动检查」就完全不联网
@@ -98,7 +100,7 @@ fun AutoUpdateGate() {
         // 用户已经在「正在检查」里点了跳过，就不再拦他
         if (skipped) return@LaunchedEffect
 
-        opened = openUrlInBrowser(ctx, res.url)
+        // 只弹窗说明，不再自动把用户扔进浏览器：更新在应用内完成（见 UpdateActionBlock）
         result = res
     }
 
@@ -106,8 +108,8 @@ fun AutoUpdateGate() {
         UpdateDialog(
             title = T("正在检查更新", "Checking for updates"),
             body = T(
-                "正在向 GitHub 读一次版本号，不传任何文件。\n网络慢的话可以直接关掉，不影响使用。",
-                "Reading the latest version number from GitHub. No files are sent.\nIf the network is slow, just close this — the app works fine without it."
+                "正在向更新源读一次版本号，不传任何文件。\n网络慢的话可以直接关掉，不影响使用。",
+                "Reading the latest version number from the update source. No files are sent.\nIf the network is slow, just close this — the app works fine without it."
             ),
             busy = true,
             onClose = { skipped = true }
@@ -132,8 +134,8 @@ fun AutoUpdateGate() {
     if (res != null) {
         AutoUpdateResult(
             r = res,
-            opened = opened,
-            onOpen = { opened = openUrlInBrowser(ctx, res.url) },
+            onOpenBrowser = { openUrlInBrowser(ctx, res.url) },
+            onCopyLink = { copyLinkToClipboard(ctx, res.url) },
             onOpenPage = { openUrlInBrowser(ctx, res.page) },
             onClose = { result = null }
         )
@@ -144,8 +146,8 @@ fun AutoUpdateGate() {
 @Composable
 private fun AutoUpdateResult(
     r: Updater.Result,
-    opened: Boolean,
-    onOpen: () -> Unit,
+    onOpenBrowser: () -> Unit,
+    onCopyLink: () -> Unit,
     onOpenPage: () -> Unit,
     onClose: () -> Unit
 ) {
@@ -206,6 +208,8 @@ private fun AutoUpdateResult(
                 }
 
                 Spacer(Modifier.height(9.dp))
+                SourceNote(r)
+                Spacer(Modifier.height(4.dp))
                 Text(
                     when {
                         pleading && strong -> T(
@@ -268,42 +272,17 @@ private fun AutoUpdateResult(
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Column(Modifier.padding(12.dp)) {
-                            Text(
-                                if (opened) T(
-                                    "已经让浏览器去下载了。下载完点开安装，覆盖安装即可，不用先卸载。",
-                                    "Your browser is fetching the new build. When it finishes, just install it over " +
-                                        "the old one — no need to uninstall first."
-                                ) else T(
-                                    "没能自动打开浏览器。点下面的「用浏览器下载」再试一次，或者复制链接自己粘到浏览器。",
-                                    "The browser did not open. Try “Download in browser” below, or copy the link " +
-                                        "and paste it into a browser yourself."
-                                ),
-                                fontSize = 11.5.sp,
-                                lineHeight = 18.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Row(
-                                Modifier.padding(top = 6.dp),
-                                horizontalArrangement = Arrangement.spacedBy(2.dp)
-                            ) {
-                                TextButton(onClick = onOpen) {
-                                    Text(T("用浏览器下载", "Download in browser"), fontSize = 12.sp)
-                                }
-                                TextButton(onClick = { copyLinkToClipboard(ctx, r.url) }) {
-                                    Text(T("复制链接", "Copy link"), fontSize = 12.sp)
-                                }
-                            }
-                            Text(
-                                r.url,
-                                fontSize = 10.5.sp,
-                                lineHeight = 15.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
+                            UpdateActionBlock(
+                                r = r,
+                                accent = accent,
+                                onOpenBrowser = onOpenBrowser,
+                                onCopyLink = onCopyLink
                             )
                         }
                     }
                 }
 
-                Spacer(Modifier.height(14.dp))
+                Spacer(Modifier.height(10.dp))
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                     TextButton(onClick = if (pleading) onClose else tryClose) {
                         Text(
@@ -315,21 +294,15 @@ private fun AutoUpdateResult(
                             fontSize = 13.sp
                         )
                     }
-                    Spacer(Modifier.width(6.dp))
-                    Button(
-                        onClick = {
-                            onOpen()
-                            // 挽留里点了「现在就更新」：回到正常的下载说明，让用户看到「已经让浏览器去下载了」
-                            if (pleading) pleading = false
-                        },
-                        shape = RoundedCornerShape(10.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = accent)
-                    ) {
-                        Text(
-                            if (pleading) T("好，现在更新", "Okay, update now")
-                            else T("立即更新", "Update now"),
-                            fontSize = 13.sp
-                        )
+                    if (pleading) {
+                        Spacer(Modifier.width(6.dp))
+                        Button(
+                            onClick = { pleading = false },
+                            shape = RoundedCornerShape(10.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = accent)
+                        ) {
+                            Text(T("好，现在更新", "Okay, update now"), fontSize = 13.sp)
+                        }
                     }
                 }
             }

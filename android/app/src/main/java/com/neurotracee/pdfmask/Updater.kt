@@ -75,7 +75,12 @@ object Updater {
         /** 发布正文拆出来的弹窗文案：一行摘要 + 按平台归类的详细条目 */
         val digest: ReleaseDigest.Digest? = null,
         /** 这个通道的发布页：详细说明都在那儿 */
-        val page: String = RELEASES_PAGE
+        val page: String = RELEASES_PAGE,
+        /**
+         * 本来该走的是哪个通道，但它连不上、于是换了一个。
+         * 空串表示没有发生切换；界面上据实说明一句，用户就不会以为「明明选了 Gitee 怎么用了 GitHub」。
+         */
+        val fallbackFrom: String = ""
     )
 
     /** 下载地址是否可信：必须 https，域名在白名单内（含其子域） */
@@ -93,21 +98,12 @@ object Updater {
     /**
      * 默认源是不是 Gitee。
      *
-     * 界面明确是英文 → GitHub 优先（不把外网用户引到国内镜像）；
-     * 否则看系统语言：简体中文 → Gitee，明确是其他语言 → GitHub，
-     * 取不到（空串 / 异常）→ Gitee 兜底，宁可让海外用户多等一下，
-     * 也不让国内用户卡在连不上的 GitHub 上。
+     * 只看系统环境（启动时算好并缓存，见 [AppPrefs.envPrefersGitee]），**不看界面语言**：
+     * 用户可能只是把界面切成英文，那不代表他在海外，不该因此把他引到连不上的 GitHub。
+     * 默认就是 Gitee，只有系统语言明确非中文、时区也不在东八区时才用 GitHub；
+     * 环境判断不出来时同样按 Gitee 兜底。
      */
-    fun preferGitee(): Boolean {
-        if (AppPrefs.lang == "en") return false
-        val lang = try {
-            java.util.Locale.getDefault().language ?: ""
-        } catch (e: Exception) {
-            ""
-        }
-        if (lang.isBlank()) return true
-        return lang == "zh"
-    }
+    fun preferGitee(): Boolean = AppPrefs.envPrefersGitee
 
     /** 设置里的更新源解析成「是否优先 Gitee」 */
     fun resolve(source: String? = "auto"): Boolean = when ((source ?: "auto").lowercase()) {
@@ -122,8 +118,10 @@ object Updater {
     fun check(current: String, source: String = "auto"): Result {
         val errors = ArrayList<String>()
         var noAsset: Channel? = null
+        val channels = order(resolve(source))
+        val wanted = channels.first()
 
-        for (ch in order(resolve(source))) {
+        for (ch in channels) {
             val text = try {
                 fetch(ch.api)
             } catch (e: Exception) {
@@ -143,7 +141,11 @@ object Updater {
                 noAsset = ch
                 continue
             }
-            return got.copy(channel = ch.label)
+            return got.copy(
+                channel = ch.label,
+                // 首选通道没成功才可能走到这里，如实记下来给界面用
+                fallbackFrom = if (ch.label == wanted.label) "" else wanted.label
+            )
         }
 
         val detail = errors.joinToString(" | ")

@@ -106,10 +106,12 @@ https://gitee.com/bio234/pdf-privacy-masker      # mirror / 镜像（国内访�
 
 同一个面板里还有**检查更新**和**界面语言（中文 / English）**：
 
-- **自动检查更新（v1.4.2 新增）**：打开程序就查一次，比当前版本新就直接用默认浏览器打开下载页。断网时静默跳过——不弹窗、不报错，照样能打码。万一卡住，窗口上有关闭按钮；作者在发布说明里标了**强烈建议更新**的版本提醒会更重，但同样能关掉（关之前会挽留一次）。**没有任何版本会锁住窗口。**
+- **自动检查更新（v1.4.2 新增）**：打开程序就查一次，比当前版本新就提示更新，安卓端直接在本应用内下载并交给系统安装器（不走浏览器，详见下文「下载下来的文件为什么不再带 .zip」）。断网时静默跳过——不弹窗、不报错，照样能打码。万一卡住，窗口上有关闭按钮；作者在发布说明里标了**强烈建议更新**的版本提醒会更重，但同样能关掉（关之前会挽留一次）。**没有任何版本会锁住窗口。**
 - **检查方式**：「自动检查（启动时）」/「手动检查」。自动每次启动在后台静默查一次，没网就跳过；手动则只有点「检查更新」才联网。
-- **更新源**：「Gitee（建议中国大陆用户）」/「GitHub」，自己选。留在默认时按环境判断：简体中文系统 + 中文界面先去 Gitee（国内直连更稳），明确是其它语言走 GitHub，语言判断不出来按 Gitee 兜底。选中的源连不上会自动换另一个再试。证书校验全程严格，下载地址只认 GitHub / Gitee 的官方发布域名，被篡改的版本号骗不到你的浏览器。比当前版本新就自动用默认浏览器打开下载页；网络被拦时会把链接摆出来、给一个复制按钮，并列出该查哪几项权限（浏览器/安全软件、系统代理、防火墙），最后还能截屏用文字识别把链接抠出来。整个过程只发一个查版本号的请求，不传文件、不传个人信息。
+- **更新源**：「Gitee（建议中国大陆用户）」/「GitHub」，自己选。留在默认时**默认就是 Gitee**：中文系统走 Gitee，语言不是中文但在东八区（中国大陆、中国港澳台、新加坡等）也走 Gitee，只有「语言不是中文 + 时区也不在东八区」这种明确的海外环境才用 GitHub，任何一项判断不出来一律按 Gitee 兜底。**界面语言不参与判断**——把界面切成英文不代表人在海外。这个判断在启动时算一次就固定，不会出现「一进来 GitHub、关掉窗口又变 Gitee」的抖动。选中的源连不上会自动换另一个再试，并且会写明「Gitee 这次没连上，已自动改用 GitHub」，不让人猜。证书校验全程严格，下载地址只认 GitHub / Gitee 的官方发布域名，被篡改的版本号骗不到你的浏览器。比当前版本新就自动用默认浏览器打开下载页；网络被拦时会把链接摆出来、给一个复制按钮，并列出该查哪几项权限（浏览器/安全软件、系统代理、防火墙），最后还能截屏用文字识别把链接抠出来。整个过程只发一个查版本号的请求，不传文件、不传个人信息。
 - **更新弹窗长什么样（v1.4.4 起）**：不管是启动时自动检查还是点「检查更新」，窗口都是三层——顶上一行 **100 字以内的摘要**（从发布页正文那句「一句话」读出来的，只说最要紧的几条），中间是把改动按 **Windows / 安卓** 分开标好的**详细条目**（就地上下翻看，不用跳出去），末尾一条「具体详见 Release 页面」给全文。摘要不是写死在程序里的：以后发版只要发布页正文带上那行「一句话」，弹窗自动跟着变。
+- **下载下来的文件为什么不再带 .zip（v1.4.5 起，安卓）**：Gitee 的附件 CDN 把 `.apk` 标成 `application/zip`（同一个仓库的 `.exe` 标得是对的），浏览器按类型命名，就会把文件存成 `xxx.apk.zip`，点了装不上。现在安卓端不再把安装包交给浏览器：应用自己下载到自己的缓存目录、文件名固定 `.apk`，下完核对「头 4 字节是 PK / 大小一致 / 包名是本应用 / 版本号等于要装的那一版」，再交给系统安装器。任何一项不对都不装。「用浏览器下载」还留着，旁边写明了「末尾被加了 .zip 就把 .zip 去掉」。
+- **按返回 / 左右滑手势（v1.4.5 起，安卓）**：工作区里还开着文件时，返回键和全面屏手势都会被接住，先弹一个小窗口：**继续编辑** / **保存后离开**（已打出结果时才出现）/ **直接离开**。直接离开是回主页，不是关应用——什么时候想重新选文件都行。在主页再按返回才是退出。
 - **界面语言**：中英文一键切换，立即生效不用重启，选择存在 `settings.json` 里，下次打开还是这个语言。
 
 ## 能识别什么
@@ -152,11 +154,11 @@ https://gitee.com/bio234/pdf-privacy-masker      # mirror / 镜像（国内访�
 
 ### 方式一之二：安装 apk（安卓）
 
-1. 下载 `PDFPrivacyMasker-1.4.2-arm64.apk`（Android 8.0 及以上，arm64 机型）。
+1. 下载 `PDFPrivacyMasker-1.4.5-arm64.apk`（Android 8.0 及以上，arm64 机型）。
 2. 点开安装；系统提示「未知来源」时，允许当前文件管理器安装即可。
 3. 打开后在首页点一下选 PDF，确认勾选，点「生成打码 PDF」再选保存目录。
 
-只有一个权限 `INTERNET`，只用在两处：打开时自动查一次更新、以及「设置 → 检查更新」手动查。没有存储权限，选文件走系统文件选择器。
+权限两个，都只服务于更新：`INTERNET` 用来读一个公开的版本号、下载安装包本身；`REQUEST_INSTALL_PACKAGES`（「安装应用」）只用来把下载好并核对过的安装包交给系统安装器——系统还会再问你一次，你不点就不会装。没有存储权限，选文件走系统文件选择器，打码全程本地完成。
 
 ### 打码后的文件存在哪
 
@@ -229,7 +231,7 @@ pyinstaller pdfmask.spec --noconfirm --clean
 - 输出的 PDF 会清空元数据，不写入工具名、不写时间戳。
 - 唯一会写文件的地方：你指定的输出路径。
 - 程序会在 `%APPDATA%\PDF隐私打码工具\settings.json` 里存一个偏好文件，内容只有「默认保存路径」和两个开关，不含任何文档内容、不含任何个人信息。删掉它即恢复默认。
-- 安卓端只有 `INTERNET` 一个权限（仅检查更新时用），不做任何统计埋点，不上传文件。
+- 安卓端有两个权限，都只在更新流程里用到：`INTERNET`（读版本号、下载安装包）和 `REQUEST_INSTALL_PACKAGES`（把核对过的安装包交给系统安装器）。不做任何统计埋点，不上传文件。
 - 每次启动会自动向 Gitee（简体中文环境优先）或 GitHub 读一次公开的版本号（`/releases` 接口）。断网、超时、被拦截时静默跳过，不重试、不提示、不影响任何本地功能。
 
 ## 许可
@@ -373,9 +375,11 @@ You can also change this anytime in the Settings panel in the top-right corner �
 
 The same panel also has **Check for updates** and **Language (中文 / English)**:
 
-- **Automatic update check**: the default mode checks once at launch, compares versions, and if a newer build exists it opens your default browser straight at the download. Offline, the check is skipped silently — no dialog, no error, and the app stays fully usable. Switch to **Manual only** in Settings if you would rather have nothing go online until you ask. A window that hangs still has a close button; a release marked *strongly suggested* by the author only raises the tone (a stronger badge and one gentle nudge before you close it) — **it can always be dismissed. No release ever locks the window.**
-- **Update source** is yours to pick: **Gitee (recommended in mainland China)** or **GitHub**. Left on the default, it follows the environment — a Simplified Chinese system with the Chinese interface starts with Gitee (reachable from mainland China), a clearly non-Chinese system starts with GitHub, and if the language cannot be detected Gitee is used as the fallback. Whichever you pick, an unreachable source automatically falls back to the other one. It also never relaxes TLS verification, and only accepts download links from the official GitHub/Gitee release hosts. If there is a newer build it opens your default browser straight at the download; if the network is blocked it shows the link, a copy button, and a short checklist (browser/security software, system proxy, firewall) — worst case you screenshot the window and use text recognition to get the link out by hand. The only thing it sends is a plain request for the public version number; no file, no personal data.
+- **Automatic update check**: the default mode checks once at launch, compares versions, and if a newer build exists it offers the update — on Android the app downloads the installer itself and hands it to the system installer (no browser; see “Why the downloaded file no longer ends in .zip”). Offline, the check is skipped silently — no dialog, no error, and the app stays fully usable. Switch to **Manual only** in Settings if you would rather have nothing go online until you ask. A window that hangs still has a close button; a release marked *strongly suggested* by the author only raises the tone (a stronger badge and one gentle nudge before you close it) — **it can always be dismissed. No release ever locks the window.**
+- **Update source** is yours to pick: **Gitee (recommended in mainland China)** or **GitHub**. Left on the default, **Gitee is the default**: a Chinese system uses Gitee; a non-Chinese system still in UTC+8 (mainland China, Hong Kong/Macao/Taiwan of China, Singapore, etc.) also uses Gitee; GitHub is only used when the language is non-Chinese **and** the time zone is not UTC+8, and if either cannot be determined, Gitee wins. **The interface language takes no part** — switching the UI to English does not mean you are abroad. The decision is computed once at launch and cached, so it cannot flip to GitHub on the first frame and back to Gitee a moment later. Whichever you pick, an unreachable source automatically falls back to the other one, and the UI says so (“Gitee could not be reached, so GitHub was used”). It never relaxes TLS verification, and only accepts download links from the official GitHub/Gitee release hosts. If there is a newer build, Android downloads it inside the app and hands it to the system installer; if the network is blocked it shows the link, a copy button, and a short checklist. The only thing it sends is a plain request for the public version number and, if you choose to update, the installer download itself.
 - **What the update dialog shows (since v1.4.4)**: whether it is the automatic check at launch or the manual one, the window has three layers — a **summary of 100 characters or less** at the top (read from the “In one line” line in the release body, only the changes that matter most), then the **detailed items tagged Windows / Android** right there (scroll in place, no need to leave the app), and finally **“Full notes on the release page”**. The summary is not hard-coded: keep that line in the release notes and the dialog follows automatically.
+- **Why the downloaded file no longer ends in .zip (Android, since v1.4.5)**: Gitee's attachment CDN labels `.apk` as `application/zip` (the same repository's `.exe` is labelled correctly), and browsers name the file after the type — so the installer arrived as `xxx.apk.zip` and would not install. The app no longer hands the download to the browser: it fetches the file into its own cache under a fixed `.apk` name, then checks the first four bytes are `PK`, the byte count matches, the package name is this app, and the version equals the one being installed. Anything off and nothing is installed. “Browser” is still there as a fallback, with a note that a trailing `.zip` just needs deleting.
+- **Back button / edge swipe (Android, since v1.4.5)**: while a file is open, both the back button and the full-screen gestures are caught and a small dialog offers **Keep editing** / **Save, then leave** (only once a result exists) / **Leave anyway**. Leaving returns to the app's home screen, not out of the app — pick another file whenever you like. Back from the home screen is what exits.
 - **Language** switches the whole interface between Chinese and English instantly, no restart. The choice is remembered in `settings.json`.
 
 ## What it can detect
@@ -418,11 +422,11 @@ The UI opens automatically in your browser at a random `127.0.0.1` port. Close t
 
 ### Option 1b: Install the apk (Android)
 
-1. Download `PDFPrivacyMasker-1.4.2-arm64.apk` (Android 8.0+, arm64 devices).
+1. Download `PDFPrivacyMasker-1.4.5-arm64.apk` (Android 8.0+, arm64 devices).
 2. Tap to install; allow "unknown sources" for your file manager if the system asks.
 3. Tap a PDF on the home screen, confirm the detections, then tap "Mask PDF" and pick a folder.
 
-Only one permission: `INTERNET`, used solely for the update check (once at launch in automatic mode, or when you tap Check for updates; in manual mode nothing goes online by itself). No storage permission — files are picked through the system file picker.
+Two permissions, both only for updates: `INTERNET` reads the public version number and downloads the installer; `REQUEST_INSTALL_PACKAGES` hands a verified installer to the system installer (the system asks you again — nothing installs unless you tap it). No storage permission — files are picked through the system file picker, and all masking happens on device.
 
 ### Where are the redacted files saved
 
@@ -495,7 +499,7 @@ This project chooses AGPL-3.0 precisely because the core PDF library PyMuPDF is 
 - Output PDF metadata is stripped — no tool name, no timestamp written.
 - The only file written is: your specified output path.
 - The app stores a preference file at `%APPDATA%\PDF隐私打码工具\settings.json` — only "default save path" and two toggles, no document content, no personal info. Delete it to reset.
-- On Android there is exactly one permission (`INTERNET`, for the update check only), no analytics, no upload.
+- On Android there are two permissions, both used only in the update flow: `INTERNET` (version number and installer download) and `REQUEST_INSTALL_PACKAGES` (handing the verified installer to the system). No analytics, no uploads.
 
 ## License
 
