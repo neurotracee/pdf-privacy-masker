@@ -1,269 +1,10 @@
-# PDF Privacy Masker
+# PDF 隐私打码工具
 
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-green.svg)](requirements.txt)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Android-blue.svg)](https://github.com/neurotracee/pdf-privacy-masker/releases)
 
-**English** | [中文](#pdf-隐私打码工具)
-
-> **This project was originally published on GitHub, and was mirrored to Gitee (https://gitee.com/bio234/pdf-privacy-masker), the domestic open-source platform, on 7 November 2026.**
->
-> Note: this GitHub repository and the Gitee repository above are owned by the same developer. The GitHub repository was created earlier — stating this here so nobody mistakes one for a copy of the other.
-
-Offline PDF privacy redaction tool — no AI model required. Drag a PDF in, it automatically detects phone numbers, ID card numbers, bank card numbers, emails, names, addresses, dates of birth and gender/age, then covers them with **irreversible pixel mosaic** while stripping the underlying text layer, and saves as a new file.
-
-Parts it can't auto-detect — scanned documents, text inside images, conservative misses — can be manually boxed and redacted, also pixel-level irreversible.
-
-Runs entirely on your own machine. No network, no upload, original file untouched. You choose where the redacted file is saved.
-
-Available for **Windows** (single-file exe) and **Android** (arm64 apk). Both share the same detection engine and the same version number.
-
-![Before / After comparison](docs/img/comparison.png)
-
-> Left is the original document, right is the redacted result. Surnames are kept, given names and all numbers are covered by mosaic; meeting dates, amounts, license plates, tracking numbers and other ordinary info are preserved.
-
----
-
-## Who made this
-
-- **Lead author: was a junior high school student when this project was created.** Requirements, detection rule design, and acceptance testing were all completed by the author.
-- **Development: Tencent WorkBuddy × DeepSeek-V4.1-Flash.** Code was written under the author's direction and repeated acceptance reviews.
-- **Maintenance: very low frequency.** The author does not usually have enough time or energy for this project and checks it roughly once every 1–2 months. Code is fully open; anyone is welcome to fork and improve it, no need to ask.
-- **License: GNU AGPL-3.0-or-later.** See [LICENSE](LICENSE), and [ADDITIONAL-TERMS.md](ADDITIONAL-TERMS.md) for extra terms.
-
-## About attribution (read this before forking or commercial use)
-
-This project **allows commercial use and forks**, no payment, no application, no approval needed (the author checks the project roughly once every 1–2 months, so responses may be slow).
-
-But the **three hard requirements below** are part of [ADDITIONAL-TERMS.md](ADDITIONAL-TERMS.md) declared under AGPL-3.0 Section 7(b). Removing any of them is non-compliant:
-
-### ① Keep the author attribution
-
-Keep these two lines verbatim, don't replace with someone else's name:
-
-```
-Lead author: was a junior high school student when this project was created
-Developed by Tencent WorkBuddy × DeepSeek-V4.1-Flash
-```
-
-This is based on AGPL-3.0 Section 5 (preserve copyright notices); Section 7(b) explicitly allows the copyright holder to require attribution.
-
-### ② Show the original project URL in the program
-
-```
-https://github.com/neurotracee/pdf-privacy-masker
-https://gitee.com/bio234/pdf-privacy-masker      # mirror / 镜像（国内访问更快）
-```
-
-**Must be visible to users** — in the About window, footer, help menu, or `--about` output, pick any one. Writing it only in `LICENSE` or a source comment hundreds of lines away **doesn't count**, because users won't see it during normal operation.
-
-How this project does it (you can copy it directly):
-
-| Location | Content |
-| --- | --- |
-| Footer | `Original project: https://github.com/neurotracee/pdf-privacy-masker` + `Gitee: gitee.com/bio234/pdf-privacy-masker` (both click to copy) |
-| About window | `Original project` and `Mirror (Gitee)` lines, blue dashed clickable |
-| CLI | `python pdfmask.py --about` prints attribution and URL |
-
-### ③ State clearly if your version is modified
-
-Unless you're distributing the original unmodified, add a prominent notice in the program:
-
-> This program is based on https://github.com/neurotracee/pdf-privacy-masker
-> (mirror: https://gitee.com/bio234/pdf-privacy-masker), modified, not released by the original author.
-
-This prevents people from mistaking a modified version as the original author's — especially when your version has bugs, privacy risks, or starts charging.
-
-### Beyond AGPL-3.0 itself
-
-- **Open source alongside distribution**: when distributing the exe (or apk), provide the complete source code that builds it (Sections 4–6).
-- **Network services also need source**: if you make a modified version into a website for others, you must give those users a way to get the source (Section 13).
-- **Don't add stricter restrictions**: you can't change it to "no commercial use" or "no modification" — that conflicts with AGPL-3.0 and won't take effect.
-- **Rename it**: the program name "PDF Privacy Masker" and icon are not covered by the license (Section 7(e)). Forks must rename and rebrand to avoid confusion.
-
-Need closed-source commercial use? You must **both** get an exemption from the project author (response may take weeks, so don't count on it) **and** a commercial license from Artifex, the PyMuPDF copyright holder (see [NOTICE.md](NOTICE.md)). Both are required.
-
----
-
-## Interface
-
-![Interface](docs/img/interface.png)
-
-When you click "Generate Redacted PDF", it first asks which folder to save to, with two checkboxes deciding whether to ask again:
-
-![Save location](docs/img/save-location.jpg)
-
-You can also change this anytime in the Settings panel in the top-right corner — no command line, no config file editing:
-
-![Settings](docs/img/settings.png)
-
-The same panel also has **Check for updates** and **Language (中文 / English)**:
-
-- **Automatic update check**: the default mode checks once at launch, compares versions, and if a newer build exists it opens your default browser straight at the download. Offline, the check is skipped silently — no dialog, no error, and the app stays fully usable. Switch to **Manual only** in Settings if you would rather have nothing go online until you ask. A window that hangs still has a close button; a release marked *strongly suggested* by the author only raises the tone (a stronger badge and one gentle nudge before you close it) — **it can always be dismissed. No release ever locks the window.**
-- **Update source** is yours to pick: **Gitee (recommended in mainland China)** or **GitHub**. Left on the default, it follows the environment — a Simplified Chinese system with the Chinese interface starts with Gitee (reachable from mainland China), a clearly non-Chinese system starts with GitHub, and if the language cannot be detected Gitee is used as the fallback. Whichever you pick, an unreachable source automatically falls back to the other one. It also never relaxes TLS verification, and only accepts download links from the official GitHub/Gitee release hosts. If there is a newer build it opens your default browser straight at the download; if the network is blocked it shows the link, a copy button, and a short checklist (browser/security software, system proxy, firewall) — worst case you screenshot the window and use text recognition to get the link out by hand. The only thing it sends is a plain request for the public version number; no file, no personal data.
-- **Language** switches the whole interface between Chinese and English instantly, no restart. The choice is remembered in `settings.json`.
-
-## What it can detect
-
-| Type | Description | Redaction |
-| --- | --- | --- |
-| Phone numbers | Supports `138****`, `+86 138` formats | Full coverage |
-| ID card numbers | 18-digit and 15-digit, with checksum and country/region code validation | Full coverage |
-| Bank card numbers | 16–19 digits, Luhn check to avoid redacting ordinary numbers | Full coverage |
-| Emails | Common email formats | Full coverage |
-| Landline numbers | `area-code-number`, `area-code number` | Full coverage |
-| Addresses | Province/city/district + street, including "XX Road XX No. XX Room" | Full coverage |
-| Birth dates | Only dates with "born / birthday / born on" context | Full coverage |
-| Gender / age | `Gender: female`, `, female,`, `30 years old` patterns | Covered |
-| Names | Keep surname, redact given name: `陈嘉豪` → `陈██` | Surname kept |
-
-**Ordinary dates (meetings, contracts, signing), amounts, license plates, tracking numbers, employee IDs, model numbers are NOT redacted.** Number types are validated, so noise info is preserved.
-
-## Beyond auto-detection, manual tools
-
-| Feature | Description |
-| --- | --- |
-| Manual box redaction | Click "Box redaction" in the toolbar, drag a box on the page, release to finish. For scanned documents, text inside images, or conservative misses. On Android you drag with a finger and a **2.8× loupe** follows your fingertip, magnifying the dashed box you are drawing too |
-| Double-click to mute | Double-click (double-tap on Android) any box — auto-detected or hand-drawn — to cancel that redaction; the box turns grey. Double-click again to restore. A hint bar at the top says so |
-| Per-item confirmation | Each detection result has a checkbox; uncheck what you don't want redacted. Click an item to jump to the page and highlight it |
-| Custom save location | Click "Generate" and it pops up a folder picker first; optionally check "default to this path" and "don't ask again" |
-| Change anytime in Settings | Top-right "Settings" panel with checkboxes: default save path, whether to ask each time. No config file, no CLI arguments |
-| Zero changes to original | Only reads the original PDF, saves as a new file; auto-numbers to avoid overwriting |
-
-## How to use
-
-### Option 1: Use the packaged exe (recommended, Windows)
-
-1. Go to [Releases](../../releases) and download `PDFPrivacyMasker-1.4.2.exe`.
-2. Double-click to run. **No Python install needed, no network needed.**
-3. First launch takes 1–2 seconds (single-file app self-extracts to temp dir), that's normal.
-4. If Windows shows "Windows protected your PC", click "More info → Run anyway" — the app has no code signing certificate, but it works fine.
-
-The UI opens automatically in your browser at a random `127.0.0.1` port. Close the app by clicking "Exit" in the top-right corner.
-
-### Option 1b: Install the apk (Android)
-
-1. Download `PDFPrivacyMasker-1.4.2-arm64.apk` (Android 8.0+, arm64 devices).
-2. Tap to install; allow "unknown sources" for your file manager if the system asks.
-3. Tap a PDF on the home screen, confirm the detections, then tap "Mask PDF" and pick a folder.
-
-Only one permission: `INTERNET`, used solely for the update check (once at launch in automatic mode, or when you tap Check for updates; in manual mode nothing goes online by itself). No storage permission — files are picked through the system file picker.
-
-### Where are the redacted files saved
-
-First time you click "Generate Redacted PDF", it pops up a folder picker. Pick a folder and click "OK". Two checkboxes in the window:
-
-- **Default to this path next time**: future launches stay in this folder
-- **Don't ask again**: save directly here without popping up
-
-You can change these anytime in the top-right "Settings". If nothing is set, dragged-in files go to the system "Downloads" folder, and double-clicked PDFs go next to the original file.
-
-The picker is the native Windows folder dialog; you can also paste a path directly. If the folder doesn't exist, the app creates it. The original PDF is always read-only, never modified or overwritten.
-
-### Option 2: Run from source
-
-```bash
-pip install -r requirements.txt
-python pdfmask.py
-```
-
-Requires Python 3.10+.
-
-### Option 3: CLI batch mode
-
-```bash
-python pdfmask.py --cli input.pdf output.pdf
-```
-
-Prints a JSON listing every detection result's page and coordinates.
-
-## Build your own
-
-Windows exe:
-
-```bash
-pip install -r requirements.txt
-pyinstaller pdfmask.spec --noconfirm --clean
-```
-
-Output is `dist/PDF隐私打码工具.exe`, about 35 MB, single-file, no install needed.
-`version_info.txt` contains the exe's file properties (copyright, product name), adjust as needed.
-
-Android apk: JDK 17 + Android SDK 34 + Gradle 8.7, open the `android/` directory. Name release assets `PDFPrivacyMasker-<version>-arm64.apk` — the updater reads the version from the file name. Full steps in [docs/05-构建与发布.md](docs/05-构建与发布.md).
-
-## Known limitations
-
-- **No support for scanned PDFs.** Scanned PDFs are full-page images with no text layer, so auto-detection can't work — this is shown in red in the top-left corner. Use "Box redaction" to manually draw boxes; result is equally irreversible. If some scanned pages are mixed in a normal PDF, the app tells you which pages.
-- **Encrypted PDFs need password removed first.**
-- **Chinese numeral numbers** (like "一三八零零") are not detected.
-- **Names ending in 镇/苑/道/路/村/庄** are skipped because they're indistinguishable from place names — better to miss than to mis-redact.
-- **Names split across line breaks** (surname at end of line, given name at start of next) may be missed.
-- **Uncertain names** are listed as orange "suspected" items, unchecked by default, requiring you to manually check. This avoids mis-redacting ordinary nouns in the text.
-
-## Dependencies & License
-
-| Dependency | Version | License |
-| --- | --- | --- |
-| [PyMuPDF](https://pymupdf.readthedocs.io/) / MuPDF | 1.28.x | **AGPL-3.0** or Artifex commercial license |
-| [Pillow](https://python-pillow.org/) | 13.x | HPND (similar to MIT) |
-| [PyInstaller](https://pyinstaller.org/) | 6.x | GPL-2.0-or-later with packaging exception |
-| [PDFBox-Android](https://github.com/TomRoush/PdfBox-Android) (Android only) | 2.0.27.0 | Apache-2.0 |
-
-This project chooses AGPL-3.0 precisely because the core PDF library PyMuPDF is dual-licensed under AGPL-3.0: **distributing the packaged app means the whole application must be AGPL-3.0 open source.** See [NOTICE.md](NOTICE.md).
-
-## Privacy notes
-
-- The app only listens on `127.0.0.1`, no external ports.
-- Processing happens entirely in local memory and temp files; temp files are cleaned on exit.
-- Output PDF metadata is stripped — no tool name, no timestamp written.
-- The only file written is: your specified output path.
-- The app stores a preference file at `%APPDATA%\PDF隐私打码工具\settings.json` — only "default save path" and two toggles, no document content, no personal info. Delete it to reset.
-- On Android there is exactly one permission (`INTERNET`, for the update check only), no analytics, no upload.
-
-## License
-
-GNU Affero General Public License v3.0 or later, see [LICENSE](LICENSE).
-Extra terms under Section 7(b), see [ADDITIONAL-TERMS.md](ADDITIONAL-TERMS.md) — the core is one sentence: **fork or commercial use must keep the author attribution and original project URL in the program.**
-
-```
-Copyright (C) 2026 a junior high school student at the time of project creation
-
-This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU Affero General Public License as published
-by the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-```
-
-## Docs
-
-| What | Where |
-| --- | --- |
-| What changed in this version, what got fixed | [CHANGELOG.md](CHANGELOG.md) |
-| Doc map — where every file is, how to find things | [DOCS.md](DOCS.md) |
-| Windows / Android user guides | [docs/01](docs/01-使用说明-Windows.md) · [docs/02](docs/02-使用说明-安卓.md) |
-| Detection rules & limitations | [docs/03](docs/03-识别规则与已知限制.md) |
-| FAQ | [docs/04](docs/04-常见问题.md) |
-| Build, test, release | [docs/05](docs/05-构建与发布.md) |
-| How to publish a release (web UI, step by step) | [docs/06](docs/06-发布Release操作指南.md) |
-
-The Android app has no separate README on purpose: both platforms share one set of capabilities, licence and attribution, and two copies always drift apart.
-
-## Support
-
-If this project saved you some time, you can buy me a bubble tea 🧋
-
-![WeChat Donate](docs/img/wechat-donate.png)
-
-> **A star beats a tip.** If you don't feel like paying anything, starring the repo is the best support — it helps others find the project. Both apps have a **Star it** button in the About window (v1.4.2).
->
-> Domestic users can also scan the QR code to buy me a milk tea — entirely optional; the app stays free and fully functional either way.
->
-> Want to keep the QR? In the app, use **About → Save the tip QR** (Windows) or **long-press the QR code / tap Save the QR** (Android). Added in v1.4.1.
-
----
----
-
-# PDF 隐私打码工具
+**中文** | [English](#pdf-privacy-masker)
 
 > **本项目此前已在 GitHub 发布，于 2026 年 11 月 7 日同步至国内开源平台 Gitee（https://gitee.com/bio234/pdf-privacy-masker）**
 >
@@ -528,3 +269,264 @@ by the Free Software Foundation, either version 3 of the License, or
 > 国内用户也可以扫码请我喝杯奶茶——完全自愿，不打赏一样免费、功能不缺。
 >
 > 想把二维码存下来：Windows 端点「保存赞赏码」，安卓端长按二维码或点「保存赞赏码」。这是 v1.4.1 补上的（更早的版本写了「长按图片可保存」，其实没生效）。
+
+---
+---
+
+# PDF Privacy Masker
+
+[中文](#pdf-隐私打码工具) | **English**
+
+> **This project was originally published on GitHub, and was mirrored to Gitee (https://gitee.com/bio234/pdf-privacy-masker), the domestic open-source platform, on 7 November 2026.**
+>
+> Note: this GitHub repository and the Gitee repository above are owned by the same developer. The GitHub repository was created earlier — stating this here so nobody mistakes one for a copy of the other.
+
+Offline PDF privacy redaction tool — no AI model required. Drag a PDF in, it automatically detects phone numbers, ID card numbers, bank card numbers, emails, names, addresses, dates of birth and gender/age, then covers them with **irreversible pixel mosaic** while stripping the underlying text layer, and saves as a new file.
+
+Parts it can't auto-detect — scanned documents, text inside images, conservative misses — can be manually boxed and redacted, also pixel-level irreversible.
+
+Runs entirely on your own machine. No network, no upload, original file untouched. You choose where the redacted file is saved.
+
+Available for **Windows** (single-file exe) and **Android** (arm64 apk). Both share the same detection engine and the same version number.
+
+![Before / After comparison](docs/img/comparison.png)
+
+> Left is the original document, right is the redacted result. Surnames are kept, given names and all numbers are covered by mosaic; meeting dates, amounts, license plates, tracking numbers and other ordinary info are preserved.
+
+---
+
+## Who made this
+
+- **Lead author: was a junior high school student when this project was created.** Requirements, detection rule design, and acceptance testing were all completed by the author.
+- **Development: Tencent WorkBuddy × DeepSeek-V4.1-Flash.** Code was written under the author's direction and repeated acceptance reviews.
+- **Maintenance: very low frequency.** The author does not usually have enough time or energy for this project and checks it roughly once every 1–2 months. Code is fully open; anyone is welcome to fork and improve it, no need to ask.
+- **License: GNU AGPL-3.0-or-later.** See [LICENSE](LICENSE), and [ADDITIONAL-TERMS.md](ADDITIONAL-TERMS.md) for extra terms.
+
+## About attribution (read this before forking or commercial use)
+
+This project **allows commercial use and forks**, no payment, no application, no approval needed (the author checks the project roughly once every 1–2 months, so responses may be slow).
+
+But the **three hard requirements below** are part of [ADDITIONAL-TERMS.md](ADDITIONAL-TERMS.md) declared under AGPL-3.0 Section 7(b). Removing any of them is non-compliant:
+
+### ① Keep the author attribution
+
+Keep these two lines verbatim, don't replace with someone else's name:
+
+```
+Lead author: was a junior high school student when this project was created
+Developed by Tencent WorkBuddy × DeepSeek-V4.1-Flash
+```
+
+This is based on AGPL-3.0 Section 5 (preserve copyright notices); Section 7(b) explicitly allows the copyright holder to require attribution.
+
+### ② Show the original project URL in the program
+
+```
+https://github.com/neurotracee/pdf-privacy-masker
+https://gitee.com/bio234/pdf-privacy-masker      # mirror / 镜像（国内访问更快）
+```
+
+**Must be visible to users** — in the About window, footer, help menu, or `--about` output, pick any one. Writing it only in `LICENSE` or a source comment hundreds of lines away **doesn't count**, because users won't see it during normal operation.
+
+How this project does it (you can copy it directly):
+
+| Location | Content |
+| --- | --- |
+| Footer | `Original project: https://github.com/neurotracee/pdf-privacy-masker` + `Gitee: gitee.com/bio234/pdf-privacy-masker` (both click to copy) |
+| About window | `Original project` and `Mirror (Gitee)` lines, blue dashed clickable |
+| CLI | `python pdfmask.py --about` prints attribution and URL |
+
+### ③ State clearly if your version is modified
+
+Unless you're distributing the original unmodified, add a prominent notice in the program:
+
+> This program is based on https://github.com/neurotracee/pdf-privacy-masker
+> (mirror: https://gitee.com/bio234/pdf-privacy-masker), modified, not released by the original author.
+
+This prevents people from mistaking a modified version as the original author's — especially when your version has bugs, privacy risks, or starts charging.
+
+### Beyond AGPL-3.0 itself
+
+- **Open source alongside distribution**: when distributing the exe (or apk), provide the complete source code that builds it (Sections 4–6).
+- **Network services also need source**: if you make a modified version into a website for others, you must give those users a way to get the source (Section 13).
+- **Don't add stricter restrictions**: you can't change it to "no commercial use" or "no modification" — that conflicts with AGPL-3.0 and won't take effect.
+- **Rename it**: the program name "PDF Privacy Masker" and icon are not covered by the license (Section 7(e)). Forks must rename and rebrand to avoid confusion.
+
+Need closed-source commercial use? You must **both** get an exemption from the project author (response may take weeks, so don't count on it) **and** a commercial license from Artifex, the PyMuPDF copyright holder (see [NOTICE.md](NOTICE.md)). Both are required.
+
+---
+
+## Interface
+
+![Interface](docs/img/interface.png)
+
+When you click "Generate Redacted PDF", it first asks which folder to save to, with two checkboxes deciding whether to ask again:
+
+![Save location](docs/img/save-location.jpg)
+
+You can also change this anytime in the Settings panel in the top-right corner — no command line, no config file editing:
+
+![Settings](docs/img/settings.png)
+
+The same panel also has **Check for updates** and **Language (中文 / English)**:
+
+- **Automatic update check**: the default mode checks once at launch, compares versions, and if a newer build exists it opens your default browser straight at the download. Offline, the check is skipped silently — no dialog, no error, and the app stays fully usable. Switch to **Manual only** in Settings if you would rather have nothing go online until you ask. A window that hangs still has a close button; a release marked *strongly suggested* by the author only raises the tone (a stronger badge and one gentle nudge before you close it) — **it can always be dismissed. No release ever locks the window.**
+- **Update source** is yours to pick: **Gitee (recommended in mainland China)** or **GitHub**. Left on the default, it follows the environment — a Simplified Chinese system with the Chinese interface starts with Gitee (reachable from mainland China), a clearly non-Chinese system starts with GitHub, and if the language cannot be detected Gitee is used as the fallback. Whichever you pick, an unreachable source automatically falls back to the other one. It also never relaxes TLS verification, and only accepts download links from the official GitHub/Gitee release hosts. If there is a newer build it opens your default browser straight at the download; if the network is blocked it shows the link, a copy button, and a short checklist (browser/security software, system proxy, firewall) — worst case you screenshot the window and use text recognition to get the link out by hand. The only thing it sends is a plain request for the public version number; no file, no personal data.
+- **Language** switches the whole interface between Chinese and English instantly, no restart. The choice is remembered in `settings.json`.
+
+## What it can detect
+
+| Type | Description | Redaction |
+| --- | --- | --- |
+| Phone numbers | Supports `138****`, `+86 138` formats | Full coverage |
+| ID card numbers | 18-digit and 15-digit, with checksum and country/region code validation | Full coverage |
+| Bank card numbers | 16–19 digits, Luhn check to avoid redacting ordinary numbers | Full coverage |
+| Emails | Common email formats | Full coverage |
+| Landline numbers | `area-code-number`, `area-code number` | Full coverage |
+| Addresses | Province/city/district + street, including "XX Road XX No. XX Room" | Full coverage |
+| Birth dates | Only dates with "born / birthday / born on" context | Full coverage |
+| Gender / age | `Gender: female`, `, female,`, `30 years old` patterns | Covered |
+| Names | Keep surname, redact given name: `陈嘉豪` → `陈██` | Surname kept |
+
+**Ordinary dates (meetings, contracts, signing), amounts, license plates, tracking numbers, employee IDs, model numbers are NOT redacted.** Number types are validated, so noise info is preserved.
+
+## Beyond auto-detection, manual tools
+
+| Feature | Description |
+| --- | --- |
+| Manual box redaction | Click "Box redaction" in the toolbar, drag a box on the page, release to finish. For scanned documents, text inside images, or conservative misses. On Android you drag with a finger and a **2.8× loupe** follows your fingertip, magnifying the dashed box you are drawing too |
+| Double-click to mute | Double-click (double-tap on Android) any box — auto-detected or hand-drawn — to cancel that redaction; the box turns grey. Double-click again to restore. A hint bar at the top says so |
+| Per-item confirmation | Each detection result has a checkbox; uncheck what you don't want redacted. Click an item to jump to the page and highlight it |
+| Custom save location | Click "Generate" and it pops up a folder picker first; optionally check "default to this path" and "don't ask again" |
+| Change anytime in Settings | Top-right "Settings" panel with checkboxes: default save path, whether to ask each time. No config file, no CLI arguments |
+| Zero changes to original | Only reads the original PDF, saves as a new file; auto-numbers to avoid overwriting |
+
+## How to use
+
+### Option 1: Use the packaged exe (recommended, Windows)
+
+1. Go to [Releases](../../releases) and download `PDFPrivacyMasker-1.4.2.exe`.
+2. Double-click to run. **No Python install needed, no network needed.**
+3. First launch takes 1–2 seconds (single-file app self-extracts to temp dir), that's normal.
+4. If Windows shows "Windows protected your PC", click "More info → Run anyway" — the app has no code signing certificate, but it works fine.
+
+The UI opens automatically in your browser at a random `127.0.0.1` port. Close the app by clicking "Exit" in the top-right corner.
+
+### Option 1b: Install the apk (Android)
+
+1. Download `PDFPrivacyMasker-1.4.2-arm64.apk` (Android 8.0+, arm64 devices).
+2. Tap to install; allow "unknown sources" for your file manager if the system asks.
+3. Tap a PDF on the home screen, confirm the detections, then tap "Mask PDF" and pick a folder.
+
+Only one permission: `INTERNET`, used solely for the update check (once at launch in automatic mode, or when you tap Check for updates; in manual mode nothing goes online by itself). No storage permission — files are picked through the system file picker.
+
+### Where are the redacted files saved
+
+First time you click "Generate Redacted PDF", it pops up a folder picker. Pick a folder and click "OK". Two checkboxes in the window:
+
+- **Default to this path next time**: future launches stay in this folder
+- **Don't ask again**: save directly here without popping up
+
+You can change these anytime in the top-right "Settings". If nothing is set, dragged-in files go to the system "Downloads" folder, and double-clicked PDFs go next to the original file.
+
+The picker is the native Windows folder dialog; you can also paste a path directly. If the folder doesn't exist, the app creates it. The original PDF is always read-only, never modified or overwritten.
+
+### Option 2: Run from source
+
+```bash
+pip install -r requirements.txt
+python pdfmask.py
+```
+
+Requires Python 3.10+.
+
+### Option 3: CLI batch mode
+
+```bash
+python pdfmask.py --cli input.pdf output.pdf
+```
+
+Prints a JSON listing every detection result's page and coordinates.
+
+## Build your own
+
+Windows exe:
+
+```bash
+pip install -r requirements.txt
+pyinstaller pdfmask.spec --noconfirm --clean
+```
+
+Output is `dist/PDF隐私打码工具.exe`, about 35 MB, single-file, no install needed.
+`version_info.txt` contains the exe's file properties (copyright, product name), adjust as needed.
+
+Android apk: JDK 17 + Android SDK 34 + Gradle 8.7, open the `android/` directory. Name release assets `PDFPrivacyMasker-<version>-arm64.apk` — the updater reads the version from the file name. Full steps in [docs/05-构建与发布.md](docs/05-构建与发布.md).
+
+## Known limitations
+
+- **No support for scanned PDFs.** Scanned PDFs are full-page images with no text layer, so auto-detection can't work — this is shown in red in the top-left corner. Use "Box redaction" to manually draw boxes; result is equally irreversible. If some scanned pages are mixed in a normal PDF, the app tells you which pages.
+- **Encrypted PDFs need password removed first.**
+- **Chinese numeral numbers** (like "一三八零零") are not detected.
+- **Names ending in 镇/苑/道/路/村/庄** are skipped because they're indistinguishable from place names — better to miss than to mis-redact.
+- **Names split across line breaks** (surname at end of line, given name at start of next) may be missed.
+- **Uncertain names** are listed as orange "suspected" items, unchecked by default, requiring you to manually check. This avoids mis-redacting ordinary nouns in the text.
+
+## Dependencies & License
+
+| Dependency | Version | License |
+| --- | --- | --- |
+| [PyMuPDF](https://pymupdf.readthedocs.io/) / MuPDF | 1.28.x | **AGPL-3.0** or Artifex commercial license |
+| [Pillow](https://python-pillow.org/) | 13.x | HPND (similar to MIT) |
+| [PyInstaller](https://pyinstaller.org/) | 6.x | GPL-2.0-or-later with packaging exception |
+| [PDFBox-Android](https://github.com/TomRoush/PdfBox-Android) (Android only) | 2.0.27.0 | Apache-2.0 |
+
+This project chooses AGPL-3.0 precisely because the core PDF library PyMuPDF is dual-licensed under AGPL-3.0: **distributing the packaged app means the whole application must be AGPL-3.0 open source.** See [NOTICE.md](NOTICE.md).
+
+## Privacy notes
+
+- The app only listens on `127.0.0.1`, no external ports.
+- Processing happens entirely in local memory and temp files; temp files are cleaned on exit.
+- Output PDF metadata is stripped — no tool name, no timestamp written.
+- The only file written is: your specified output path.
+- The app stores a preference file at `%APPDATA%\PDF隐私打码工具\settings.json` — only "default save path" and two toggles, no document content, no personal info. Delete it to reset.
+- On Android there is exactly one permission (`INTERNET`, for the update check only), no analytics, no upload.
+
+## License
+
+GNU Affero General Public License v3.0 or later, see [LICENSE](LICENSE).
+Extra terms under Section 7(b), see [ADDITIONAL-TERMS.md](ADDITIONAL-TERMS.md) — the core is one sentence: **fork or commercial use must keep the author attribution and original project URL in the program.**
+
+```
+Copyright (C) 2026 a junior high school student at the time of project creation
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published
+by the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+```
+
+## Docs
+
+| What | Where |
+| --- | --- |
+| What changed in this version, what got fixed | [CHANGELOG.md](CHANGELOG.md) |
+| Doc map — where every file is, how to find things | [DOCS.md](DOCS.md) |
+| Windows / Android user guides | [docs/01](docs/01-使用说明-Windows.md) · [docs/02](docs/02-使用说明-安卓.md) |
+| Detection rules & limitations | [docs/03](docs/03-识别规则与已知限制.md) |
+| FAQ | [docs/04](docs/04-常见问题.md) |
+| Build, test, release | [docs/05](docs/05-构建与发布.md) |
+| How to publish a release (web UI, step by step) | [docs/06](docs/06-发布Release操作指南.md) |
+
+The Android app has no separate README on purpose: both platforms share one set of capabilities, licence and attribution, and two copies always drift apart.
+
+## Support
+
+If this project saved you some time, you can buy me a bubble tea 🧋
+
+![WeChat Donate](docs/img/wechat-donate.png)
+
+> **A star beats a tip.** If you don't feel like paying anything, starring the repo is the best support — it helps others find the project. Both apps have a **Star it** button in the About window (v1.4.2).
+>
+> Domestic users can also scan the QR code to buy me a milk tea — entirely optional; the app stays free and fully functional either way.
+>
+> Want to keep the QR? In the app, use **About → Save the tip QR** (Windows) or **long-press the QR code / tap Save the QR** (Android). Added in v1.4.1.
