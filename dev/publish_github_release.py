@@ -113,8 +113,9 @@ def main():
         return 1
     body = io.open(notes, encoding="utf-8").read()
     title = a.title or a.tag
+    # 校验和文件也一起挂上去：用户能自己核对下载到的包有没有被替换
     files = sorted(os.path.join(d, f) for f in os.listdir(d)
-                   if f.lower().endswith((".exe", ".apk")))
+                   if f.lower().endswith((".exe", ".apk", ".txt")) and f != "RELEASE-NOTES.md")
     print("标题: %s | 正文 %d 字符 | 附件 %d 个" % (title, len(body), len(files)))
 
     tok = token()

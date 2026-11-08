@@ -207,6 +207,8 @@ pyinstaller pdfmask.spec --noconfirm --clean
 - **以「镇、苑、道、路、村、庄」结尾的姓名**会跳过，因为与地名无法区分，宁可放过。
 - **被换行拆成两半的姓名**（姓在行尾、名在行首）可能漏掉。
 - **拿不准的姓名**会列为橙色「疑似」条目，默认不打勾，需要你手动点一下。这样不会误打正文里的普通名词。
+- **安卓端输出的是整页图片。** 打码时每页重绘为 JPEG 再组装成新 PDF，所以打码后的文件**不能搜索、不能复制文字**，体积通常也比原先大；Windows 版保留矢量版面，只抹掉命中处的文字层。这是为了「彻底抹除文字层」有意做的取舍（v1.4.4 起写进说明）。
+- **注释是整块处理的。** Windows 端会删掉含敏感内容的整条注释，安卓端会把该注释的矩形整块盖成马赛克；若一条注释里既有敏感内容又有要保留的说明，整条都会没，需要的话请另写一条干净的注释。
 
 ## 依赖与许可
 
@@ -470,6 +472,8 @@ Android apk: JDK 17 + Android SDK 34 + Gradle 8.7, open the `android/` directory
 - **Names ending in 镇/苑/道/路/村/庄** are skipped because they're indistinguishable from place names — better to miss than to mis-redact.
 - **Names split across line breaks** (surname at end of line, given name at start of next) may be missed.
 - **Uncertain names** are listed as orange "suspected" items, unchecked by default, requiring you to manually check. This avoids mis-redacting ordinary nouns in the text.
+- **On Android the output is full-page images.** Each page is re-rendered as JPEG and assembled into a new PDF, so the redacted file **cannot be searched and its text cannot be copied**; it is usually larger too. The Windows build keeps the vector layout and only removes the text layer at the hits. This is a deliberate trade for wiping the text layer (spelled out since v1.4.4).
+- **Annotations are handled as a whole.** On Windows an annotation containing sensitive content is deleted entirely; on Android its whole rectangle is mosaicked. If one annotation holds both sensitive content and text worth keeping, all of it goes — write a separate clean note instead.
 
 ## Dependencies & License
 
