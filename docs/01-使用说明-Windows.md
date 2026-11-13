@@ -1,13 +1,13 @@
 # Windows 端使用说明
 
-> 适用于 `PDFPrivacyMasker-1.4.2.exe`（Windows 10 / 11，64 位，免安装）。
+> 适用于 Windows 版单文件 exe（文件名形如 `PDFPrivacyMasker-<版本号>.exe`，Windows 10 / 11，64 位，免安装）。
 > 安卓端请看 [02-使用说明-安卓.md](02-使用说明-安卓.md)；想先知道这版改了什么，看 [CHANGELOG.md](../CHANGELOG.md)。
 
 ---
 
 ## 1. 开始用
 
-1. 双击 `PDFPrivacyMasker-1.4.2.exe`。
+1. 双击下载到的 `PDFPrivacyMasker-<版本号>.exe`。
 2. 界面会自己在默认浏览器里打开，地址是 `127.0.0.1` 的一个随机端口——**只有本机能访问**。
 3. 把 PDF 拖进虚线框，或点「选择 PDF 文件」。
 4. 等 1–2 秒，识别到的敏感信息会逐条列在左边，右边是页面预览。
