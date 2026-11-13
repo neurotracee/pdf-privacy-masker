@@ -32,7 +32,9 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest]
-        python: ["3.10", "3.12"]
+        # 最低 3.11：requirements.txt 里 Pillow 13 要求 >=3.11，
+        # 3.10 在安装依赖这步就会失败。以前文档写 3.10 是错的。
+        python: ["3.11", "3.12"]
     env:
       # 脚本里到处是中文，Windows 控制台默认代码页会让输出变成乱码（不影响结果，
       # 但日志看不懂等于没有）。自检本身用 utf-8 读子进程输出，这里统一成 utf-8。

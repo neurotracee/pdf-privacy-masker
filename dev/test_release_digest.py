@@ -16,7 +16,100 @@ sys.path.insert(0, os.path.join(HERE, ".."))
 import pdfmask_update as U  # noqa: E402
 
 ROOT = os.path.join(HERE, "..")
-NOTES = os.path.join(ROOT, "release", "v1.4.5", "RELEASE-NOTES.md")
+RELEASE_DIR = os.path.join(ROOT, "release")
+
+# 发布正文放在 release/<tag>/ 里，而 release/ 是产物目录（不进仓库），
+# 所以 CI 里没有真实样本。没有时用下面这段内置样本：结构与真实正文一致
+# （一句话 / 中英双语 / 分平台标注 / 一个应当被过滤的下载章节），
+# 断言强度不打折。本地有真实正文时仍然优先用真实的。
+INLINE_NOTES = """# v9.9.9 版本说明（Windows + 安卓）
+
+**中文** | [English](#v999-release-notes-windows--android)
+
+更新级别：建议
+
+> **一句话**：修好了安卓更新包变成压缩包、默认更新源乱跳、返回手势直接退出这三个问题。
+
+这一版修的都是用着用着才撞上的问题，三条都堵住了。
+
+---
+
+## 1. 修复：关标签页前先问一句（Windows）
+
+**现象**：直接关浏览器标签，未保存的编辑全丢。
+
+**改法**：关闭前拦一下，有未保存内容才提示。
+
+## 2. 修复：默认更新源乱跳（Windows + 安卓）
+
+**改法**：按系统语言与时区判断，界面语言不参与，启动时只算一次。
+
+## 3. 修复：更新包变成压缩包（安卓）
+
+**改法**：改为应用内下载，校验通过后交给系统安装器。
+
+## 4. 修复：返回手势直接退出（安卓）
+
+**改法**：返回时先问一句，可以保存后离开。
+
+## 5. 改进：弱网下的超时（Windows + 安卓）
+
+**改法**：单通道 8 秒放宽到 10 秒，减少误判。
+
+## 6. 下载
+
+- `PDFPrivacyMasker-9.9.9.exe`
+- `PDFPrivacyMasker-9.9.9-arm64.apk`
+
+---
+
+# v9.9.9 Release Notes (Windows + Android)
+
+**中文** | [English](#v999-release-notes-windows--android)
+
+> **In one line**: Fixed archive-named Android updates, a flipping default source, and back gestures quitting the app.
+
+All three were things you only hit in real use.
+
+---
+
+## 1. Fixed: ask before closing the tab (Windows)
+
+The tab can no longer throw away unsaved edits.
+
+## 2. Fixed: the default update source flipped (Windows + Android)
+
+The rule now uses system language and time zone, computed once at launch.
+
+## 3. Fixed: updates arrived as archives (Android)
+
+Downloads happen in-app and are verified before being handed to the installer.
+
+## 4. Downloads
+
+- `PDFPrivacyMasker-9.9.9.exe`
+"""
+
+
+def _ver_key(name):
+    m = re.match(r"^v(\d+)\.(\d+)\.(\d+)$", name)
+    return (int(m.group(1)), int(m.group(2)), int(m.group(3))) if m else None
+
+
+def find_notes():
+    """找 release/ 下最新一版的正文；没有就返回 None（改用内置样本）。"""
+    if os.environ.get("PDFMASK_TEST_NOTES") == "inline":
+        return None
+    if not os.path.isdir(RELEASE_DIR):
+        return None
+    best = None
+    for name in os.listdir(RELEASE_DIR):
+        key = _ver_key(name)
+        path = os.path.join(RELEASE_DIR, name, "RELEASE-NOTES.md")
+        if key and os.path.exists(path) and (best is None or key > best[0]):
+            best = (key, path)
+    return best[1] if best else None
+
 
 ok_all = True
 
@@ -58,7 +151,13 @@ def mask_leftover(text):
 
 
 def main():
-    body = open(NOTES, encoding="utf-8").read()
+    notes_path = find_notes()
+    if notes_path:
+        body = open(notes_path, encoding="utf-8").read()
+        print("样本：%s" % os.path.relpath(notes_path, ROOT))
+    else:
+        body = INLINE_NOTES
+        print("样本：内置（release/ 不进仓库，没有真实正文时用这段）")
 
     # 走一遍真实入口：解析 GitHub 的 releases JSON
     got = U.parse_releases(json.loads(json.dumps(fake_release(body))), ".exe", U.GITHUB_PAGE)

@@ -3,7 +3,7 @@
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](https://github.com/neurotracee/pdf-privacy-masker/blob/main/LICENSE)
 [![Latest release](https://img.shields.io/github/v/release/neurotracee/pdf-privacy-masker?label=latest)](https://github.com/neurotracee/pdf-privacy-masker/releases/latest)
 [![Downloads](https://img.shields.io/github/downloads/neurotracee/pdf-privacy-masker/total?label=downloads)](https://github.com/neurotracee/pdf-privacy-masker/releases)
-[![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-green.svg)](https://github.com/neurotracee/pdf-privacy-masker/blob/main/requirements.txt)
+[![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-green.svg)](https://github.com/neurotracee/pdf-privacy-masker/blob/main/requirements.txt)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Android-blue.svg)](https://github.com/neurotracee/pdf-privacy-masker/releases)
 [![Gitee](https://img.shields.io/badge/Gitee-mirror-c71d23.svg)](https://gitee.com/bio234/pdf-privacy-masker)
 
@@ -189,7 +189,7 @@ pip install -r requirements.txt
 python pdfmask.py
 ```
 
-需要 Python 3.10 以上。
+需要 Python 3.11 以上。
 
 ### 方式三：命令行批量处理
 
@@ -474,7 +474,7 @@ pip install -r requirements.txt
 python pdfmask.py
 ```
 
-Requires Python 3.10+.
+Requires Python 3.11+.
 
 ### Option 3: CLI batch mode
 
