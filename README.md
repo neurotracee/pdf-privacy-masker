@@ -6,6 +6,7 @@
 [![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-green.svg)](https://github.com/neurotracee/pdf-privacy-masker/blob/main/requirements.txt)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Android-blue.svg)](https://github.com/neurotracee/pdf-privacy-masker/releases)
 [![Gitee](https://img.shields.io/badge/Gitee-mirror-c71d23.svg)](https://gitee.com/bio234/pdf-privacy-masker)
+[![selfcheck](https://github.com/neurotracee/pdf-privacy-masker/actions/workflows/ci.yml/badge.svg)](https://github.com/neurotracee/pdf-privacy-masker/actions/workflows/ci.yml)
 
 **中文** | [English](#pdf-privacy-masker)
 
