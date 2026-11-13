@@ -23,6 +23,11 @@
   2. Gitee 的 PATCH /repos/{owner}/{repo} 不带 name 参数时，description 会被
      静默忽略（返回 200 但没改），所以下面必须带上 name。
   3. Gitee 偶发 RemoteDisconnected，所有请求都带重试。
+  4. **Gitee 的「项目分类」（Categories）这个脚本管不了**：API v5 没有对应
+     端点（/project_category、/categories 等全是 404），PATCH 仓库时传
+     project_category / category 也会被静默忽略（返回 200，页面仍是
+     Uncategorized）。只能网页里点：仓库 → 管理 → 基本信息 → 项目分类。
+     仓库页面对爬虫输出的摘要里能看到这项，即 `**Categories**: ...`。
 """
 
 import io
