@@ -1,0 +1,11 @@
+blank_issues_enabled: true
+contact_links:
+  - name: 我不知道该开哪种 issue / 只是想问怎么用
+    url: https://github.com/neurotracee/pdf-privacy-masker/blob/main/docs/04-%E5%B8%B8%E8%A7%81%E9%97%AE%E9%A2%98.md
+    about: 先看常见问题：扫描件、加密文件、误报漏报、检查更新、下载后带 .zip 等都有答案。
+  - name: 想去 Gitee 提（国内访问更快）
+    url: https://gitee.com/bio234/pdf-privacy-masker/issues
+    about: 两个仓库都开着 issue，内容我在两边都会看，不必重复提。
+  - name: 安全漏洞（能读到别人的文件、能还原打码内容）
+    url: https://github.com/neurotracee/pdf-privacy-masker/security/advisories/new
+    about: 请不要开公开 issue，用私密上报。

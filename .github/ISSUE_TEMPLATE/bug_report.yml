@@ -1,0 +1,109 @@
+name: 报告缺陷 / Bug report
+description: 识别错了、文件坏了、界面报错——用这个。
+title: "[缺陷] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢愿意花时间写清楚。
+
+        **先别贴真实信息**：身份证号、银行卡号、手机号、住址一律换成假的，或者造一份测试文档
+        （`python dev/make_test_pdf.py` 能生成带假数据的样本）。截图里也要盖掉。
+
+        如果文档本身就是出问题的那一份，**不要直接传上来**——先把它换成假数据再复现一次，
+        大多数时候换个假数据也能复现。实在不行，请在描述里说明，我会给一个私下传的方式。
+
+  - type: input
+    id: version
+    attributes:
+      label: 版本号
+      description: 设置面板或「关于」里能看到，形如 1.4.5
+      placeholder: "1.4.5"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: platform
+    attributes:
+      label: 哪一端
+      options:
+        - Windows
+        - 安卓
+        - 两端都有
+    validations:
+      required: true
+
+  - type: input
+    id: os
+    attributes:
+      label: 系统版本
+      description: Windows 写 Windows 10 / 11；安卓写系统版本与机型，例如「Android 14，小米 13」
+      placeholder: "Windows 11 / Android 14，小米 13"
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: 怎么复现
+      description: 一步一步写，从打开程序开始。能稳定复现最有用。
+      placeholder: |
+        1. 打开程序，选 test/测试文档_含隐私.pdf
+        2. 点「生成打码 PDF」
+        3. ……
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: 你期望什么
+      placeholder: "「苏州市姑苏区……」这一段应该被整段盖住"
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: 实际发生了什么
+      description: 有报错信息就整段贴上来，别只贴最后一行。
+      placeholder: "只盖住了前半段，「88号平江华府」原样露在外面"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: kind
+    attributes:
+      label: 缺陷类型
+      options:
+        - 该打码的没打（漏报）
+        - 不该打码的打了（误报）
+        - 打码后还能复制/搜索到原文（文字层没清干净）
+        - 打码后的文件打不开 / 版面错乱 / 丢页
+        - 原文件被改动了
+        - 界面报错、闪退、卡住
+        - 检查更新、下载、安装问题
+        - 其它
+    validations:
+      required: true
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: 补充信息（选填）
+      description: 比如这份文档是不是扫描件、有没有加密、之前用什么工具生成、你试过哪些绕法。
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: confirm
+    attributes:
+      label: 提交前确认
+      options:
+        - label: 我贴的内容里没有任何真实的个人信息（或已经全部替换成假数据）
+          required: true
+        - label: 我已经在两端的发布页确认过，用的是最新版本（旧版的已知问题不重复修）
+          required: true
+        - label: 我搜过现有 issue，没有重复的
+          required: true

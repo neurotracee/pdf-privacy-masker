@@ -1,0 +1,80 @@
+name: 功能建议 / Feature request
+description: 想要新的识别类型、新的操作方式、新的平台——用这个。
+title: "[建议] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        建议不一定都会被采纳，写清「为什么需要」比写清「怎么做」更有说服力。
+        另外提醒一句：这个项目的底线是**打码必须不可还原**，任何会削弱这一点的建议都不会被接受。
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: 你遇到的是什么麻烦
+      description: 描述场景，别直接跳到方案。你现在是怎么绕过这个麻烦的？
+      placeholder: |
+        我的 PDF 是一堆体检报告，每份都有「体检编号：TJ2026xxxx」这种编号，
+        它算准个人信息（能关联到具体某个人），但现在不会被识别，我只能手动框。
+    validations:
+      required: true
+
+  - type: textarea
+    id: idea
+    attributes:
+      label: 你希望它怎么做（选填）
+      placeholder: |
+        希望能在设置里自己加「自定义关键词 + 后面跟的号码」这种规则，
+        比如「体检编号」后面那串一起打掉。
+    validations:
+      required: false
+
+  - type: dropdown
+    id: scope
+    attributes:
+      label: 涉及哪一端
+      options:
+        - Windows
+        - 安卓
+        - 两端都要
+    validations:
+      required: true
+
+  - type: dropdown
+    id: category
+    attributes:
+      label: 属于哪类
+      options:
+        - 多认一种信息（新的识别类型）
+        - 少认一点（减少误报）
+        - 操作方式（快捷键、批量、拖拽…）
+        - 输出与保存（格式、命名、目录…）
+        - 界面与易用性
+        - 检查更新与安装
+        - 其它
+    validations:
+      required: true
+
+  - type: textarea
+    id: sample
+    attributes:
+      label: 能造一份样本吗（选填）
+      description: |
+        有样本的规则建议成功率高一倍。**必须是假数据**——把真实的号段、姓名、地址换成编的，
+        只要格式一样就行。能写出「什么样的该中、什么样的不该中」这两个例子更好。
+      placeholder: |
+        该中：体检编号 TJ20260718001
+        不该中：产品型号 TJ-2026（这个不该打）
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: confirm
+    attributes:
+      label: 提交前确认
+      options:
+        - label: 我贴的样本里没有任何真实的个人信息
+          required: true
+        - label: 我搜过现有 issue，没有重复的建议
+          required: true
