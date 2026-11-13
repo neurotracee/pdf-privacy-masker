@@ -1,0 +1,78 @@
+# 提交后自动跑一遍基础校验。
+#
+# 这里只跑「不需要图形界面、不依赖打包产物」的那部分：
+#   - 语法能不能过（四个模块逐个编译）
+#   - 默认更新源的判断规则
+#   - 发布正文的拆分解析
+#   - 端到端自检（识别 → 打码 → 核对文字层与版面）
+#
+# 不跑的部分：exe / apk 打包（需要各自的工具链）、界面截图（需要浏览器）。
+# 那些由发版流程里的 dev/smoke_exe.py 和人工核对负责，别指望 CI 覆盖。
+
+name: selfcheck
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: selfcheck-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: ${{ matrix.os }} / Python ${{ matrix.python }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ["3.10", "3.12"]
+    env:
+      # 脚本里到处是中文，Windows 控制台默认代码页会让输出变成乱码（不影响结果，
+      # 但日志看不懂等于没有）。自检本身用 utf-8 读子进程输出，这里统一成 utf-8。
+      PYTHONUTF8: "1"
+      PYTHONIOENCODING: "utf-8"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+
+      - name: 安装依赖
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+
+      - name: 打印环境
+        run: |
+          python -c "import sys, pymupdf, PIL; print(sys.version); print('pymupdf', pymupdf.__doc__); print('Pillow', PIL.__version__)"
+
+      - name: 语法检查（四个模块逐个编译）
+        run: |
+          python -m py_compile pdfmask.py pdfmask_webui.py pdfmask_update.py thanks_asset.py
+
+      - name: 默认更新源规则
+        run: python dev/test_source_pick.py
+
+      - name: 发布正文拆分
+        run: python dev/test_release_digest.py
+
+      - name: 端到端自检
+        # 自检会自己建临时目录，不会把产物丢进工作区
+        run: python dev/selfcheck.py
+
+      - name: 确认工作区没被测试弄脏
+        # 自检的约定是「跑完 git status 干净」。这里把约定变成会红的检查，
+        # 防止哪天某个脚本又开始往 test/ 里写文件。
+        run: |
+          git status --porcelain
+          git diff --exit-code
