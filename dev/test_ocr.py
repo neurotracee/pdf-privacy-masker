@@ -18,6 +18,8 @@ import pymupdf  # noqa: E402
 
 import pdfmask_ocr as ocr  # noqa: E402
 
+USED_FALLBACK = [False]      # 样张是否退回了内置 china-s（见 font_faithful）
+
 LINES = [
     ("姓名", "张伟"),
     ("性别", "男"),
@@ -54,7 +56,18 @@ def _pick_font(page):
             return "F0"
         except Exception:
             pass
+    USED_FALLBACK[0] = True
     return "china-s"
+
+
+def font_faithful() -> bool:
+    """样张是否用了真实的中英文混排字体
+
+    退回内置 china-s 时，连 ASCII 都会被画成全角字形，和真实扫描件差得远，
+    识别结果天然会失真（'zhangwei' 会读成 'lhangeil'）。这种情况下端到端
+    测试应当跳过而不是判失败——错的是样张，不是程序。
+    """
+    return not USED_FALLBACK[0]
 
 
 def build_form(path):

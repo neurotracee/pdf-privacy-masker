@@ -1,5 +1,7 @@
 PyMuPDF==1.28.2
 Pillow==13.0.0
 # 无文字层 PDF（扫描件 / 拍照件）自动识别用；缺任一项时程序自动退回手动框选
-numpy==2.5.4
+# numpy 2.5 起要求 Python ≥3.12，3.11 上装 2.4.x（2.4.6 是支持 3.11 的最后一档）
+numpy==2.5.4; python_version >= "3.12"
+numpy==2.4.6; python_version < "3.12"
 onnxruntime==1.31.1

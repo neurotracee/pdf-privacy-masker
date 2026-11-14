@@ -237,7 +237,7 @@ pyinstaller pdfmask.spec --noconfirm --clean
 | [Pillow](https://python-pillow.org/)               | 13.x   | HPND（类似 MIT）                |
 | [PyInstaller](https://pyinstaller.org/)            | 6.x    | GPL-2.0-or-later，含打包例外条款    |
 | [ONNX Runtime](https://onnxruntime.ai/)（仅本地 OCR 用） | 1.31.x | MIT                        |
-| [NumPy](https://numpy.org/)（仅本地 OCR 用）         | 2.5.x  | BSD-3-Clause                |
+| [NumPy](https://numpy.org/)（仅本地 OCR 用）         | 2.5.x（Python 3.11 上为 2.4.x） | BSD-3-Clause                |
 | PP-OCRv4 检测 / 识别模型（仅本地 OCR 用）              | mobile | Apache-2.0                  |
 | [PDFBox-Android](https://github.com/TomRoush/PdfBox-Android)（仅安卓端） | 2.0.27.0 | Apache-2.0 |
 | [ONNX Runtime Android](https://onnxruntime.ai/)（仅安卓端 OCR 用） | 1.20.0 | MIT                     |
@@ -529,7 +529,7 @@ Android apk: JDK 17 + Android SDK 34 + Gradle 8.7, open the `android/` directory
 | [Pillow](https://python-pillow.org/) | 13.x | HPND (similar to MIT) |
 | [PyInstaller](https://pyinstaller.org/) | 6.x | GPL-2.0-or-later with packaging exception |
 | [ONNX Runtime](https://onnxruntime.ai/) (local OCR only) | 1.31.x | MIT |
-| [NumPy](https://numpy.org/) (local OCR only) | 2.5.x | BSD-3-Clause |
+| [NumPy](https://numpy.org/) (local OCR only) | 2.5.x (2.4.x on Python 3.11) | BSD-3-Clause |
 | PP-OCRv4 detection / recognition models (local OCR only) | mobile | Apache-2.0 |
 | [PDFBox-Android](https://github.com/TomRoush/PdfBox-Android) (Android only) | 2.0.27.0 | Apache-2.0 |
 | [ONNX Runtime Android](https://onnxruntime.ai/) (Android OCR only) | 1.20.0 | MIT |

@@ -1,7 +1,7 @@
 # 提交后自动跑一遍基础校验。
 #
 # 这里只跑「不需要图形界面、不依赖打包产物」的那部分：
-#   - 语法能不能过（四个模块逐个编译）
+#   - 语法能不能过（五个模块逐个编译）
 #   - 默认更新源的判断规则
 #   - 发布正文的拆分解析
 #   - 端到端自检（识别 → 打码 → 核对文字层与版面）
@@ -49,6 +49,12 @@ jobs:
           python-version: ${{ matrix.python }}
           cache: pip
 
+      - name: 安装中英文混排字体（仅 Linux）
+        # 扫描件识别的样张要用真实的中英文字体渲染。缺字体时会退回 PyMuPDF 内置的
+        # china-s，它连 ASCII 都画成全角，样张失真、测试必然假失败。
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y fonts-noto-cjk
+
       - name: 安装依赖
         run: |
           python -m pip install --upgrade pip
@@ -56,11 +62,11 @@ jobs:
 
       - name: 打印环境
         run: |
-          python -c "import sys, pymupdf, PIL; print(sys.version); print('pymupdf', pymupdf.__doc__); print('Pillow', PIL.__version__)"
+          python -c "import sys, pymupdf, PIL, numpy, onnxruntime; print(sys.version); print('pymupdf', pymupdf.__doc__); print('Pillow', PIL.__version__); print('numpy', numpy.__version__); print('onnxruntime', onnxruntime.__version__)"
 
       - name: 语法检查（四个模块逐个编译）
         run: |
-          python -m py_compile pdfmask.py pdfmask_webui.py pdfmask_update.py thanks_asset.py
+          python -m py_compile pdfmask.py pdfmask_ocr.py pdfmask_webui.py pdfmask_update.py thanks_asset.py
 
       - name: 默认更新源规则
         run: python dev/test_source_pick.py

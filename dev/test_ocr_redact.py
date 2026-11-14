@@ -57,6 +57,13 @@ def main():
     out = os.path.join(tmp, "pdfmask_e2e_out.pdf")
     _sample.build_form(src)
 
+    if not _sample.font_faithful():
+        # 本机没有中英文混排字体时，样张里的 ASCII 会被画成全角字形，
+        # 识别结果必然失真（错在样张，不在程序），所以跳过而不是判失败。
+        print("本机没有可用的中英文混排字体（msyh / Noto CJK），样张会失真，跳过。")
+        print("  Linux 上装一个即可：sudo apt-get install -y fonts-noto-cjk")
+        return 3
+
     doc = pymupdf.open(src)
     print("输入页文字字符数 =", ocr.page_text_units(doc[0])[0], "（0 表示确实没有文字层）")
     assert ocr.page_text_units(doc[0])[0] == 0, "样张必须没有文字层"
