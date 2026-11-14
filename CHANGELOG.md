@@ -2,6 +2,66 @@
 
 **中文** | [English](#unreleased-main)
 
+更新级别：建议
+
+> 版本号：**1.4.6.2**，只动第四位（小版本）。
+
+> **一句话**：Windows 和安卓的版本号解绑——只改了安卓，Windows 不用再重打 73MB 的 exe；只发 Windows，安卓也不会收到一条下载不到安装包的假更新。
+
+## 这一轮做了什么
+
+以前两端共用一个版本号，带来两个麻烦：只改了安卓的文案，Windows 也得跟着升版本、把内容一字未变的
+exe 重新打一遍再传一遍；只发了一端的版本，另一端偶尔会拿 Release 的版本号兜底，提示一条
+**下载页里根本没有对应安装包**的假更新。
+
+现在：
+
+- **两端版本号各自独立**（Windows 看 `pdfmask.VERSION`，安卓看 `appVersionName`），允许不同；
+- 判断要不要更新时，**只比本平台安装包文件名里的版本号**，另一端的包再新也不参与；
+- 某个版本只给另一端发了包 → 对本平台就等于「没更新」，不再拿 tag 兜底；
+  早期一个附件都没有的旧版本仍保留兜底，老用户查得到更新；
+- 发版脚本加了 `--only exe|apk`：只发一端，误放了另一端的包会直接报错，不会偷偷传上去；
+- 新增回归测试 `dev/test_platform_split.py`（6 个用例，已接进 CI），Python 与 Kotlin 两份实现都有覆盖。
+
+## 对使用者的影响
+
+界面、打码效果、识别规则**一点没变**。变化在「检查更新」：只提示本平台**真的有包**的版本，
+不会再出现「提示有新版本、点进去却没有对应安装包」。从这一版起两端版本号可能不一样
+（例如 Windows 停在 1.4.6、安卓到了 1.4.6.2），这是正常的。
+
+---
+
+# Unreleased (main)
+
+> **Version**: **1.4.6.2** — the fourth (small) slot.
+
+> **In one line**: Windows and Android no longer share a version number, so shipping one
+> platform no longer forces a rebuild of the other, and a Windows-only release can no longer
+> show Android users an update with no APK behind it.
+
+## What changed
+
+- Each platform owns its version number (`pdfmask.VERSION` for Windows, `appVersionName` for
+  Android) and they may differ;
+- The updater compares **only the version embedded in this platform's own package filename**;
+- A release that ships only the other platform's package counts as "no update" here — the tag
+  is no longer used as a fallback in that case (releases with no attachments at all still fall
+  back, so old installs can still find an update);
+- `publish_github_release.py --only exe|apk` refuses to upload the other platform's package;
+- New regression suite `dev/test_platform_split.py` (6 cases, wired into CI), covering both the
+  Python and the Kotlin implementations.
+
+## What it means for users
+
+Nothing changes in the UI, masking quality or detection rules. The update check simply only
+reports versions that actually have a package for your platform.
+
+---
+
+# v1.4.6.1 版本说明（Windows + 安卓）
+
+**中文** | [English](#v1461-release-notes-windows--android)
+
 更新级别：建议（主要是扫描件识别准确率；另把版本号格式改成四段）
 
 > 版本号：**1.4.6.1**。这一版只动**第四位**——它是「小版本」，日常修缺陷、改文案、补文档就动它。
@@ -85,7 +145,7 @@
 
 ---
 
-# Unreleased (main)
+# v1.4.6.1 Release Notes (Windows + Android)
 
 > **Version**: **1.4.6.1**. This release only moves the **fourth part** — the "small" slot
 > used for everyday fixes, wording and docs. Versions are now four parts

@@ -191,9 +191,19 @@ def main():
     check("中文条目数量合理（%d 条）" % len(items), 3 <= len(items) <= U.MAX_ITEMS)
     plats = [it["p"] for it in items]
     # 平台标注要能分出两类。不强制必须有「只在 Windows」的条目——
-    # 像 1.4.6.1 这种整版都是两端同步改的版本，标成「两端」才是对的。
+    # 像 1.4.6.1 / 1.4.6.2 这种整版都是两端同步改的版本，标成「两端」才是对的；
+    # 真正要防的是「整版只有 Windows 条目，安卓用户看到一堆跟自己无关的东西」，
+    # 所以判据是「至少有一条对安卓可见」。
     check("有一条标成两端", "both" in plats, str(plats))
-    check("有一条标成安卓", "android" in plats, str(plats))
+    check("有对安卓可见的条目（both 或 android）",
+          ("both" in plats) or ("android" in plats), str(plats))
+    # 但「安卓」这个标注本身必须认得出（真实正文里不一定每版都有，自己造一段）
+    sample_and = U.parse_digest(
+        "# v9.9.9\n\n> **一句话**：一段足够长的摘要文字，用来验证平台标注的解析。\n\n"
+        "## 调整（安卓）\n\n- 更新弹窗常驻安装提示。\n")
+    check("平台标注「安卓」能认出来",
+          [it["p"] for it in sample_and["notes"]["zh"]] == ["android"],
+          str([it["p"] for it in sample_and["notes"]["zh"]]))
     check("每条都有标题和正文",
           all(it["t"] and it.get("b") for it in items))
     check("标题里不再残留平台标注",
