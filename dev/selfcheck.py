@@ -436,9 +436,31 @@ def main():
     check("README 解释了「信息将被第三方收集」", "信息将被第三方收集" in readme_txt
           and "third parties" in readme_txt)
     check("README 写明只连两个仓库", "gitee.com" in readme_txt and "github.com" in readme_txt)
-    rel_notes = _read("release/v1.4.6.1/RELEASE-NOTES.md")
-    check("发布正文开头也带这三段", "信息将被第三方收集" in rel_notes
-          and "不上传" in rel_notes and "gitee.com" in rel_notes)
+    # 发布正文放在 release/<版本>/RELEASE-NOTES.md，而 release/ 是发版暂存目录（不进仓库），
+    # CI 上取不到这个文件；写死版本号还会在下次升版后悄悄查旧正文。所以分两路：
+    #   本机有正文 → 正文开头必须带这三段（发版前真守一次）
+    #   仓库里没有 → 守发布指南里「正文必须带这三件事」这条规定（CI 走这条）
+    def _tag_key(name):
+        nums = re.findall(r"\d+", name)[:4]
+        return tuple([int(x) for x in nums] + [0] * (4 - len(nums)))
+
+    rel_notes, rel_tag = "", ""
+    rel_dir = os.path.join(root, "release")
+    if os.path.isdir(rel_dir):
+        for name in sorted(os.listdir(rel_dir), key=_tag_key, reverse=True):
+            fp = os.path.join(rel_dir, name, "RELEASE-NOTES.md")
+            if os.path.isfile(fp):
+                rel_notes, rel_tag = open(fp, encoding="utf-8").read(), name
+                break
+    if rel_notes:
+        check("发布正文开头也带这三段（%s）" % rel_tag,
+              "信息将被第三方收集" in rel_notes
+              and "不上传" in rel_notes and "gitee.com" in rel_notes)
+    else:
+        guide = _read("docs/06-发布Release操作指南.md")
+        check("发布指南要求正文带这三段（本机无 release/ 正文，改查指南）",
+              "信息将被第三方收集" in guide and "不上传" in guide
+              and "Gitee" in guide and "GitHub" in guide)
     faq_txt = _read("docs/04-常见问题.md")
     check("常见问题里有 ADV 词条", "ADV" in faq_txt and "未验证" in faq_txt)
     notes_kt = _read("android/app/src/main/java/com/neurotracee/pdfmask/ui/UpdateNotes.kt")
