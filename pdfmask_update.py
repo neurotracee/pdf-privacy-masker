@@ -73,20 +73,30 @@ def allowed_download(url):
 
 # ---------------------------------------------------------------- 版本号工具
 
+# 版本号统一四段：主.次.修订.补丁（例：1.4.7.0）。老的三段版本号（1.4.6）
+# 在这里补 0 变成 (1,4,6,0)，与 1.4.6.0 视为同一版，历史 Release 照旧能比。
+VER_SEG = 4
+
+
 def ver_tuple(text):
-    """把 v1.4.0 / 1.4 / 1.4.0-beta 之类统一成 (1,4,0)，取不出数字返回 None。"""
+    """把 v1.4.7.0 / 1.4.7 / 1.4.7.0-beta 之类统一成 (1,4,7,0)，取不出数字返回 None。"""
     nums = re.findall(r"\d+", text or "")
     if not nums:
         return None
-    t = [int(x) for x in nums[:3]]
-    while len(t) < 3:
+    t = [int(x) for x in nums[:VER_SEG]]
+    while len(t) < VER_SEG:
         t.append(0)
     return tuple(t)
 
 
+def ver_text(t):
+    """(1,4,7,0) → "1.4.7.0"。界面和弹窗显示版本号都走这里，避免手写格式。"""
+    return ".".join(str(x) for x in t)
+
+
 def asset_ver(name):
-    """从文件名里抠版本：PDFPrivacyMasker-1.4.0.exe → (1,4,0)。"""
-    m = re.search(r"(\d+\.\d+(?:\.\d+)?)", name or "")
+    """从文件名里抠版本：PDFPrivacyMasker-1.4.7.0.exe → (1,4,7,0)。"""
+    m = re.search(r"(\d+\.\d+(?:\.\d+){0,2})", name or "")
     return ver_tuple(m.group(1)) if m else None
 
 
@@ -503,7 +513,7 @@ def check_update(current, suffix, t, ui_lang=None, source=None, order=None):
     t       : 中英双语翻译函数 t(zh, en)
     source  : 设置里的更新源："auto" / "gitee" / "github"
     """
-    cur = ver_tuple(current) or (0, 0, 0)
+    cur = ver_tuple(current) or (0,) * VER_SEG
     src = resolve_source(source, ui_lang)
     # 指定源优先；它连不上时仍然回退到另一个通道，保证「有网就能查到更新」
     chans = order or _channels(src == "gitee")
@@ -528,7 +538,7 @@ def check_update(current, suffix, t, ui_lang=None, source=None, order=None):
                 "仓库里还没有适用于本平台的安装包", "no build for this platform")))
             seen_no_asset = ch
             continue
-        latest = "%d.%d.%d" % got["ver"]
+        latest = ver_text(got["ver"])
         return {
             "ok": True,
             "current": current,

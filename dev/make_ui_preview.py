@@ -39,9 +39,9 @@ MOCK = r"""
   var CFG = {saveDir:'', rememberDir:true, noAsk:false, defaultDir:OUTDIR,
              effectiveDir:OUTDIR, configured:false, lang:'zh',
              settingsPath:'C:\\Users\\YB\\AppData\\Roaming\\PDF隐私打码工具\\settings.json'};
-  window.__UPD = {ok:true, current:'1.4.2', latest:'1.5.0', hasUpdate:false, strong:false,
+  window.__UPD = {ok:true, current:'1.4.7.0', latest:'1.5.0.0', hasUpdate:false, strong:false,
     channel:'Gitee', fallbackFrom:'',
-    url:'https://github.com/neurotracee/pdf-privacy-masker/releases/download/v1.5.0/PDFPrivacyMasker-1.5.0.exe',
+    url:'https://github.com/neurotracee/pdf-privacy-masker/releases/download/v1.5.0/PDFPrivacyMasker-1.5.0.0.exe',
     releasesUrl:'https://github.com/neurotracee/pdf-privacy-masker/releases/latest',
     digest: __DIGEST__};
   function json(o){ return new Response(JSON.stringify(o),
@@ -129,7 +129,7 @@ STEPS = {
     "ui_09_update_new": ("function(){ window.__UPD.hasUpdate = true;"
                          " document.getElementById('setBtn').click();"
                          " setTimeout(function(){ document.getElementById('checkBtn').click(); }, 120); }"),
-    "ui_10_update_latest": ("function(){ window.__UPD.hasUpdate = false; window.__UPD.latest = '1.4.0';"
+    "ui_10_update_latest": ("function(){ window.__UPD.hasUpdate = false; window.__UPD.latest = '1.4.7.0';"
                             " document.getElementById('setBtn').click();"
                             " setTimeout(function(){ document.getElementById('checkBtn').click(); }, 120); }"),
     # 英文界面下同一份发布正文：摘要和条目要切成英文

@@ -161,7 +161,15 @@ def main():
 
     # 走一遍真实入口：解析 GitHub 的 releases JSON
     got = U.parse_releases(json.loads(json.dumps(fake_release(body))), ".exe", U.GITHUB_PAGE)
-    check("能从资产名认出最新版", got and "%d.%d.%d" % got["ver"] == "1.4.4")
+    check("能从资产名认出最新版", got and U.ver_text(got["ver"]) == "1.4.4.0")
+    # 四段版本号（主.次.修订.补丁）的解析与排序
+    four = U.asset_ver("PDFPrivacyMasker-1.4.7.0.exe")
+    check("四段版本号能认出来", four == (1, 4, 7, 0), str(four))
+    check("四段比三段新", bool(four) and four > (U.ver_tuple("1.4.6") or ()))
+    check("1.4.6 与 1.4.6.0 是同一版",
+          U.ver_tuple("1.4.6") == U.ver_tuple("1.4.6.0"))
+    check("补丁段能拉开新旧（1.4.7.1 > 1.4.7.0）",
+          (U.ver_tuple("1.4.7.1") or ()) > (U.ver_tuple("1.4.7.0") or ()))
     check("正文被带回来了", got and got.get("body") == body)
 
     d = U.parse_digest(got["body"])

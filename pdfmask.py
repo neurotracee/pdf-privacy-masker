@@ -67,7 +67,9 @@ from pdfmask_webui import HTML_UI   # 首页 HTML（含 CSS/JS），与逻辑代
 from thanks_asset import QR_PNG_B64  # 赞赏码图片（base64 内嵌，单文件打包不丢）
 
 APP_NAME = "PDF 隐私打码工具"
-VERSION = "1.4.6"
+# 版本号统一四段：主.次.修订.补丁（见 CONTRIBUTING.md「版本号规则」）。
+# 补丁段是同一修订版内的紧急修补，平时发版保持 0。
+VERSION = "1.4.7.0"
 
 # ---- 署名信息（开源后请勿删除，AGPL-3.0 第 5 条要求保留版权声明） ----
 AUTHOR = "项目创作时为初中生"

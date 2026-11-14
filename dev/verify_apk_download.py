@@ -13,6 +13,7 @@
 
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -23,7 +24,17 @@ import urllib.request
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
-VERSION = sys.argv[1] if len(sys.argv) > 1 else "1.4.6"
+# 默认校验「当前代码里的版本」，不写死数字，免得发版时忘了改这里
+def _current_version():
+    with open(os.path.join(ROOT, "pdfmask.py"), encoding="utf-8") as f:
+        for line in f:
+            m = re.match(r'^VERSION\s*=\s*"([^"]+)"', line)
+            if m:
+                return m.group(1)
+    return "0.0.0.0"
+
+
+VERSION = sys.argv[1] if len(sys.argv) > 1 else _current_version()
 
 ALLOWED = (
     "gitee.com", "github.com", "objects.githubusercontent.com",

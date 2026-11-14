@@ -171,7 +171,7 @@ object Updater {
      * pageFallback 是该通道的发布页，资产地址不在白名单时用它兜底。
      */
     fun parse(text: String, current: String, pageFallback: String): Result? {
-        val cur = ver(current) ?: intArrayOf(0, 0, 0)
+        val cur = ver(current) ?: intArrayOf(0, 0, 0, 0)
         val arr = JSONArray(text)
         var bestVer: IntArray? = null
         var bestUrl = ""
@@ -243,20 +243,22 @@ object Updater {
 
     fun isStrongUpdate(body: String?): Boolean = !body.isNullOrBlank() && STRONG_RE.containsMatchIn(body)
 
-    /** 取第一段 x.y.z；取不到返回 null */
+    /** 取版本号的前四段（主.次.修订.补丁）；不足四段补 0，取不到返回 null */
     fun ver(text: String): IntArray? {
         val m = VER_RE.find(text) ?: return null
         return intArrayOf(
             m.groupValues[1].toIntOrNull() ?: 0,
             m.groupValues[2].toIntOrNull() ?: 0,
-            m.groupValues[3].toIntOrNull() ?: 0
+            m.groupValues[3].toIntOrNull() ?: 0,
+            m.groupValues[4].toIntOrNull() ?: 0
         )
     }
 
-    private val VER_RE = Regex("(\\d+)\\.(\\d+)(?:\\.(\\d+))?")
+    /** 四段版本号：主.次.修订.补丁。老的三段写法（1.4.6）在这里补 0，与 1.4.6.0 同版 */
+    private val VER_RE = Regex("(\\d+)\\.(\\d+)(?:\\.(\\d+))?(?:\\.(\\d+))?")
 
     fun cmp(a: IntArray, b: IntArray): Int {
-        for (i in 0 until 3) {
+        for (i in 0 until 4) {
             val x = if (i < a.size) a[i] else 0
             val y = if (i < b.size) b[i] else 0
             if (x != y) return if (x > y) 1 else -1
@@ -264,7 +266,7 @@ object Updater {
         return 0
     }
 
-    fun fmt(v: IntArray): String = "${v[0]}.${v[1]}.${v[2]}"
+    fun fmt(v: IntArray): String = "${v[0]}.${v[1]}.${v[2]}.${v[3]}"
 
     private fun fetch(api: String): String {
         val conn = URL(api).openConnection() as HttpURLConnection

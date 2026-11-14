@@ -2,6 +2,7 @@
 """端到端自检：检测覆盖率 / 文本层抹除 / 马赛克不可辨 / 版面一致 / 原文件未改"""
 import hashlib
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -396,6 +397,30 @@ def main():
             keep = [ln for ln in rep.splitlines()
                     if ln.strip().startswith(("P1", "P2", "P3", "P4", "P5", "P6", "P7", "P8"))]
             print("\n".join(keep[:14]))
+
+    # 版本号统一四段（主.次.修订.补丁），三处必须对得上，否则「检查更新」会误判新旧
+    print("\n[17] 版本号四段且三处一致")
+    root = os.path.dirname(HERE)
+    ver_py = pdfmask.VERSION
+    four = re.compile(r"^\d+\.\d+\.\d+\.\d+$")
+    check("pdfmask.VERSION 是四段版本号", bool(four.match(ver_py or "")), ver_py)
+
+    vin_path = os.path.join(root, "version_info.txt")
+    vinfo = open(vin_path, encoding="utf-8").read() if os.path.exists(vin_path) else ""
+    fv = re.search(r"FileVersion'\s*,\s*'([^']+)'", vinfo)
+    pv = re.search(r"ProductVersion'\s*,\s*'([^']+)'", vinfo)
+    check("version_info.txt 里是四段版本号",
+          bool(fv and four.match(fv.group(1))), fv.group(1) if fv else "没读到")
+    check("exe 属性的版本号与代码一致",
+          bool(fv and pv and fv.group(1) == pv.group(1) == ver_py),
+          "%s / %s ← 代码 %s" % (fv.group(1) if fv else "?", pv.group(1) if pv else "?", ver_py))
+
+    gradle_path = os.path.join(root, "android", "app", "build.gradle.kts")
+    gradle = open(gradle_path, encoding="utf-8").read() if os.path.exists(gradle_path) else ""
+    an = re.search(r'appVersionName\s*=\s*"([^"]+)"', gradle)
+    check("安卓 versionName 与 Windows 端同版",
+          bool(an and an.group(1) == ver_py),
+          "%s ← 代码 %s" % (an.group(1) if an else "没读到", ver_py))
 
     print("\n" + "=" * 72)
     print("产物目录:", OUT_DIR, "（不在仓库内，git 工作区保持干净）")

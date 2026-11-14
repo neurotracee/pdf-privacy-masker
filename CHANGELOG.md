@@ -4,6 +4,9 @@
 
 更新级别：建议（只影响扫描件识别准确率，不改界面）
 
+> 版本号：**1.4.7.0**。从这一版起版本号改成四段写法 `主.次.修订.补丁`，
+> 第四位留给「刚发出去就得马上修」的紧急补丁，平时发版写 0。规则见 `CONTRIBUTING.md` 第 4 节。
+
 > **一句话**：拿 8 页真实单据当刁难文档压测扫描件，暴露出 6 处识别缺陷，全部修掉；刁难文档 4.0 现在 86 条真值全过。
 
 ## 这一轮做了什么
@@ -48,6 +51,10 @@
 ---
 
 # Unreleased (main)
+
+> **Version**: **1.4.7.0**. From this release on, versions use four parts
+> (`major.minor.patch.build`); the fourth part is reserved for emergency hotfixes and
+> stays `0` for normal releases.
 
 > **One line**: An 8-page adversarial scan suite exposed six OCR defects — all fixed; 86/86 expected values now pass.
 

@@ -11,6 +11,15 @@ val keystoreProps = Properties().apply {
     if (keystorePropsFile.exists()) FileInputStream(keystorePropsFile).use { load(it) }
 }
 
+// 版本号统一四段：主.次.修订.补丁（与 Windows 端完全一致，见 CONTRIBUTING.md）。
+// versionCode 由 versionName 直接算出来，只改这一个字符串，不会再出现两处对不上。
+// 映射：主*1000000 + 次*10000 + 修订*100 + 补丁（例：1.4.7.0 → 1040700）。
+val appVersionName = "1.4.7.0"
+val appVersionCode = appVersionName
+    .split(".")
+    .map { it.trim().toInt() }
+    .let { it[0] * 1_000_000 + it[1] * 10_000 + it[2] * 100 + it[3] }
+
 android {
     namespace = "com.neurotracee.pdfmask"
     compileSdk = 34
@@ -19,8 +28,8 @@ android {
         applicationId = "com.neurotracee.pdfmask"
         minSdk = 26
         targetSdk = 34
-        versionCode = 13
-        versionName = "1.4.6"
+        versionCode = appVersionCode
+        versionName = appVersionName
 
         // 只打 arm64-v8a
         ndk {
