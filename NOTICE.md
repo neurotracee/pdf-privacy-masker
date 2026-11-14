@@ -33,6 +33,7 @@
 | AndroidX（core-ktx / lifecycle / activity-compose / window / documentfile） | — | 基础框架 | Apache License 2.0 |
 | Jetpack Compose（ui / foundation / material3 / material-icons-core） | — | 界面 | Apache License 2.0 |
 | Kotlin 标准库 | — | 语言运行时 | Apache License 2.0 |
+| [ONNX Runtime Android](https://github.com/microsoft/onnxruntime) | 1.20.0 | 扫描件 OCR 推理（CPU） | **MIT** |
 
 仅用于测试、不进入 apk：
 
@@ -61,8 +62,7 @@
 - 本项目**未修改**模型权重，仅原样打包，因此无需声明修改；若后续做量化或裁剪，
   必须在上述文件中写明改动内容。
 - Apache-2.0 第 3 条含**明示专利授权**，对使用者比 MIT 更有保障。
-- 检测后处理（连通域、外扩框）用 NumPy 自实现，**未打包 OpenCV**；OpenCV 仅用于
-  开发阶段的算法交叉校验。
+- 检测后处理（连通域、外扩框、灰度归一化）全部自实现（Python 用 NumPy，安卓用 BFS 洪泛），**双端均未使用 OpenCV**，因此 exe 与 apk 里都不含 OpenCV 的几十 MB 动态库。
 
 ---
 
@@ -87,6 +87,7 @@ AGPL-3.0 第 6 条要求：以目标代码形式分发时，必须向接收者�
 ```bash
 # Windows
 pip install -r requirements.txt
+pip install pyinstaller
 pyinstaller pdfmask.spec --noconfirm --clean
 
 # 安卓

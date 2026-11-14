@@ -29,6 +29,7 @@ pdf-privacy-masker/
 ├─ LICENSE                      GNU AGPL-3.0 全文
 ├─ NOTICE.md                    第三方组件与许可（Windows + 安卓合并）
 ├─ ADDITIONAL-TERMS.md          AGPL 第 7 条 (b) 项附加条款：署名与项目地址
+├─ CONTRIBUTING.md              参与改进：仓库结构、跑自检、提交要求
 ├─ 使用说明.txt                  随 exe 一起发给用户的纯文本简版（不开浏览器也能看）
 │
 ├─ docs/                        所有详细说明（按编号读）
@@ -47,14 +48,20 @@ pdf-privacy-masker/
 │  └─ .gitignore                 已排除签名文件与构建产物
 │
 ├─ pdfmask.py                   Windows 端主程序（单文件，含内嵌前端）
+├─ pdfmask_webui.py             首页界面（一整页 HTML/CSS/JS，字符串形式）
+├─ pdfmask_update.py            检查更新：Gitee / GitHub 双通道、发布正文解析
 ├─ pdfmask_ocr.py               本地 OCR（扫描件识别），Windows 端调用
+├─ thanks_asset.py              赞赏码图片（base64 内嵌）
 ├─ assets/ocr/                  OCR 模型与字典 + 许可原文、出处、SHA-256（安卓端直接引用这一份）
+├─ test/                        回归用的样例 PDF 与规则金标准（自检要用，属于仓库内容）
 ├─ pdfmask.spec / 打包.bat       Windows 端打包配置与一键打包脚本
 ├─ requirements.txt             Windows 端 Python 依赖
 ├─ version_info.txt             Windows exe 的文件属性（产品名、版本、版权）
 ├─ app.ico                      Windows 程序图标
 │
-└─ dev/                         开发与回归测试脚本（不参与打包）
+├─ dev/                         开发与回归测试脚本（不参与打包）
+│
+└─ .github/                     Issues / PR 模板与 CI 工作流
 
 （本地还有 `release/<版本>/` 和 `dist/`，是打包产物的暂存处，**不进仓库**。
  `release/<版本>/` 里放的就是这次要上传的两个安装包、可直接粘贴的 Release 正文、校验和。）
@@ -71,7 +78,7 @@ pdf-privacy-masker/
 
 | 我想…… | 看这个 | 在仓库的哪个位置 |
 | --- | --- | --- |
-| 下载安装包、先跑起来 | [README.md](README.md) → 「下载与安装」 | 根目录 |
+| 下载安装包、先跑起来 | [README.md](README.md) → 「怎么用」 | 根目录 |
 | 知道这次更新了什么、修了什么 | [CHANGELOG.md](CHANGELOG.md) | 根目录 |
 | 学会 Windows 端怎么用 | [docs/01-使用说明-Windows.md](docs/01-使用说明-Windows.md) | `docs/` |
 | 学会安卓端怎么用 | [docs/02-使用说明-安卓.md](docs/02-使用说明-安卓.md) | `docs/` |
@@ -80,7 +87,7 @@ pdf-privacy-masker/
 | 自己打包 exe / 自己编译 apk | [docs/05-构建与发布.md](docs/05-构建与发布.md) | `docs/` |
 | 发新版 Release、给安装包起名 | [docs/06-发布Release操作指南.md](docs/06-发布Release操作指南.md)（命名规则在同目录 05 的 4.1 节） | `docs/` |
 | 二次开发、fork、商用要遵守什么 | [ADDITIONAL-TERMS.md](ADDITIONAL-TERMS.md) + [NOTICE.md](NOTICE.md) | 根目录 |
-| 看代码从哪进 | [README.md](README.md) → 「代码结构」 | 根目录 |
+| 看代码从哪进 | [CONTRIBUTING.md](CONTRIBUTING.md) 第 1 节（仓库结构）；`docs/05` 第 1.5 节（Windows 关键文件）、第 2.5 节（安卓代码结构） | 根目录 / `docs/` |
 | 改界面文字 / 加语言 | `android/.../ui/Lang.kt`、`pdfmask.py` 里的 `DICT` | 源码 |
 | 改放大镜大小、倍数 | `android/.../ui/WorkScreen.kt` 里的 `d`、`zoom` | 源码 |
 
@@ -97,7 +104,7 @@ pdf-privacy-masker/
 | 建议更新、强烈建议更新、更新级别、挽留话术 | `CHANGELOG.md` → 搜「强烈建议」；`docs/06` → 第二节第 4 步 |
 | Star、点星、给仓库点个 Star、不打赏怎么支持 | `CHANGELOG.md` → 搜「Star」；`docs/01` 第 9 节、`docs/02` 第 9 节 |
 | 中英切换、语言、Language | `CHANGELOG.md` → 第 1.4 节；`docs/01` 第 5 节、`docs/02` 第 6 节 |
-| 权限、联网、上传、隐私 | `README.md` →「隐私与权限」；`docs/02-使用说明-安卓.md` → 第 7 节 |
+| 权限、联网、上传、隐私 | `README.md` →「隐私说明」；`docs/02-使用说明-安卓.md` → 第 7 节 |
 | 扫描件、图片里的字 | `docs/03-识别规则与已知限制.md` → 第 3、5 节 |
 | 姓名、姓氏、疑似、橙色条目 | `docs/03-识别规则与已知限制.md` → 第 2 节「姓名怎么判断」 |
 | 保存位置、不再询问、默认路径 | `docs/01` 第 3 节「打码后的文件存哪」；`docs/02` 第 5 节「生成与保存」 |
@@ -109,7 +116,7 @@ pdf-privacy-masker/
 | 附件命名、`PDFPrivacyMasker-<版本>` | `docs/05` 第 4.1 节；`docs/06` 第 5 步 |
 | 许可、AGPL、商用、署名、fork | `ADDITIONAL-TERMS.md`；摘要见 `README.md` →「关于署名」 |
 | 第三方库、PyMuPDF、PDFBox | `NOTICE.md` |
-| 赞赏、奶茶、二维码 | `README.md` →「支持」 |
+| 赞赏、奶茶、二维码 | `README.md` →「赞赏」 |
 
 ---
 
@@ -172,9 +179,11 @@ pdf-privacy-masker/
 
 - `android/app/build/`、`android/.gradle/`、根目录 `build/`、`dist/`（构建产物，体积大且无意义）
 - `android/keystore.properties`、`android/pdfmask-release.jks`、`android/local.properties`（**含签名密码，泄露就等于把发布权交出去**）
-- `test/`（生成的测试 PDF）
 - `__pycache__/`、`dev/_ui/`、`*.log`
 - `release/`（发版暂存目录，里面是 exe / apk 大文件，**只用来往 Release 拖拽，不要提交进仓库**）
+
+> `test/` 是例外：里面的 6 份样例 PDF 与 `rules_golden.json` **应该**在仓库里，
+> `dev/selfcheck.py` 要靠它们跑端到端回归；只是脚本运行产生的打码结果、截图不进仓库（`.gitignore` 已排）。
 
 ### 网页界面一步步怎么点
 
@@ -204,7 +213,7 @@ pdf-privacy-masker/
 **D. 发 Release（安装包）**
 
 1. 仓库右侧「Releases」→「Draft a new release」。
-2. Tag 填 `v<版本号>`（例：`v1.4.5`），标题写这一版最要紧的那件事。
+2. Tag 填 `v<版本号>`（例：`v1.4.6`），标题写这一版最要紧的那件事。
 3. 说明直接从 `CHANGELOG.md` 复制这一版的内容。
 4. 附件上传 `PDFPrivacyMasker-<版本号>.exe` 与 `PDFPrivacyMasker-<版本号>-arm64.apk`——**文件名一个字符都不要改**，检查更新靠它读版本号。
 5. 发布后，两端各点一次「检查更新」验证。

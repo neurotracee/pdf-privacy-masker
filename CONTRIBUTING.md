@@ -20,6 +20,8 @@
 | 路径 | 是什么 |
 | --- | --- |
 | `pdfmask.py` | Windows 端主程序：识别规则、打码、HTTP 服务、命令行模式 |
+| `pdfmask_ocr.py` | 本地 OCR（扫描件 / 图片型 PDF）：模型加载、文字检测、识别、逐字框换算 |
+| `assets/ocr/` | OCR 模型与字典、许可原文、出处与 SHA-256（安卓端直接引用这一份，不另外存） |
 | `pdfmask_webui.py` | 首页界面（一整页 HTML + CSS + JS，字符串形式） |
 | `pdfmask_update.py` | 检查更新：Gitee / GitHub 双通道、发布正文解析 |
 | `thanks_asset.py` | 赞赏码图片（base64 内嵌，单文件打包不丢） |
@@ -37,7 +39,7 @@
 
 ### Windows 端
 
-需要 **Python 3.10+**。
+需要 **Python 3.11+**（Pillow 13 要求 ≥3.11；numpy 在 3.12+ 装 2.5.x，3.11 自动装 2.4.x）。
 
 ```bash
 pip install -r requirements.txt
@@ -45,7 +47,7 @@ python pdfmask.py            # 启动界面（会自己在浏览器打开）
 python pdfmask.py --cli 输入.pdf 输出.pdf    # 命令行批处理
 ```
 
-依赖只有两个：`PyMuPDF`（读写 PDF、拿文字坐标）和 `Pillow`（拼图与马赛克）。
+依赖在 `requirements.txt` 里：`PyMuPDF`（读写 PDF、拿文字坐标）、`Pillow`（拼图与马赛克）、`numpy` 与 `onnxruntime`（仅本地 OCR 用，缺了程序会自动退回手动框选）。`PyInstaller` 只在打包 exe 时需要，`打包.bat` 会自己装，没写进 `requirements.txt`。
 
 打包成单文件 exe 用 `打包.bat`（PyInstaller），细节见 [docs/05-构建与发布.md](docs/05-构建与发布.md)。
 
@@ -72,7 +74,7 @@ gradle testReleaseUnitTest # 单元测试
 python dev/selfcheck.py
 ```
 
-它会端到端跑一遍：造样本 → 识别 → 打码 → 核对每一类的召回、文字层有没有剩、马赛克能不能被反推、版面有没有位移、原文件有没有被改。
+它会端到端跑一遍：造样本 → 识别 → 打码 → 核对每一类的召回、文字层有没有剩、马赛克能不能被反推、版面有没有位移、原文件有没有被改。最后一项是扫描件（无文字层 PDF）的专项端到端。
 最后一行是 `自检结论: 全部通过` 才算过。
 
 改到这些地方时，额外要求：
@@ -82,6 +84,7 @@ python dev/selfcheck.py
 | **识别规则**（手机号、身份证、姓名、地址……的判定） | 跑 `python dev/test_no_false_positive.py` 确认误报没变多；规则表有变动就重新生成 `test/rules_golden.json`（`python dev/gen_rules_golden.py`），否则金标准测试会失败 |
 | **更新检查 / 版本号解析** | 跑 `python dev/test_source_pick.py`（默认源规则）和 `python dev/test_release_digest.py`（发布正文拆分）；两端逻辑是两份实现（Python + Kotlin），**改一端必须同步另一端** |
 | **安卓端** | 跑 `gradle testReleaseUnitTest`；规则相关的逻辑要与 Windows 端对齐（已有对照测试盯着这件事） |
+| **OCR / 扫描件识别** | 跑 `python dev/test_ocr_redact.py`（造无文字层表单 → 识别 → 打码 → 再 OCR 复核读不出）；两端实现同构，**改一端必须同步另一端**；换了模型要么改，要么把 `assets/ocr/README.md` 里的 SHA-256 一起更新 |
 | **界面文案 / 帮助文字** | 中英文都要改，`README.md` 与 `docs/` 里同一处说法要跟着变 |
 | **新增依赖** | 更新 `requirements.txt`（或 `build.gradle.kts`）与 `NOTICE.md`，并确认许可兼容（AGPL-3.0 能用的库才能进） |
 

@@ -5,3 +5,4 @@ Pillow==13.0.0
 numpy==2.5.4; python_version >= "3.12"
 numpy==2.4.6; python_version < "3.12"
 onnxruntime==1.31.1
+# 打包 exe 另需 PyInstaller：打包.bat 会自己装一份，不列在这里（跑识别的环境不必装）

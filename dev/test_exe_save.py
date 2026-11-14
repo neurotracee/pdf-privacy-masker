@@ -14,8 +14,10 @@ import threading
 import time
 
 PORT = int(sys.argv[1])
-SAMPLE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                      "test", "刁难文档30_纯段落.pdf")
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+SAMPLE = os.path.join(ROOT, "test", "刁难文档30_纯段落.pdf")
+with open(os.path.join(ROOT, "pdfmask.py"), encoding="utf-8") as _f:
+    EXPECT_VER = re.search(r'^VERSION = "([^"]+)"', _f.read(), re.M).group(1)
 user32 = ctypes.windll.user32
 PASS, FAIL = [], []
 
@@ -51,8 +53,10 @@ c.close()
 TOK = re.search(r'const TOKEN = "([a-f0-9]+)"', html).group(1)
 print("页面加载 OK，token:", TOK[:8])
 check("exe 页面可访问", len(html) > 10000, len(html))
-check("版本已升到 1.3.0", "1.3.0" in html, re.findall(r"版本 (\S+)", html))
-check("左上角有扫描件红字提示", "不支持扫描件 PDF" in html)
+check("界面版本与 pdfmask.VERSION 一致", EXPECT_VER in html,
+      (EXPECT_VER, re.findall(r"版本 (\S+)", html)))
+check("首页徽章标着「支持扫描件」",
+      "支持扫描件" in html and "不支持扫描件" not in html)
 check("界面含「设置」入口", 'id="setBtn"' in html)
 check("界面含保存位置弹窗", 'id="saveMask"' in html)
 
