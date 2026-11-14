@@ -44,7 +44,7 @@ pdf-privacy-masker/
 ├─ android/                     安卓端源码（Kotlin + Compose，完整工程）
 │  ├─ app/src/main/java/com/neurotracee/pdfmask/   …
 │  ├─ app/src/test/java/…        Robolectric 界面截图测试 + 检查更新解析测试
-│  ├─ build.gradle.kts           compileSdk 34 / minSdk 26 / versionName（与根目录版本号同步）
+│  ├─ build.gradle.kts           compileSdk 34 / minSdk 26 / appVersionName（与根目录版本号同步，versionCode 由它自动算出）
 │  └─ .gitignore                 已排除签名文件与构建产物
 │
 ├─ pdfmask.py                   Windows 端主程序（单文件，含内嵌前端）
@@ -166,7 +166,7 @@ pdf-privacy-masker/
 | `使用说明.txt` | 根目录 | 精简为随 exe 分发的简版，详细内容在 `docs/01`；里面的版本号跟本次发版一致 |
 | `pdfmask.py` | 根目录 | Windows 端主程序（`VERSION` 与本次发版一致） |
 | `version_info.txt` | 根目录 | exe 文件属性里的版本号，两项都要改（`filevers`/`prodvers` 与字符串） |
-| `android/app/build.gradle.kts` | `android/app/` | `versionCode` 必须 +1，`versionName` 与根目录一致 |
+| `android/app/build.gradle.kts` | `android/app/` | 只改 `appVersionName`（与根目录一致、四段写法）；`versionCode` 由它自动算出，**不要手填**（手动改两个数字迟早对不上） |
 
 ### 已经从仓库里移除的文件
 

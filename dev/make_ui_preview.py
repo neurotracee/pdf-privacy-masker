@@ -178,6 +178,15 @@ def build():
     os.makedirs(OUT, exist_ok=True)
     # 弹窗文案用真实发布正文解析出来，预览里看到的就是用户会看到的那两段
     notes = os.path.join(ROOT, "release", "v%s" % pdfmask.VERSION, "RELEASE-NOTES.md")
+    if not os.path.exists(notes):
+        # 版本号刚升上去、还没到发版那一步时，release/v<当前版本>/ 还不存在。
+        # 这时退回已有最新的一份，免得预览图里的更新弹窗变成空白。
+        import glob
+        import pdfmask_update as _u
+        dirs = [d for d in glob.glob(os.path.join(ROOT, "release", "v*")) if os.path.isdir(d)]
+        dirs.sort(key=lambda d: _u.ver_tuple(os.path.basename(d)[1:]) or (0, 0, 0, 0))
+        if dirs:
+            notes = os.path.join(dirs[-1], "RELEASE-NOTES.md")
     digest = {"brief": {"zh": "", "en": ""}, "notes": {"zh": [], "en": []}}
     if os.path.exists(notes):
         import pdfmask_update

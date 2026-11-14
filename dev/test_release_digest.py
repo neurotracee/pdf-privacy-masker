@@ -92,8 +92,11 @@ Downloads happen in-app and are verified before being handed to the installer.
 
 
 def _ver_key(name):
-    m = re.match(r"^v(\d+)\.(\d+)\.(\d+)$", name)
-    return (int(m.group(1)), int(m.group(2)), int(m.group(3))) if m else None
+    """v1.4.7.0 / v1.4.6 / v1.4 → 四段元组，用于挑最新一版（老的三段写法补 0）"""
+    m = re.match(r"^v(\d+)\.(\d+)(?:\.(\d+))?(?:\.(\d+))?$", name)
+    if not m:
+        return None
+    return tuple(int(x or 0) for x in m.groups())
 
 
 def find_notes():

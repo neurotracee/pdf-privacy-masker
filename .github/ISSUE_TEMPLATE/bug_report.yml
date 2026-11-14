@@ -18,8 +18,8 @@ body:
     id: version
     attributes:
       label: 版本号
-      description: 设置面板或「关于」里能看到，形如 1.4.5
-      placeholder: "1.4.5"
+      description: 设置面板或「关于」里能看到，形如 1.4.7.0（四段：主.次.修订.补丁）
+      placeholder: "1.4.7.0"
     validations:
       required: true
 

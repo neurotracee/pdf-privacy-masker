@@ -508,7 +508,7 @@ def parse_releases(data, suffix, page_fallback):
 def check_update(current, suffix, t, ui_lang=None, source=None, order=None):
     """返回给界面的字典。任何失败都转成 ok=False + 兜底链接，绝不让界面卡住。
 
-    current : 当前版本号（1.4.3）
+    current : 当前版本号（四段，例如 1.4.7.0；老的三段写法会自动补 0）
     suffix  : 本平台安装包后缀（.exe / .apk）
     t       : 中英双语翻译函数 t(zh, en)
     source  : 设置里的更新源："auto" / "gitee" / "github"

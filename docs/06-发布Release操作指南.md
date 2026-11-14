@@ -26,7 +26,7 @@ Release 的 tag 会指向仓库当时的代码。如果先发 Release、后传�
 
 **所以顺序永远是：先推代码，再发 Release。** 推完确认仓库里的版本号已经变成本次要发的那个，再去建 Release。
 
-判断源码是否到位：打开根目录的 `pdfmask.py`，搜 `VERSION = "`；再打开 `android/app/build.gradle.kts`，应该看到 `versionName = "`，两处版本号都与本次发版一致。
+判断源码是否到位：打开根目录的 `pdfmask.py`，搜 `VERSION = "`；再打开 `android/app/build.gradle.kts`，搜 `appVersionName = "`（四段写法），两处版本号都与本次发版一致。`versionCode` 不用核对——它由 `appVersionName` 自动算出来。
 
 ---
 
