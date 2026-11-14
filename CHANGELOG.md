@@ -42,12 +42,19 @@
 
 ## 文档补充
 
+- **安卓更新弹窗常驻一块「侧载安装提示」**（`ui/UpdateNotes.kt` 的 `InstallHint()`，中英双语）：
+  勾选「已知悉应用风险」→ 仍然安装即可，并说明这是国内四大厂 2026 年 11 月起的校验、
+  不是包坏了、每次更新都会再提示。与发布正文是否为空无关，永远显示——用户点「下载」前
+  唯一一定会看到的位置就是这里。
 - 安卓安装说明与常见问题新增 **ADV「未验证应用提醒」** 一节：这是 2026 年 11 月 9 日起
   OPPO / vivo / 小米 / 荣耀 对侧载 apk 的开发者实名校验，与安装包本身无关。
-  写明「勾选『已知悉应用风险』→ 仍然安装」的处理办法、按钮变灰的两种原因，
-  以及国内这套只提醒、不拦截、没有海外 24 小时等待。
+  写明「勾选『已知悉应用风险』→ 仍然安装」的处理办法、按钮变灰的两种原因、
+  国内这套只提醒不拦截、没有海外 24 小时等待，以及**把包发给别人时该一起说什么**。
+- `docs/06` 发布清单新增一条：Release 正文必须带同一段说明，应用内与发布页两处都要有。
 - 新增 `dev/sign_adv_empty_apk.py`：用发版密钥给平台的「含签名 APK 空包」签名，
-  并核对指纹与正式发版 apk 一致（ADV 应用验证用）。
+  并核对指纹与正式发版 apk 一致（ADV 应用验证用；本项目暂未做验证）。
+- 自检新增第 18 项：README 中英、常见问题、应用内弹窗四处提示缺一即报错，
+  防止以后改文档/改界面时把它抹掉。
 
 ## 已知取舍
 
@@ -86,7 +93,9 @@ prompt** (the sideload identity check OPPO / vivo / Xiaomi / HONOR started on 9 
 tick "I understand the risk", tap "Install anyway", plus the two reasons the button can
 stay greyed out. On the mainland it is a warning only — no 24-hour wait. New helper
 `dev/sign_adv_empty_apk.py` signs the platform's empty verification package with the
-release key and checks the fingerprint matches the shipped apk.
+release key and checks the fingerprint matches the shipped apk. The in-app update dialog
+now carries the same instruction permanently (`InstallHint()` in `UpdateNotes.kt`), and
+self-check item 18 fails if any of the four places loses that wording.
 
 ---
 

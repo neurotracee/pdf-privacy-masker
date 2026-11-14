@@ -8,6 +8,7 @@ import android.os.Looper
 import android.view.View
 import androidx.activity.ComponentActivity
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.PaddingValues
@@ -35,6 +36,8 @@ import com.neurotracee.pdfmask.ui.PdfMaskTheme
 import com.neurotracee.pdfmask.ui.AboutPanel
 import com.neurotracee.pdfmask.ui.SaveTargetPanel
 import com.neurotracee.pdfmask.ui.SettingsPanel
+import com.neurotracee.pdfmask.ui.UpdateNotesBlock
+import com.neurotracee.pdfmask.ui.sampleResultForNotes
 import com.neurotracee.pdfmask.ui.WorkScreen
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -347,6 +350,40 @@ class UiShotTest {
         com.neurotracee.pdfmask.AppPrefs.updateLang("en")
         try {
             shootApp("15-work-english", true, false, noFold)
+        } finally {
+            com.neurotracee.pdfmask.AppPrefs.updateLang("zh")
+        }
+    }
+
+    /** 更新弹窗：发布正文 + 侧载安装提示（中文） */
+    @Test
+    @Config(qualifiers = "w360dp-h800dp-xxhdpi")
+    fun update_notes_hint_zh() = shootPanel("40-update-notes-hint-zh") {
+        Column(Modifier.padding(horizontal = 14.dp, vertical = 12.dp)) {
+            UpdateNotesBlock(
+                sampleResultForNotes(),
+                androidx.compose.ui.graphics.Color(0xFF2B5BD0)
+            ) {}
+        }
+    }
+
+    /** 更新弹窗：发布正文 + 侧载安装提示（英文） */
+    @Test
+    @Config(qualifiers = "w360dp-h800dp-xxhdpi")
+    fun update_notes_hint_en() {
+        com.neurotracee.pdfmask.AppPrefs.init(
+            ApplicationProvider.getApplicationContext<android.app.Application>()
+        )
+        com.neurotracee.pdfmask.AppPrefs.updateLang("en")
+        try {
+            shootPanel("41-update-notes-hint-en") {
+                Column(Modifier.padding(horizontal = 14.dp, vertical = 12.dp)) {
+                    UpdateNotesBlock(
+                        sampleResultForNotes(),
+                        androidx.compose.ui.graphics.Color(0xFF2B5BD0)
+                    ) {}
+                }
+            }
         } finally {
             com.neurotracee.pdfmask.AppPrefs.updateLang("zh")
         }

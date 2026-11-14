@@ -422,6 +422,22 @@ def main():
           bool(an and an.group(1) == ver_py),
           "%s ← 代码 %s" % (an.group(1) if an else "没读到", ver_py))
 
+    print("\n[18] 安卓侧载「未验证」提示三处都在")
+
+    def _read(rel):
+        fp = os.path.join(root, rel)
+        return open(fp, encoding="utf-8").read() if os.path.exists(fp) else ""
+
+    # 2026-11 起 OPPO/vivo/小米/荣耀 对侧载 apk 做 ADV 校验，本项目必弹「未验证」。
+    # 提示必须同时在下载说明（中英）、常见问题、应用内更新弹窗里，少一处就有人以为包坏了。
+    readme_txt = _read("README.md")
+    check("README 中文段写了怎么装", "已知悉应用风险" in readme_txt)
+    check("README 英文段写了怎么装", "Install anyway" in readme_txt)
+    faq_txt = _read("docs/04-常见问题.md")
+    check("常见问题里有 ADV 词条", "ADV" in faq_txt and "未验证" in faq_txt)
+    notes_kt = _read("android/app/src/main/java/com/neurotracee/pdfmask/ui/UpdateNotes.kt")
+    check("安卓更新弹窗带安装提示", "InstallHint" in notes_kt and "已知悉应用风险" in notes_kt)
+
     print("\n" + "=" * 72)
     print("产物目录:", OUT_DIR, "（不在仓库内，git 工作区保持干净）")
     print("自检结论:", "全部通过" if ok_all else "存在未通过项")

@@ -39,72 +39,120 @@ internal fun UpdateNotesBlock(
     accent: Color,
     onOpenPage: () -> Unit
 ) {
-    val notes = r.digest?.pick(AppPrefs.isEn) ?: return
-    if (notes.brief.isBlank() && notes.items.isEmpty()) return
+    val n = r.digest?.pick(AppPrefs.isEn)
+    val hasNotes = n != null && (n.brief.isNotBlank() || n.items.isNotEmpty())
 
-    if (notes.brief.isNotBlank()) {
-        Surface(
-            shape = RoundedCornerShape(10.dp),
-            color = accent.copy(alpha = 0.07f),
-            modifier = Modifier.fillMaxWidth()
+    if (n != null && hasNotes) {
+        if (n.brief.isNotBlank()) {
+            Surface(
+                shape = RoundedCornerShape(10.dp),
+                color = accent.copy(alpha = 0.07f),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(Modifier.padding(horizontal = 11.dp, vertical = 9.dp)) {
+                    Text(
+                        n.brief,
+                        fontSize = 12.5.sp,
+                        lineHeight = 19.sp,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+            }
+        }
+
+        if (n.items.isNotEmpty()) {
+            Spacer(Modifier.height(4.dp))
+            n.items.forEachIndexed { i, item ->
+                if (i > 0) {
+                    Box(
+                        Modifier
+                            .fillMaxWidth()
+                            .height(1.dp)
+                            .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
+                    )
+                }
+                Column(Modifier.padding(vertical = 7.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        PlatformTag(item.platform)
+                        Text(
+                            item.title,
+                            fontSize = 12.sp,
+                            lineHeight = 17.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.padding(start = 6.dp)
+                        )
+                    }
+                    if (item.lines.isNotEmpty()) {
+                        Spacer(Modifier.height(2.dp))
+                        Text(
+                            item.lines.joinToString("\n"),
+                            fontSize = 11.5.sp,
+                            lineHeight = 17.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    InstallHint()
+
+    if (hasNotes) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .padding(top = 2.dp),
+            horizontalArrangement = Arrangement.End
         ) {
-            Column(Modifier.padding(horizontal = 11.dp, vertical = 9.dp)) {
+            TextButton(onClick = onOpenPage) {
                 Text(
-                    notes.brief,
-                    fontSize = 12.5.sp,
-                    lineHeight = 19.sp,
-                    color = MaterialTheme.colorScheme.onSurface
+                    tr("具体详见 Release 页面 →", "Full notes on the release page →"),
+                    fontSize = 11.5.sp
                 )
             }
         }
     }
+}
 
-    if (notes.items.isNotEmpty()) {
-        Spacer(Modifier.height(4.dp))
-        notes.items.forEachIndexed { i, n ->
-            if (i > 0) {
-                Box(
-                    Modifier
-                        .fillMaxWidth()
-                        .height(1.dp)
-                        .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
-                )
-            }
-            Column(Modifier.padding(vertical = 7.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    PlatformTag(n.platform)
-                    Text(
-                        n.title,
-                        fontSize = 12.sp,
-                        lineHeight = 17.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.padding(start = 6.dp)
-                    )
-                }
-                if (n.lines.isNotEmpty()) {
-                    Spacer(Modifier.height(2.dp))
-                    Text(
-                        n.lines.joinToString("\n"),
-                        fontSize = 11.5.sp,
-                        lineHeight = 17.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-        }
-    }
-
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .padding(top = 2.dp),
-        horizontalArrangement = Arrangement.End
+/**
+ * 侧载安装提示（2026-11 起）：OPPO / vivo / 小米 / 荣耀 会先弹「开发者身份未验证」，
+ * 用户很容易以为下载的包坏了。更新弹窗是用户点「下载」前唯一一定会看到的地方，
+ * 所以把怎么处理写在这里，而不是只写在文档里。
+ *
+ * 与发布正文无关，永远显示：正文为空时也必须看得到。
+ */
+@Composable
+private fun InstallHint() {
+    Spacer(Modifier.height(6.dp))
+    Surface(
+        shape = RoundedCornerShape(10.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
+        modifier = Modifier.fillMaxWidth()
     ) {
-        TextButton(onClick = onOpenPage) {
+        Column(Modifier.padding(horizontal = 11.dp, vertical = 8.dp)) {
             Text(
-                tr("具体详见 Release 页面 →", "Full notes on the release page →"),
-                fontSize = 11.5.sp
+                tr("装的时候若提示「开发者身份未验证」", "If the installer says \"unverified developer\""),
+                fontSize = 11.5.sp,
+                lineHeight = 17.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Spacer(Modifier.height(2.dp))
+            Text(
+                tr(
+                    "勾选「已知悉应用风险」，再点「仍然安装」就能装（个别机型还要输一次锁屏密码）。" +
+                        "这是国内 OPPO / vivo / 小米 / 荣耀 从 2026 年 11 月起的侧载校验，" +
+                        "安装包本身没有问题，功能也不受影响；每次更新都会再提示一次。",
+                    "Tick \"I understand the risk\", then tap \"Install anyway\" (some phones ask " +
+                        "for your screen-lock PIN). This is the mainland sideload check that OPPO / " +
+                        "vivo / Xiaomi / HONOR introduced in November 2026 — the download itself is " +
+                        "fine and nothing is lost in functionality. It reappears on every update."
+                ),
+                fontSize = 11.sp,
+                lineHeight = 16.5.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
     }
