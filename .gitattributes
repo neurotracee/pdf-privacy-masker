@@ -1,0 +1,19 @@
+# 统一换行处理：仓库里存 LF，检出到 Windows 时转 CRLF（与 core.autocrlf=true 一致）
+* text=auto
+
+# 二进制，禁止任何换行/编码转换
+*.onnx  binary
+*.exe   binary
+*.apk   binary
+*.ico   binary
+*.jks   binary
+*.ttf   binary
+*.ttc   binary
+
+# OCR 字典是模型的一部分，字节必须与 README 里记的 SHA-256 完全一致，
+# 一旦被转成 CRLF，校验值就对不上了
+assets/ocr/ppocr_keys_v1.txt -text
+
+# 跟着 Windows 命令行走的脚本，保持 CRLF 更稳妥
+*.bat   text eol=crlf
+*.cmd   text eol=crlf

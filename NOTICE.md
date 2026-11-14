@@ -17,7 +17,9 @@
 | [PyMuPDF](https://github.com/pymupdf/PyMuPDF) / MuPDF | 1.28.x | **AGPL-3.0** 或 Artifex 商业许可（双授权） | Copyright (C) 2004–2026 Artifex Software, Inc. |
 | [Pillow](https://github.com/python-pillow/Pillow) | 13.x | HPND（MIT-CMU 风格） | Copyright (c) 2010 by Jeffrey A. Clark and contributors |
 | [PyInstaller](https://github.com/pyinstaller/pyinstaller) | 6.x | GPL-2.0-or-later + Bootloader Exception | — |
-| [Python](https://www.python.org/) | 3.10+ | PSF License Agreement | — |
+| [Python](https://www.python.org/) | 3.11+ | PSF License Agreement | — |
+| [ONNX Runtime](https://github.com/microsoft/onnxruntime) | 1.31.x | **MIT** | Copyright (c) Microsoft Corporation |
+| [NumPy](https://numpy.org/) | 2.x | BSD-3-Clause（另含 0BSD / MIT / Zlib / CC0-1.0 片段） | Copyright (c) NumPy Developers |
 
 - **PyMuPDF** 是双授权：本项目选择 AGPL-3.0，正是为了满足它的 AGPL 条款。若要在不适用 AGPL 的场景下使用本项目代码，需自行向 Artifex 购买商业许可，或改用其他 PDF 库。
 - **PyInstaller** 的 Bootloader Exception 明确允许把打包后的程序以任何许可发布，不影响本项目的 AGPL-3.0 授权。
@@ -44,7 +46,27 @@
 
 ---
 
-## 三、必须保留的署名（AGPL-3.0 第 5 条，请勿删除）
+## 三、OCR 模型（纯图片 / 扫描件 PDF 识别，双端共用）
+
+用于给**没有文字层**的 PDF 定位文字区域。模型随程序离线分发，运行时不联网。
+
+| 组件 | 版本 | 用途 | 授权 |
+| --- | --- | --- | --- |
+| [PaddleOCR](https://github.com/PaddlePaddle/PaddleOCR) PP-OCRv4 模型 | ch_PP-OCRv4_det / rec | 文字检测与识别 | **Apache License 2.0** |
+| [RapidOCR](https://github.com/RapidAI/RapidOCR) | — | 官方权重的 ONNX 转换版 | **Apache License 2.0** |
+
+- 两份上游仓库均为 Apache-2.0（宽松许可），可以并入以 AGPL-3.0 发布的工程；
+  许可原文随模型一起放在 `assets/ocr/LICENSE-APACHE-2.0.txt`，出处与文件哈希见
+  `assets/ocr/README.md`。
+- 本项目**未修改**模型权重，仅原样打包，因此无需声明修改；若后续做量化或裁剪，
+  必须在上述文件中写明改动内容。
+- Apache-2.0 第 3 条含**明示专利授权**，对使用者比 MIT 更有保障。
+- 检测后处理（连通域、外扩框）用 NumPy 自实现，**未打包 OpenCV**；OpenCV 仅用于
+  开发阶段的算法交叉校验。
+
+---
+
+## 四、必须保留的署名（AGPL-3.0 第 5 条，请勿删除）
 
 ```
 指导作者：项目创作时为初中生 —— 需求、识别规则的设计、验收测试全部由本人完成
@@ -56,7 +78,7 @@
 二次开发或商用必须保留以上署名，并在程序中标注原项目地址；改动过的版本须注明
 「本程序基于该地址修改，非原作者发布」。详见 [ADDITIONAL-TERMS.md](ADDITIONAL-TERMS.md)。
 
-## 四、关于「打包后的程序必须开源」
+## 五、关于「打包后的程序必须开源」
 
 AGPL-3.0 第 6 条要求：以目标代码形式分发时，必须向接收者提供**对应源代码**（Corresponding Source）。
 
@@ -73,7 +95,7 @@ cd android && gradle assembleRelease
 
 构建细节见 [docs/05-构建与发布.md](docs/05-构建与发布.md)。
 
-## 五、名称与图标
+## 六、名称与图标
 
 程序名称「PDF 隐私打码工具」与图标不在授权范围内（AGPL-3.0 第 7 条 (e) 项）。
 二次发布请改名、换图标。

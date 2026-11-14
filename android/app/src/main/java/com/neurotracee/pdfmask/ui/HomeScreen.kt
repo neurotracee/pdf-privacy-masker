@@ -223,8 +223,9 @@ private fun HintCard() {
             )
             TipLine(
                 T(
-                    "② 扫描件（整页是图片）没有文字层，认不出字，请在预览上手动框选。",
-                    "② Scanned PDFs have no text layer — drag boxes manually on the preview instead."
+                    "② 扫描件（整页是图片）会自动用本机 OCR 识别，同样离线；万一认不出，仍可在预览上手动画框。",
+                    "② Scanned PDFs are read with on-device OCR, also fully offline — " +
+                        "and you can still drag boxes by hand if anything is missed."
                 )
             )
             TipLine(

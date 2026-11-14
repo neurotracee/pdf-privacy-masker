@@ -1,3 +1,197 @@
+# v1.4.6 版本说明（Windows + 安卓）
+
+**中文** | [English](#v146-release-notes-windows--android)
+
+更新级别：强烈建议
+
+> **一句话**：扫描件、拍照件、截图型 PDF 现在也能自动打码了——文字识别完全在本机跑，不联网、不上传；代价是安装包变大（Windows 73 MB、安卓 47 MB）。
+
+这一版是功能上的一次大跨步：把上一版还明写着「不支持扫描件 PDF」的那道墙拆掉了。以前只有带文字层的 PDF 能自动识别，扫描件只能一页一页手动画框，页数一多就不现实。现在扫描件会先用本机 OCR 把字读出来，再走完全一样的识别规则。**多了一个能力，没有多一次联网。**
+
+---
+
+## 1. 新增：没有文字层的 PDF 也能自动打码（Windows + 安卓）
+
+**原来的限制**：工具靠读 PDF 里的文字层拿到每个字的精确坐标，再把命中处抹掉。扫描件、手机拍照转的 PDF、图片拼成的 PDF 只有一张张图，没有文字层，一个坐标都拿不到，所以只能手动画框。顶部那个红色小标签「不支持扫描件 PDF」，说的就是这件事。
+
+**现在的做法**：走本地文字识别（OCR）。
+
+1. 把页面渲染成图（约 180 dpi），交给检测模型找出一行行文字的位置；
+2. 再交给识别模型把每行读成文字；
+3. **关键一步**：识别模型吐出来的不只是一行字，还带着「这一行里第几个字占横向的哪一段」。把它换算回页面坐标，就得到**每个字自己的矩形**——和读文字层拿到的东西一模一样；
+4. 后面完全不用改：号码、姓名、地址那 700 多行识别规则原样跑，命中就打码。所以扫描件和文字层 PDF 的行为、界面、结果都一致。
+
+**为什么强调「每个字」**：很多 OCR 只给「这一行在这里」一个大框。可打码要知道的是「18 位身份证号是这行的第 3 个字到第 20 个字」——只有一个大框就只能整行糊掉，旁边该看清的合同金额也一起没了。这一步是整件事能不能成立的关键。
+
+**模型与体积**：用的是 PP-OCRv4 mobile 的检测 + 识别两个小模型（4.7 MB + 10.9 MB），纯 CPU 跑，不需要独立显卡。没有引入 OpenCV（连通域那点活自己用 numpy 写了），少带了约 40 MB。
+
+**速度**（普通四核，未做任何针对性优化）：
+
+- 模型首次加载 0.55 秒（启动后空闲时预加载，点下去不卡）；
+- 单页识别 0.8–1.3 秒。10 页扫描件十几秒，可以接受。
+
+**准确率**（A4 表单 11 行，200 dpi 扫描，文字层字符数为 0）：
+
+- 11 行文字**全部读对**，含 18 位身份证号、19 位银行卡号、邮箱、地址、日期；
+- 该打的 8 处敏感信息**全部打上**，该留的（会议日期、合同金额）**一处没误打**；
+- 打码后再跑一遍 OCR 复核：5 类号码全部读不出来，该保留的仍然可读。
+
+**什么时候才会用到 OCR**：不是每页都跑。只有「这页几乎没字（少于 24 个字符）」，或者「有字但很少、同时整页被图片盖住一半以上」才走 OCR。纯文字 PDF 一个模型都不加载，速度和以前完全一样。
+
+## 2. 修复：全角数字、全角字母一直漏检（Windows + 安卓）
+
+**现象**：从别处拷来的一段文字里，手机号打不出来。看着是 `１３８００１３８０００`，和普通数字长得几乎一样。
+
+**原因**：这是「全角」字符，编码和普通数字（半角）不是同一个。识别规则里按数字匹配的模式认不出它，整串就跳过了。这个缺陷在文字层路径里一直存在，不是这版引入的——只是以前很少有人碰到全角内容。
+
+**改法**：所有从 PDF 读出来的字符，先统一折成半角再进识别（`０-９`→`0-9`，`Ａ-Ｚ`→`A-Z`，全角空格→半角）。一个字符换一个字符，不改变字数，所以坐标不会错位。OCR 出来的字也走同一道折换——识别模型本身也常把数字认成全角。
+
+## 3. 界面：从「不支持扫描件」改成「支持扫描件」（Windows + 安卓）
+
+- 顶部那个红色小标签换成绿色「支持扫描件」，悬停解释改成「会自动用本地 OCR 识别（离线运行、不联网）；识别不到时可手工框选」；
+- 副标题「扫描件可用「框选手动打码」」→「扫描件自动识别 · 也可手动框选」；
+- 打开文件后的提示分四种情况，不再一律说「没法识别」：全部识别成功 / 部分页没认出 / 一页都没认出 / 这个安装包没带 OCR 组件；
+- 翻页栏会写「OCR 已识别」还是「无文字层」，一眼能看出这页结果是怎么来的。
+
+## 4. 降级：缺组件时自动退回手动框选，不会崩（Windows + 安卓）
+
+OCR 是软依赖。模型文件缺失、或者运行库装不上时，程序照常启动、照常处理文字层 PDF，扫描件退回手动框选，并在提示里说明原因——不会「点开就报错」，也不会「悄悄什么都不做」。
+
+另外留了一个开关：Windows 端设了环境变量 `PDFMASK_NO_OCR=1` 就完全不加载 OCR（比如在很老的机器上想换回原来的轻量行为）。
+
+## 5. 工程：打包踩到一个很隐蔽的坑（Windows）
+
+打出来的 exe 一打开就消失，命令行跑直接退出、没有任何报错。
+
+查了很久才定位到：打包时从 Python 目录顺手捞了一个很旧的 C++ 运行库（14.26），而 OCR 的推理库要求 14.4 以上，版本对不上就**直接崩，连异常都抛不出来**。现在打包脚本会把系统里较新的那份 DLL 换进去，构建文档里也把这条写成了必看提示。
+
+## 6. 工程：模型首次使用时复制到应用私有目录（安卓）
+
+安卓的安装包本身是压缩包，而推理库只认磁盘上的文件路径，所以模型不能直接从安装包里读。做法是第一次真正用到识别时，把两个模型（约 15 MB）从安装包解到应用私有目录，之后一直复用。
+
+这意味着：**首次处理扫描件会多花一两秒**，并且应用会额外占用约 15 MB 存储（卸载时一并清掉）。模型文件本身在安装包里是「不压缩」存的，否则每次解压要多花几百毫秒。
+
+## 7. 工程与许可：自检新增一项，开源义务补齐（Windows + 安卓）
+
+- `dev/selfcheck.py` 加第 15 项：造一份没有文字层的表单，跑完整链路（识别 → 打码 → 再识别复核），15 项全过；
+- 新增 `dev/test_ocr.py`（造样张）与 `dev/test_ocr_redact.py`（端到端）；
+- OCR 模型与推理库分别是 Apache-2.0 / MIT，都可以并入本项目的 AGPL-3.0。许可原文、模型出处与 SHA-256 放在 `assets/ocr/`，`NOTICE.md` 与 `README` 的依赖表新增一节说明；模型权重未做任何改动。
+
+## 8. 已知限制（新增两条）
+
+- **OCR 不是万能的**：手写体、严重倾斜、褶皱、极低分辨率（比如 72 dpi 的传真件）可能认不出或认错。认错就会漏打——扫描件处理完**请顺手核对一遍**，界面也会提示这一点；
+- **只对「几乎没字」的页面启用**：一页里既有文字层又贴了一张扫描图（比如合同正文里插了一张证件扫描），那一页不会走 OCR，仍然需要手动画框；
+- 以下两条是原有的，没变：安卓端输出仍是整页图片（打码后不能搜索、不能复制文字）；注释是整块盖掉的。
+
+## 9. 下载
+
+这一版 Windows 从 36.7 MB 涨到 **73.2 MB**，安卓从 14.9 MB 涨到 46.8 MB——增加的几乎就是那两个模型（14.9 MB）和各平台的推理库（安卓约 18.5 MB）。这是「本地离线识别」绕不开的成本，换来的是**不联网、不上传**。如果这个体积不能接受，可以用 `PDFMASK_NO_OCR=1` 跑回旧行为。
+
+- Windows：`PDFPrivacyMasker-1.4.6.exe`（免安装，双击即用）
+- 安卓：`PDFPrivacyMasker-1.4.6-arm64.apk`（arm64-v8a，Android 8.0+）
+- 校验和：`SHA256SUMS.txt`
+
+升级不用卸载旧版，直接覆盖安装即可。第一次处理扫描件会多等一两秒（模型要读进内存），之后每页 1 秒左右。
+
+---
+
+# v1.4.6 Release Notes (Windows + Android)
+
+[中文](#v146-版本说明windows--安卓) | **English**
+
+Update level: strongly suggested
+
+> **In one line**: scanned, photographed and image-only PDFs can now be masked automatically — recognition runs entirely on your machine, with no network and no uploads; the cost is a bigger installer (73 MB on Windows, 47 MB on Android).
+
+This is a large step for the tool: it removes the "no scanned PDFs" wall that the previous version still advertised. Only PDFs with a text layer could be checked automatically; a scan meant drawing every box by hand, which does not scale past a few pages. Scans are now read with a local OCR pass and then go through exactly the same detection rules. **One more capability, not one more network call.**
+
+---
+
+## 1. New: PDFs without a text layer can be masked automatically (Windows + Android)
+
+**The old limit**: the tool read the PDF's text layer to get the exact coordinate of every character, then removed the hits. A scan, a phone photo turned into a PDF, or a PDF assembled from images is just pictures — no text layer, no coordinates — so manual boxes were the only option. The small red "no scanned PDFs" label at the top referred to exactly this.
+
+**What it does now**: a local OCR pass.
+
+1. The page is rendered to an image (about 180 dpi) and a detection model finds each line of text;
+2. A recognition model then reads every line;
+3. **The key step**: the recogniser does not just return a line of text — it also carries "which horizontal slice of the line each character occupies". Mapped back to page coordinates, that gives **a rectangle per character**, identical to what the text layer provides;
+4. Nothing downstream changes: the 700-odd rules for numbers, names and addresses run as-is. Scans therefore behave, look and mask exactly like text-layer PDFs.
+
+**Why "per character" matters**: most OCR returns one big box per line. Masking needs to know that an 18-digit ID is characters 3–20 of that line. With one big box, the whole line has to be blacked out — and the contract amount next to it goes with it. This step is what makes the feature possible at all.
+
+**Models and size**: the PP-OCRv4 mobile detection and recognition pair (4.7 MB + 10.9 MB), CPU only, no discrete GPU required. OpenCV is not used — the connected-component work is done with numpy instead, saving roughly 40 MB.
+
+**Speed** (ordinary quad-core, no tuned build):
+
+- First model load: 0.55 s (pre-loaded while idle after launch, so clicking feels instant);
+- About 0.8–1.3 s per page. Ten scanned pages take a dozen seconds, which is acceptable.
+
+**Accuracy** (A4 form, 11 lines, 200 dpi scan, exactly 0 characters in the text layer):
+
+- All 11 lines read **correctly**, including an 18-digit ID, a 19-digit bank card, an e-mail address, a street address and dates;
+- All 8 sensitive items that should be masked **were masked**; the ones that should stay (meeting date, contract amount) were **not touched**;
+- Re-running OCR on the masked output: none of the five number types can be read any more, while everything meant to stay is still legible.
+
+**When OCR is used at all**: not on every page. Only when a page has almost no text (fewer than 24 characters), or has very little text *and* is more than half covered by images. A pure text PDF never loads a model, so its speed is unchanged.
+
+## 2. Fixed: full-width digits and letters were missed (Windows + Android)
+
+**Symptom**: a phone number copied in from elsewhere was not detected. It looks like `１３８００１３８０００` — visually almost identical to ordinary digits.
+
+**Cause**: these are "full-width" characters with different code points from ordinary (half-width) digits. The digit patterns in the rules do not match them, so the whole run is skipped. The defect has always existed on the text-layer path; this release did not introduce it — full-width content is simply rare.
+
+**Fix**: every character read from the PDF is folded to half-width before detection (`０-９`→`0-9`, `Ａ-Ｚ`→`A-Z`, ideographic space → space). One character maps to one character, so no coordinates shift. OCR output goes through the same fold — the recogniser itself frequently returns full-width digits.
+
+## 3. UI: from "no scanned PDFs" to "scans supported" (Windows + Android)
+
+- The small red label is now a green "scans supported", with the tooltip reading "read automatically with local OCR (offline, nothing uploaded); fall back to manual boxes if needed";
+- The subtitle changed from "use the manual box tool for scans" to "scans read automatically · manual box too";
+- The notice after opening a file now has four cases instead of one blanket "cannot be detected": all pages read / some pages not read / nothing read / this build has no OCR component;
+- The page bar shows either "OCR read" or "no text layer", so it is obvious where the results came from.
+
+## 4. Graceful degradation: missing components fall back to manual boxes (Windows + Android)
+
+OCR is a soft dependency. If the model files are missing or the runtime cannot load, the app still starts, still handles text-layer PDFs, and falls back to manual boxes for scans with an explanation — it never fails to open, and never silently does nothing.
+
+There is also a switch: on Windows, setting `PDFMASK_NO_OCR=1` disables OCR entirely (useful on very old machines if you want the previous lightweight behaviour).
+
+## 5. Engineering: a very well-hidden packaging trap (Windows)
+
+The built exe vanished on launch — from a terminal it exited immediately with no message at all.
+
+It took a while to pin down: packaging pulled a very old C++ runtime (14.26) out of the Python directory, while the OCR runtime requires 14.4 or newer. A version mismatch like that **crashes outright, without even raising an exception**. The build script now substitutes the newer DLL from the system, and the build documentation lists this as a must-read warning.
+
+## 6. Engineering: models are copied to private storage on first use (Android)
+
+An APK is a compressed archive, and the runtime only accepts real file paths, so models cannot be read straight out of the package. The first time recognition is actually needed, the two models (about 15 MB) are unpacked from the package into the app's private directory and reused from then on.
+
+That means **the first scan costs an extra second or two**, and the app takes about 15 MB more storage (removed on uninstall). The model files are stored uncompressed inside the APK — compressing them would add several hundred milliseconds of decompression every time.
+
+## 7. Engineering and licensing: one more self-check, obligations covered (Windows + Android)
+
+- `dev/selfcheck.py` gained step 15: build a form with no text layer and run the whole chain (recognise → mask → recognise again). All 15 steps pass;
+- New `dev/test_ocr.py` (sample generator) and `dev/test_ocr_redact.py` (end to end);
+- The OCR models and runtime are Apache-2.0 / MIT, both compatible with this project's AGPL-3.0. Licence texts, model provenance and SHA-256 live in `assets/ocr/`, and `NOTICE.md` plus the dependency table in `README` have a new entry. The model weights were not modified in any way.
+
+## 8. Known limitations (two new ones)
+
+- **OCR is not magic**: handwriting, heavy skew, folds and very low resolution (a 72 dpi fax, say) may be missed or misread. A misread means a missed mask — so **please glance over the result** after processing a scan. The UI says so too;
+- **Only enabled on pages with almost no text**: a page that has a text layer *and* a pasted scan (a contract with an ID scan dropped in, for instance) will not use OCR. Manual boxes are still needed there;
+- The following two are unchanged: Android output is still full-page images (not searchable, text not copyable); annotations are covered whole.
+
+## 9. Downloads
+
+Windows grew from 36.7 MB to **73.2 MB**, and Android grew from 14.9 MB to 46.8 MB. Nearly all of the increase is the two models (14.9 MB) plus the runtime for each platform (about 18.5 MB on Android). That is the unavoidable cost of local, offline recognition — and it buys **no network, no uploads**. If the size is a problem, `PDFMASK_NO_OCR=1` restores the old behaviour.
+
+- Windows: `PDFPrivacyMasker-1.4.6.exe` (portable, no install)
+- Android: `PDFPrivacyMasker-1.4.6-arm64.apk` (arm64-v8a, Android 8.0+)
+- Checksums: `SHA256SUMS.txt`
+
+Install straight over the previous version. The first scan takes an extra second or two while the models load, then about a second per page.
+
+---
+
 # v1.4.5 版本说明（Windows + 安卓）
 
 **中文** | [English](#v145-release-notes-windows--android)

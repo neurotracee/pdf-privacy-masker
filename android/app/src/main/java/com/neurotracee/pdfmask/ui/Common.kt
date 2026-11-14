@@ -90,6 +90,27 @@ fun RedTag(text: String, modifier: Modifier = Modifier) {
     }
 }
 
+/** 左上角绿色小标签：表示「支持」这类正向能力 */
+@Composable
+fun GreenTag(text: String, modifier: Modifier = Modifier) {
+    val dark = isSystemInDarkTheme()
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(4.dp))
+            .background(if (dark) Color(0xFF16341F) else Color(0xFFE9F8EF))
+            .padding(horizontal = 5.dp, vertical = 1.5.dp)
+    ) {
+        Text(
+            text = text,
+            color = if (dark) Color(0xFF6FD79A) else Color(0xFF0F7A3D),
+            fontSize = 9.sp,
+            lineHeight = 12.sp,
+            fontWeight = FontWeight.Medium,
+            maxLines = 1
+        )
+    }
+}
+
 @Composable
 fun AmberChip(text: String, modifier: Modifier = Modifier) {
     val dark = isSystemInDarkTheme()

@@ -20,6 +20,7 @@ import com.neurotracee.pdfmask.core.Kind
 import com.neurotracee.pdfmask.core.MaskSummary
 import com.neurotracee.pdfmask.core.PageText
 import com.neurotracee.pdfmask.core.PdfMasker
+import com.neurotracee.pdfmask.core.OcrEngine
 import com.neurotracee.pdfmask.core.PdfTextExtractor
 import com.neurotracee.pdfmask.core.Rect
 import kotlinx.coroutines.Dispatchers
@@ -63,6 +64,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     /** 手动框选的 id 从 -1 往下走，避开自动识别用的非负 id */
     private var nextManualId = -1
+
+    /** 本次打开时成功用 OCR 读出文字的扫描页数（用于提示文案） */
+    var ocrPages = 0
+        private set
 
     fun toast(msg: String) {
         message = msg
@@ -132,7 +137,14 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                     ctx.contentResolver.openInputStream(uri)?.use { ins ->
                         FileOutputStream(tmp).use { outs -> ins.copyTo(outs) }
                     } ?: error(tr("无法读取这个文件", "Cannot read this file"))
-                    val pageText = PdfTextExtractor.extract(ctx, tmp)
+                    // 扫描件 / 拍照件没有文字层，PDFBox 读不出任何字形；
+                    // 这类页面交给端侧 OCR 补出「文字 + 每字矩形」，后续规则完全复用
+                    val rawText = PdfTextExtractor.extract(ctx, tmp)
+                    val pageText = if (rawText.any { it.lines.isEmpty() })
+                        OcrEngine.augment(ctx, tmp, rawText) else rawText
+                    ocrPages = rawText.indices.count {
+                        rawText[it].lines.isEmpty() && pageText[it].lines.isNotEmpty()
+                    }
                     val found = Detector.detect(pageText)
                     Triple(name, tmp, pageText to found)
                 }
@@ -146,7 +158,17 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 savedName = ""
                 current = 0
                 stage = Stage.READY
-                if (pair.second.isEmpty()) toast(tr("没有识别到隐私信息，可以在预览上手动框选", "Nothing detected. You can drag boxes on the preview."))
+                if (pair.second.isEmpty()) {
+                    toast(
+                        if (ocrPages > 0) tr(
+                            "扫描页已用本机 OCR 识别，未发现敏感信息；可在预览上手动框选补充",
+                            "Scanned pages were read with on-device OCR and nothing was found. Add boxes manually if needed."
+                        ) else tr(
+                            "没有识别到隐私信息，可以在预览上手动框选",
+                            "Nothing detected. You can drag boxes on the preview."
+                        )
+                    )
+                }
             }.onFailure {
                 stage = Stage.HOME
                 toast(tr("打开失败：", "Open failed: ") + (it.message ?: tr("未知错误", "unknown error")))

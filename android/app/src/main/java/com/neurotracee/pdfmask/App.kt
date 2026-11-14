@@ -50,7 +50,7 @@ import com.neurotracee.pdfmask.ui.AppInfoDialog
 import com.neurotracee.pdfmask.ui.AutoUpdateGate
 import com.neurotracee.pdfmask.ui.HomeScreen
 import com.neurotracee.pdfmask.ui.LeaveConfirmDialog
-import com.neurotracee.pdfmask.ui.RedTag
+import com.neurotracee.pdfmask.ui.GreenTag
 import com.neurotracee.pdfmask.ui.SaveTargetDialog
 import com.neurotracee.pdfmask.ui.SettingsDialog
 import com.neurotracee.pdfmask.ui.T
@@ -271,7 +271,7 @@ internal fun AppTopBar(onSettings: () -> Unit) {
                 color = MaterialTheme.colorScheme.onBackground
             )
             Spacer(Modifier.width(7.dp))
-            RedTag(T("不支持扫描件", "No scans"))
+            GreenTag(T("支持扫描件", "Scans OK"))
             Spacer(Modifier.weight(1f))
             IconButton(
                 onClick = onSettings,
@@ -287,8 +287,8 @@ internal fun AppTopBar(onSettings: () -> Unit) {
         }
         Text(
             text = T(
-                "真马赛克 · 全程本地零上传 · 可手动框选",
-                "Real mosaic · 100% on-device · manual boxes supported"
+                "真马赛克 · 全程本地零上传 · 扫描件自动识别",
+                "Real mosaic · 100% on-device · scans read locally"
             ),
             fontSize = 11.5.sp,
             color = MaterialTheme.colorScheme.onSurfaceVariant,

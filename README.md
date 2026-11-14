@@ -14,9 +14,11 @@
 >
 > 注：GitHub 和 Gitee 这两个仓库都由同一名开发者维护，GitHub 建得更早。写这句是为了避免有人误以为其中一个是抄来的副本。
 
-本地离线、无需 AI 模型即可运行的 PDF 隐私信息自动打码工具。把 PDF 拖进去，自动认出手机号、身份证号、银行卡号、邮箱、姓名、座机、地址、出生日期、性别年龄，用**不可还原的马赛克**盖掉，同时把底层的文字层一并抹除，另存为一个新文件。
+本地离线运行的 PDF 隐私信息自动打码工具，不联网、不用大模型。把 PDF 拖进去，自动认出手机号、身份证号、银行卡号、邮箱、姓名、座机、地址、出生日期、性别年龄，用**不可还原的马赛克**盖掉，同时把底层的文字层一并抹除，另存为一个新文件。
 
-自动认不出来的部分——扫描件、图片里的字、程序保守放过的内容——可以**框选手动打码**，一样是像素级不可还原。
+自动认不出来的部分可以**框选手动打码**，一样是像素级不可还原。
+
+**扫描件、拍照件、整页图片的 PDF 也能自动识别**（v1.4.6 起）：没有文字层的页面会先用本机运行的 PP-OCRv4 模型做一遍文字检测与识别，再走完全相同的打码规则。模型随程序分发，**运行时依旧不联网、不上传**。
 
 全程在你自己的电脑上跑，不上传任何内容，原文件不动。唯一联网的地方是「检查更新」——只读一个公开的版本号，断网时静默跳过。打码后的文件存到哪个文件夹由你决定，不硬塞进某个固定位置。
 
@@ -138,6 +140,8 @@ https://gitee.com/bio234/pdf-privacy-masker      # mirror / 镜像（国内访�
 | 性别 / 年龄 | `性别：女`、`，女，`、`今年 30 岁`等写法     | 覆盖   |
 | 姓名      | 保留姓氏，只遮名字：`陈嘉豪` → `陈██`       | 姓氏保留 |
 
+**扫描件 / 拍照件 / 整页图片的 PDF 也支持。** 没有文字层的页面会先用本机 OCR 认出文字与每个字的坐标，再套用上面同一套规则——不是另做一套降级逻辑。识别受拍摄清晰度、倾斜、光照影响，重要文件建议核对一遍结果。
+
 **普通日期（会议、合同、签署）、金额、车牌、快递单号、工号、型号等不会被误打。** 号码类都做了校验，干扰信息会原样保留。
 
 ## 自动之外，还能手动作
@@ -209,14 +213,14 @@ pip install -r requirements.txt
 pyinstaller pdfmask.spec --noconfirm --clean
 ```
 
-产物在 `dist/PDF隐私打码工具.exe`，约 35 MB，单文件、免安装。
+产物在 `dist/PDF隐私打码工具.exe`，约 73 MB，单文件、免安装（其中约 30 MB 是本地 OCR 的模型与推理库）。
 `version_info.txt` 里是 exe 的文件属性（版权、产品名），可以按需修改。
 
 安卓 apk：JDK 17 + Android SDK 34 + Gradle 8.7，用 Android Studio 打开 `android/` 目录即可；发布附件按 `PDFPrivacyMasker-<版本>-arm64.apk` 命名（检查更新靠文件名读版本号）。完整步骤见 [docs/05-构建与发布.md](docs/05-构建与发布.md)。
 
 ## 已知限制
 
-- **不支持扫描件 PDF。** 扫描件是整页图片、没有文字层，自动识别对它无能为力——这一点在界面左上角用红字常驻提示。这类文件请用「框选手动打码」手动拉框，效果一样不可还原。若是几页扫描件混在普通 PDF 里，程序会单独提示是哪几页。
+- **扫描件 PDF 的识别质量取决于扫描/拍摄条件。** 文字层 PDF 的坐标是精确的；扫描件靠 OCR 反推，模糊、严重倾斜、光线不均或字太小都可能认错或漏认。程序会在界面上标出哪几页用了 OCR，重要文件请核对结果，漏掉的地方用「框选手动打码」补——**自动识别为空不等于这页没有隐私信息**。
 - **加密 PDF 需要先解除密码。**
 - **中文数字写的号码**（如「一三八零零」）不识别。
 - **以「镇、苑、道、路、村、庄」结尾的姓名**会跳过，因为与地名无法区分，宁可放过。
@@ -232,7 +236,11 @@ pyinstaller pdfmask.spec --noconfirm --clean
 | [PyMuPDF](https://pymupdf.readthedocs.io/) / MuPDF | 1.28.x | **AGPL-3.0** 或 Artifex 商业许可 |
 | [Pillow](https://python-pillow.org/)               | 13.x   | HPND（类似 MIT）                |
 | [PyInstaller](https://pyinstaller.org/)            | 6.x    | GPL-2.0-or-later，含打包例外条款    |
+| [ONNX Runtime](https://onnxruntime.ai/)（仅本地 OCR 用） | 1.31.x | MIT                        |
+| [NumPy](https://numpy.org/)（仅本地 OCR 用）         | 2.5.x  | BSD-3-Clause                |
+| PP-OCRv4 检测 / 识别模型（仅本地 OCR 用）              | mobile | Apache-2.0                  |
 | [PDFBox-Android](https://github.com/TomRoush/PdfBox-Android)（仅安卓端） | 2.0.27.0 | Apache-2.0 |
+| [ONNX Runtime Android](https://onnxruntime.ai/)（仅安卓端 OCR 用） | 1.20.0 | MIT                     |
 
 本项目选择 AGPL-3.0，正是因为核心 PDF 处理库 PyMuPDF 采用 AGPL-3.0 双授权：**分发打包后的程序，就必须以 AGPL-3.0 开源整个应用**。详见 [NOTICE.md](NOTICE.md)。
 
@@ -242,6 +250,7 @@ pyinstaller pdfmask.spec --noconfirm --clean
 - 处理全程在本机内存与临时目录完成，退出时清理临时文件。
 - 输出的 PDF 会清空元数据，不写入工具名、不写时间戳。
 - 唯一会写文件的地方：你指定的输出路径。
+- 扫描件识别用的 OCR 模型（PP-OCRv4，约 15 MB）随程序一起分发，推理在本机 CPU 上完成，**不联网、不调用任何在线服务**。模型来源与许可见 [assets/ocr/README.md](assets/ocr/README.md)。
 - 程序会在 `%APPDATA%\PDF隐私打码工具\settings.json` 里存一个偏好文件，内容只有「默认保存路径」和两个开关，不含任何文档内容、不含任何个人信息。删掉它即恢复默认。
 - 安卓端有两个权限，都只在更新流程里用到：`INTERNET`（读版本号、下载安装包）和 `REQUEST_INSTALL_PACKAGES`（把核对过的安装包交给系统安装器）。不做任何统计埋点，不上传文件。
 - 留在默认设置时，每次启动会向 Gitee（中文 / 东八区环境优先，判断规则见上文）或 GitHub 读一次公开的版本号；在设置里切成「手动检查」之后，就只有你点「检查更新」时才联网。这个请求只带版本号，不带任何本地信息。
@@ -307,9 +316,11 @@ by the Free Software Foundation, either version 3 of the License, or
 >
 > Note: this GitHub repository and the Gitee repository above are owned by the same developer. The GitHub repository was created earlier — stating this here so nobody mistakes one for a copy of the other.
 
-Offline PDF privacy redaction tool — no AI model required. Drag a PDF in, it automatically detects phone numbers, ID card numbers, bank card numbers, emails, names, addresses, dates of birth and gender/age, then covers them with **irreversible pixel mosaic** while stripping the underlying text layer, and saves as a new file.
+Offline PDF privacy redaction tool — no cloud, no LLM. Drag a PDF in, it automatically detects phone numbers, ID card numbers, bank card numbers, emails, names, addresses, dates of birth and gender/age, then covers them with **irreversible pixel mosaic** while stripping the underlying text layer, and saves as a new file.
 
-Parts it can't auto-detect — scanned documents, text inside images, conservative misses — can be manually boxed and redacted, also pixel-level irreversible.
+Parts it can't auto-detect can be manually boxed and redacted, also pixel-level irreversible.
+
+**Scanned, photographed and image-only PDFs are supported too** (since v1.4.6): pages without a text layer are first run through PP-OCRv4 on your own machine to recover the text and each character's position, then the exact same redaction rules apply. The models ship with the app — **still no network, nothing uploaded.**
 
 Runs entirely on your own machine. No network, no upload, original file untouched. You choose where the redacted file is saved.
 
@@ -494,14 +505,14 @@ pip install -r requirements.txt
 pyinstaller pdfmask.spec --noconfirm --clean
 ```
 
-Output is `dist/PDF隐私打码工具.exe`, about 35 MB, single-file, no install needed.
+Output is `dist/PDF隐私打码工具.exe`, about 73 MB, single-file, no install needed (roughly 30 MB of that is the local OCR models and runtime).
 `version_info.txt` contains the exe's file properties (copyright, product name), adjust as needed.
 
 Android apk: JDK 17 + Android SDK 34 + Gradle 8.7, open the `android/` directory. Name release assets `PDFPrivacyMasker-<version>-arm64.apk` — the updater reads the version from the file name. Full steps in [docs/05-构建与发布.md](docs/05-构建与发布.md).
 
 ## Known limitations
 
-- **No support for scanned PDFs.** Scanned PDFs are full-page images with no text layer, so auto-detection can't work — this is shown in red in the top-left corner. Use "Box redaction" to manually draw boxes; result is equally irreversible. If some scanned pages are mixed in a normal PDF, the app tells you which pages.
+- **Detection quality on scanned PDFs depends on the scan.** Text-layer PDFs give exact coordinates; scans rely on OCR inference, so blur, heavy skew, uneven lighting or very small text can cause misses or misreads. The UI marks which pages went through OCR. Please verify the result on important documents and box anything missed by hand — **an empty detection result does not mean the page has no private data.**
 - **Encrypted PDFs need password removed first.**
 - **Chinese numeral numbers** (like "一三八零零") are not detected.
 - **Names ending in 镇/苑/道/路/村/庄** are skipped because they're indistinguishable from place names — better to miss than to mis-redact.
@@ -517,7 +528,11 @@ Android apk: JDK 17 + Android SDK 34 + Gradle 8.7, open the `android/` directory
 | [PyMuPDF](https://pymupdf.readthedocs.io/) / MuPDF | 1.28.x | **AGPL-3.0** or Artifex commercial license |
 | [Pillow](https://python-pillow.org/) | 13.x | HPND (similar to MIT) |
 | [PyInstaller](https://pyinstaller.org/) | 6.x | GPL-2.0-or-later with packaging exception |
+| [ONNX Runtime](https://onnxruntime.ai/) (local OCR only) | 1.31.x | MIT |
+| [NumPy](https://numpy.org/) (local OCR only) | 2.5.x | BSD-3-Clause |
+| PP-OCRv4 detection / recognition models (local OCR only) | mobile | Apache-2.0 |
 | [PDFBox-Android](https://github.com/TomRoush/PdfBox-Android) (Android only) | 2.0.27.0 | Apache-2.0 |
+| [ONNX Runtime Android](https://onnxruntime.ai/) (Android OCR only) | 1.20.0 | MIT |
 
 This project chooses AGPL-3.0 precisely because the core PDF library PyMuPDF is dual-licensed under AGPL-3.0: **distributing the packaged app means the whole application must be AGPL-3.0 open source.** See [NOTICE.md](NOTICE.md).
 

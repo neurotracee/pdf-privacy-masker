@@ -67,7 +67,7 @@ from pdfmask_webui import HTML_UI   # 首页 HTML（含 CSS/JS），与逻辑代
 from thanks_asset import QR_PNG_B64  # 赞赏码图片（base64 内嵌，单文件打包不丢）
 
 APP_NAME = "PDF 隐私打码工具"
-VERSION = "1.4.5"
+VERSION = "1.4.6"
 
 # ---- 署名信息（开源后请勿删除，AGPL-3.0 第 5 条要求保留版权声明） ----
 AUTHOR = "项目创作时为初中生"
@@ -627,6 +627,21 @@ def _scan_names_prose(text):
 # 版面还原：把字符拼成「视觉行」
 # ---------------------------------------------------------------------------
 
+def _fold_width(c):
+    """全角 → 半角（1 换 1，不改变字数，矩形不会错位）
+
+    中文文档里「１２３」「ｈｔｔｐ」「：」这类全角写法很常见，
+    而识别规则用的是半角字符类，不折就完全匹配不到。
+    与 pdfmask_ocr.fold_width 保持一致。
+    """
+    o = ord(c)
+    if 0xFF01 <= o <= 0xFF5E:
+        return chr(o - 0xFEE0)
+    if o == 0x3000:
+        return " "
+    return c
+
+
 def _visual_lines(page):
     """返回 [(line_text, entries)]，entries[i] = (char, Rect) 或 (" ", None)
 
@@ -650,7 +665,7 @@ def _visual_lines(page):
                         continue
                     if (x1 - x0) > (y1 - y0) * 1.8:  # 竖排 / 旋转字符
                         continue
-                    chars.append((c, pymupdf.Rect(x0, y0, x1, y1)))
+                    chars.append((_fold_width(c), pymupdf.Rect(x0, y0, x1, y1)))
                 if not chars:
                     continue
                 xs0 = min(c[1].x0 for c in chars)
@@ -1373,24 +1388,74 @@ def _scan_names_suspect(doc, findings):
     return out
 
 
-def detect(doc, only_pages=None):
+_OCR_ENGINE = None
+_OCR_TRIED = False
+
+# 最近一次 detect() 的 OCR 情况：哪几页走了 OCR、花了多久。
+# 界面上要如实告诉用户「这页是扫描件，已经用本地 OCR 识别过了」。
+LAST_OCR = {"pages": [], "secs": 0.0, "used": False}
+
+
+def ocr_engine():
+    """懒加载 OCR 引擎；不可用时返回 None，程序照常按文字层工作"""
+    global _OCR_ENGINE, _OCR_TRIED
+    if _OCR_TRIED:
+        return _OCR_ENGINE
+    _OCR_TRIED = True
+    if os.environ.get("PDFMASK_NO_OCR"):
+        return None
+    try:
+        import pdfmask_ocr as _o
+        if _o.available():
+            _OCR_ENGINE = _o.OcrEngine.get()
+    except Exception:
+        _OCR_ENGINE = None
+    return _OCR_ENGINE
+
+
+def detect(doc, only_pages=None, use_ocr=True):
+    eng = ocr_engine() if use_ocr else None
+    LAST_OCR["pages"] = []
+    LAST_OCR["secs"] = 0.0
+    LAST_OCR["used"] = False
     findings = []
     for pno in range(doc.page_count):
         if only_pages is not None and pno not in only_pages:
             continue
         page = doc[pno]
         lines = _visual_lines(page)
-        for text, entries in lines:
+        # 没有文字层（扫描件 / 拍照件 / 纯图片页）时，用 OCR 补出「文字 + 每字矩形」，
+        # 后面的识别规则完全复用 —— 打码只吃矩形，不关心矩形是谁给的
+        ocr_from = len(lines)
+        if eng is not None:
+            try:
+                import pdfmask_ocr as _o
+                if _o.needs_ocr(page):
+                    _t0 = time.time()
+                    got = eng.page_lines(page)
+                    LAST_OCR["secs"] += time.time() - _t0
+                    if got:
+                        lines = lines + got
+                        LAST_OCR["pages"].append(pno)
+                        LAST_OCR["used"] = True
+            except Exception:
+                pass
+        for i, (text, entries) in enumerate(lines):
+            is_ocr = i >= ocr_from
             for f in _scan_line(text, entries, pno):
-                f["rect"] = _to_page_rect(f["rect"], page)
+                # OCR 给的矩形本来就在显示坐标系里，不用再转一次
+                f["rect"] = pymupdf.Rect(f["rect"]) if is_ocr else _to_page_rect(f["rect"], page)
+                if is_ocr:
+                    f["src"] = "ocr"
                 findings.append(f)
-        for f in _scan_birth_across_lines(lines, pno):
+        text_lines = lines[:ocr_from]
+        for f in _scan_birth_across_lines(text_lines, pno):
             f["rect"] = _to_page_rect(f["rect"], page)
             findings.append(f)
-        for f in _scan_name_columns(lines, pno):
+        for f in _scan_name_columns(text_lines, pno):
             f["rect"] = _to_page_rect(f["rect"], page)
             findings.append(f)
-        for f in _scan_gender_columns(lines, pno):
+        for f in _scan_gender_columns(text_lines, pno):
             f["rect"] = _to_page_rect(f["rect"], page)
             findings.append(f)
         for f in scan_widgets(page, pno):
@@ -1866,6 +1931,8 @@ class DocState:
                 "rot": p.rotation,
             })
         self.findings = detect(self.doc)
+        self.ocr_pages = list(LAST_OCR["pages"])
+        self.ocr_secs = round(LAST_OCR["secs"], 2)
         self.manual_n = 0
 
     def payload(self):
@@ -1894,6 +1961,9 @@ class DocState:
             "findings": items,
             "stats": stats,
             "scanned": [i for i, p in enumerate(self.pages) if not p["hasText"]],
+            "ocrPages": self.ocr_pages,
+            "ocrSecs": self.ocr_secs,
+            "ocrReady": ocr_engine() is not None,
             "outDir": _default_out_dir(self.path),
         }
 
@@ -2690,8 +2760,28 @@ def show_about():
     print(txt)
 
 
+def ocr_check():
+    """OCR 自诊断：逐项打印，哪一步崩/失败一眼能看出来"""
+    def show(msg):
+        print(msg, flush=True)
+
+    show("0) Python %s / frozen=%s" % (sys.version.split()[0], getattr(sys, "frozen", False)))
+    import numpy as _np
+    show("1) numpy %s  %s" % (_np.__version__, os.path.dirname(_np.__file__)))
+    import pdfmask_ocr as _o
+    show("2) 模型目录: %r" % (_o.model_dir(),))
+    show("3) 模型可用: %s %s" % (_o.available(), _o.why_unavailable()))
+    import onnxruntime as _ort
+    show("4) onnxruntime %s / %s" % (_ort.__version__, _ort.get_available_providers()))
+    eng = _o.OcrEngine.get()
+    show("5) 引擎就绪字数=%d" % (len(eng.chars),))
+    show("OK")
+
+
 if __name__ == "__main__":
-    if sys.argv[1:2] in (["--about"], ["-about"], ["--version"], ["-v"]):
+    if sys.argv[1:2] == ["--ocr-check"]:
+        ocr_check()
+    elif sys.argv[1:2] in (["--about"], ["-about"], ["--version"], ["-v"]):
         show_about()
     elif len(sys.argv) >= 4 and sys.argv[1] == "--cli":
         cli(sys.argv[2], sys.argv[3])

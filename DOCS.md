@@ -47,6 +47,8 @@ pdf-privacy-masker/
 │  └─ .gitignore                 已排除签名文件与构建产物
 │
 ├─ pdfmask.py                   Windows 端主程序（单文件，含内嵌前端）
+├─ pdfmask_ocr.py               本地 OCR（扫描件识别），Windows 端调用
+├─ assets/ocr/                  OCR 模型与字典 + 许可原文、出处、SHA-256（安卓端直接引用这一份）
 ├─ pdfmask.spec / 打包.bat       Windows 端打包配置与一键打包脚本
 ├─ requirements.txt             Windows 端 Python 依赖
 ├─ version_info.txt             Windows exe 的文件属性（产品名、版本、版权）

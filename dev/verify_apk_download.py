@@ -23,7 +23,7 @@ import urllib.request
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
-VERSION = sys.argv[1] if len(sys.argv) > 1 else "1.4.5"
+VERSION = sys.argv[1] if len(sys.argv) > 1 else "1.4.6"
 
 ALLOWED = (
     "gitee.com", "github.com", "objects.githubusercontent.com",

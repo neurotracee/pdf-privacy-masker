@@ -472,7 +472,7 @@ class UiShotTest {
                 ok = true, current = "1.4.0", latest = "1.5.0", hasUpdate = true,
                 url = "https://github.com/neurotracee/pdf-privacy-masker/releases/download/v1.5.0/PDFPrivacyMasker-1.5.0-arm64.apk"
             ),
-            opened = true, onOpen = {}, onCopy = {}
+            onOpen = {}, onCopy = {}
         )
     }
 
@@ -486,7 +486,7 @@ class UiShotTest {
                 detail = "连不上 GitHub，可能是网络、代理或安全软件拦住了。\nSocketTimeoutException: timeout",
                 url = "https://github.com/neurotracee/pdf-privacy-masker/releases/latest"
             ),
-            opened = null, onOpen = {}, onCopy = {}
+            onOpen = {}, onCopy = {}
         )
     }
 }

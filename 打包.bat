@@ -12,7 +12,7 @@ echo.
 
 where python >nul 2>nul
 if errorlevel 1 (
-  echo [错误] 没有找到 python。请先安装 Python 3.10 以上版本，
+  echo [错误] 没有找到 python。请先安装 Python 3.11 以上版本，
   echo         安装时记得勾选 "Add Python to PATH"。
   echo.
   pause

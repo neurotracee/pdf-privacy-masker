@@ -19,8 +19,8 @@ android {
         applicationId = "com.neurotracee.pdfmask"
         minSdk = 26
         targetSdk = 34
-        versionCode = 12
-        versionName = "1.4.5"
+        versionCode = 13
+        versionName = "1.4.6"
 
         // 只打 arm64-v8a
         ndk {
@@ -85,7 +85,15 @@ android {
     }
 
     androidResources {
-        noCompress += listOf("ttf", "otf", "ttc", "otc")
+        noCompress += listOf("ttf", "otf", "ttc", "otc", "onnx")
+    }
+
+    // OCR 模型只维护一份（仓库根目录 assets/ocr），安卓端直接把根目录 assets 当资源目录，
+    // 打进 APK 后路径仍是 assets/ocr/*。这样仓库里不用存两份 15 MB 的模型。
+    sourceSets {
+        getByName("main") {
+            assets.srcDir(rootProject.file("../assets"))
+        }
     }
 
     testOptions {
@@ -120,6 +128,9 @@ dependencies {
     implementation("androidx.documentfile:documentfile:1.0.1")
 
     implementation("com.tom-roush:pdfbox-android:2.0.27.0")
+
+    // 无文字层 PDF（扫描件/拍照件）的端侧 OCR 推理，CPU 即可，不需要 GPU
+    implementation("com.microsoft.onnxruntime:onnxruntime-android:1.20.0")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
 

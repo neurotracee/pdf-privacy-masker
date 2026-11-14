@@ -206,9 +206,9 @@ main{flex:1;min-height:0;display:flex;overflow:hidden}
 .res-actions{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
 .warn{background:#fff8e8;border:1px solid #f6e2b3;color:#8a5a00;font-size:12px;padding:8px 12px;
   border-radius:9px;margin:10px 16px 0;line-height:1.5}
-/* ---------- 扫描件提示（左上角红字） ---------- */
+/* ---------- 能力徽章（顶部小字） ---------- */
 .nocap{display:inline-block;margin-left:9px;font-size:10.5px;font-weight:700;line-height:1.5;
-  color:#e5484d;background:#fdecee;border:1px solid #f7c6cb;border-radius:5px;padding:0 6px;
+  color:#0f7a3d;background:#e9f8ef;border:1px solid #bce7cd;border-radius:5px;padding:0 6px;
   vertical-align:1.5px;letter-spacing:.3px;white-space:nowrap;cursor:default}
 .brand .hint-draw{color:#b4423f}
 /* ---------- 通用弹窗 ---------- */
@@ -321,8 +321,8 @@ main{flex:1;min-height:0;display:flex;overflow:hidden}
         </svg>
       </div>
       <div>
-        <h1>PDF 隐私打码工具<span class="nocap" title="扫描件是纯图片、没有文字层，无法自动识别，请用「框选手动打码」">不支持扫描件 PDF</span></h1>
-        <p>真马赛克 · 全程本地零上传 · <span class="hint-draw">扫描件可用「框选手动打码」</span></p>
+        <h1>PDF 隐私打码工具<span class="nocap" title="扫描件是纯图片、没有文字层，会自动用本地 OCR 识别（离线运行、不联网）；识别不到时可手工框选">支持扫描件</span></h1>
+        <p>真马赛克 · 全程本地零上传 · <span class="hint-draw">扫描件自动识别 · 也可手动框选</span></p>
       </div>
     </div>
     <div class="top-right">
@@ -580,7 +580,7 @@ main{flex:1;min-height:0;display:flex;overflow:hidden}
 const TOKEN = "__TOKEN__";
 const BOOT = __BOOT__;
 const S = {docId:null, name:'', pages:[], findings:[], sel:new Set(), page:0, zoom:1.2,
-           mask:true, drawing:false, hi:null, scanned:[], outDir:'', stats:null, size:0};
+           mask:true, drawing:false, hi:null, scanned:[], ocrPages:[], ocrReady:false, outDir:'', stats:null, size:0};
 
 /* 工作区里还开着文件时，关标签页 / 刷新前先让浏览器问一句。
    浏览器只允许这一种拦截方式，文案由浏览器决定（改不了），但足以避免
@@ -600,9 +600,8 @@ let LANG = 'zh';
 const DICT = {
   '设置':'Settings', '关于':'About', '退出':'Quit',
   'PDF 隐私打码工具':'PDF Privacy Masker',
-  '不支持扫描件 PDF':'No scanned PDFs',
-  '真马赛克 · 全程本地零上传 · ':'Real mosaic · 100% local · ',
-  '扫描件可用「框选手动打码」':'for scans, use the manual box tool',
+  '支持扫描件':'Scans supported',  '真马赛克 · 全程本地零上传 · ':'Real mosaic · 100% local · ',
+  '扫描件自动识别 · 也可手动框选':'scans read automatically · manual box too',
   '本机运行 127.0.0.1，文件不出电脑':'Local 127.0.0.1 — files never leave your PC',
   '把 PDF 拖到这里':'Drop a PDF here',
   '自动识别手机号、身份证号、银行卡号、邮箱、姓名、座机、地址、出生日期、性别年龄':
@@ -673,8 +672,8 @@ const DICT = {
     'With automatic checking on, one silent check runs at launch; with it off, only this button goes online. Updates come from the source picked above.',
   '开着「自动检查」时启动会静默查一次；关掉后只有点这里才会联网。查到的更新来自上面选定的源。':'Updates are checked once at launch; offline, the check is skipped silently. You can also check again here at any time.', '用浏览器打开下载':'Open download in browser',
   '复制链接':'Copy link',
-  '扫描件是纯图片、没有文字层，无法自动识别，请用「框选手动打码」':
-    'A scan is just an image with no text layer, so it cannot be detected — use the manual box tool',
+  '扫描件是纯图片、没有文字层，会自动用本地 OCR 识别（离线运行、不联网）；识别不到时可手工框选':
+    'A scan has no text layer, so it is read with local OCR (offline, nothing uploaded); fall back to the manual box tool if needed',
   '按住鼠标拖动可以框出要打码的区域；双击页面上的方框，可以取消或恢复该处打码':
     'Hold and drag to draw a box; double-click a box on the page to mute or unmute it',
   '重新选择文件':'Choose another file',
@@ -817,6 +816,7 @@ async function openPath(path){
 function applyDoc(d){
   S.docId = d.docId; S.name = d.name; S.pages = d.pages; S.findings = d.findings;
   S.scanned = d.scanned || []; S.outDir = d.outDir || '';
+  S.ocrPages = d.ocrPages || []; S.ocrReady = !!d.ocrReady;
   S.stats = d.stats || {}; S.size = d.size || 0;
   S.sel = new Set(d.findings.filter(f=>!f.suspect).map(f=>f.id)); S.page = 0; S.hi = null;
   $('dropView').hidden = true; $('workView').hidden = false; $('actionBar').hidden = false;
@@ -846,12 +846,29 @@ function renderMeta(){
   }
   $('fSub').textContent = sub;
   if(S.scanned && S.scanned.length){
-    const pages = S.scanned.map(i=>i+1).join(T('、', ', '));
+    const fmt = arr => arr.map(i=>i+1).join(T('、', ', '));
+    const done = (S.scanned||[]).filter(i=>(S.ocrPages||[]).indexOf(i)>=0);
+    const miss = (S.scanned||[]).filter(i=>(S.ocrPages||[]).indexOf(i)<0);
+    let msg;
+    if(!S.ocrReady){
+      msg = T(
+        '第 ' + fmt(S.scanned) + ' 页没有文字层（可能是扫描件），当前安装包不含 OCR 组件，无法自动识别，请用「框选手动打码」补齐。',
+        'Page ' + fmt(S.scanned) + ' has no text layer. This build has no OCR component, so those pages cannot be detected — use the manual box tool.');
+    } else if(!miss.length){
+      msg = T(
+        '第 ' + fmt(done) + ' 页没有文字层（扫描件），已用本地 OCR 自动识别，全程离线、不上传任何内容。请顺手核对一遍结果。',
+        'Page ' + fmt(done) + ' has no text layer (a scan). It was read with local OCR — fully offline, nothing uploaded. Please double-check the result.');
+    } else if(done.length){
+      msg = T(
+        '第 ' + fmt(done) + ' 页已用本地 OCR 自动识别；第 ' + fmt(miss) + ' 页没能识别出文字，请用「框选手动打码」补齐。',
+        'Page ' + fmt(done) + ' was read with local OCR; page ' + fmt(miss) + ' could not be read — use the manual box tool there.');
+    } else {
+      msg = T(
+        '第 ' + fmt(miss) + ' 页没有文字层，本地 OCR 也没能识别出文字，请用「框选手动打码」补齐。',
+        'Page ' + fmt(miss) + ' has no text layer and local OCR could not read it — use the manual box tool.');
+    }
     $('scanWarn').hidden = false;
-    $('scanWarn').textContent = T(
-      '第 ' + pages + ' 页没有文字层（可能是扫描件），这几页无法自动识别，请用「框选手动打码」补齐。',
-      'Page ' + pages + ' has no text layer (probably a scan). Those pages cannot be detected — use the manual box tool.'
-    );
+    $('scanWarn').textContent = msg;
   } else {
     $('scanWarn').hidden = true;
   }
@@ -927,7 +944,7 @@ function syncBar(){
   const cnt = {};
   S.findings.forEach(f=>{ cnt[f.page] = (cnt[f.page]||0) + 1; });
   let info = (S.page+1) + ' / ' + S.pages.length;
-  if (S.scanned.indexOf(S.page) >= 0) info += T(' · 无文字层', ' · no text layer');
+  if (S.scanned.indexOf(S.page) >= 0) info += (S.ocrPages||[]).indexOf(S.page)>=0 ? T(' · OCR 已识别', ' · OCR read') : T(' · 无文字层', ' · no text layer');
   else info += T(' · 本页 ' + (cnt[S.page]||0) + ' 处', ' · ' + (cnt[S.page]||0) + ' here');
   $('pgNum').textContent = info;
   $('prevPage').disabled = S.page <= 0;
