@@ -164,21 +164,36 @@ def download(name, tag, out_name):
     return out if ok else None
 
 
-def upload_asset(release_id, path, tok):
-    """Gitee 上传附件：multipart/form-data，用 curl 更稳。"""
-    cmd = ["curl", "-s", "--noproxy", "*", "--max-time", "900", "-X", "POST",
-           "-F", "access_token=" + tok,
-           "-F", "file=@" + path,
-           "%s/releases/%s/attach_files" % (GE_API, release_id)]
-    r = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace")
-    out = r.stdout.strip()
-    try:
-        d = json.loads(out)
-    except Exception:
-        return False, out[:200]
-    if isinstance(d, dict) and d.get("browser_download_url"):
-        return True, d.get("name")
-    return False, str(d)[:200]
+def upload_asset(release_id, path, tok, tries=3):
+    """Gitee 上传附件：multipart/form-data，用 curl 更稳。
+
+    Gitee 的附件接口会抖：同一条命令第一次返回空、过几秒重来就成功
+    （2026-11-14 发布 1.4.6.1 / 1.4.6.2 时都遇到过，大文件尤其明显）。
+    所以这里自己重试，别让人守着终端一条条手动重跑。
+    """
+    last = "未知原因"
+    for i in range(tries):
+        if i:
+            time.sleep(3)
+        cmd = ["curl", "-s", "--noproxy", "*", "--max-time", "900", "-X", "POST",
+               "-F", "access_token=" + tok,
+               "-F", "file=@" + path,
+               "%s/releases/%s/attach_files" % (GE_API, release_id)]
+        r = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8",
+                           errors="replace")
+        out = (r.stdout or "").strip()
+        try:
+            d = json.loads(out)
+        except Exception:
+            last = out[:200] or (r.stderr or "").strip()[:200] or "空响应（接口抖动）"
+            continue
+        if isinstance(d, dict) and d.get("browser_download_url"):
+            return True, d.get("name")
+        last = str(d)[:200]
+        # 业务层面的拒绝（重名、没权限）重试也没用，直接返回
+        if "exist" in last.lower() or "已存在" in last or "permission" in last.lower():
+            break
+    return False, "%s（已重试 %d 次）" % (last, tries)
 
 
 def gitee_releases():
