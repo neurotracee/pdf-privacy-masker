@@ -3,6 +3,7 @@
 # 这里只跑「不需要图形界面、不依赖打包产物」的那部分：
 #   - 语法能不能过（五个模块逐个编译）
 #   - 默认更新源的判断规则
+#   - 两端版本号各自独立（只发一端不会让另一端收到假更新）
 #   - 发布正文的拆分解析
 #   - 端到端自检（识别 → 打码 → 核对文字层与版面）
 #
@@ -70,6 +71,9 @@ jobs:
 
       - name: 默认更新源规则
         run: python dev/test_source_pick.py
+
+      - name: 两端版本号独立（单平台发版不误伤另一端）
+        run: python dev/test_platform_split.py
 
       - name: 发布正文拆分
         run: python dev/test_release_digest.py

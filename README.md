@@ -50,7 +50,7 @@
 
 全程在你自己的电脑上跑，不上传任何内容，原文件不动。唯一联网的地方是「检查更新」——只读一个公开的版本号，断网时静默跳过。打码后的文件存到哪个文件夹由你决定，不硬塞进某个固定位置。
 
-目前有 **Windows 版**（单文件 exe）和**安卓版**（arm64 apk），两端共用同一套识别内核、同一个版本号。
+目前有 **Windows 版**（单文件 exe）和**安卓版**（arm64 apk），两端共用同一套识别内核，**版本号各自独立**：只改了一端就只发那一端的包，另一端不会收到一条内容空白的更新提示。
 
 ![打码效果演示：一条竖线推过去，推过的地方就是打码后的样子](docs/img/demo-wipe.gif)
 
@@ -389,7 +389,7 @@ Parts it can't auto-detect can be manually boxed and redacted, also pixel-level 
 
 Runs entirely on your own machine. No network, no upload, original file untouched. You choose where the redacted file is saved.
 
-Available for **Windows** (single-file exe) and **Android** (arm64 apk). Both share the same detection engine and the same version number.
+Available for **Windows** (single-file exe) and **Android** (arm64 apk). Both share the same detection engine, but **each platform has its own version number**: a release that only touches one platform ships only that platform's package, and the other platform does not get an empty update prompt.
 
 ![Redaction demo: a divider sweeps across, and the area it passes is the redacted result](docs/img/demo-wipe.gif)
 

@@ -399,7 +399,7 @@ def main():
             print("\n".join(keep[:14]))
 
     # 版本号统一四段（主.次.修订.小版本），三处必须对得上，否则「检查更新」会误判新旧
-    print("\n[17] 版本号四段且三处一致")
+    print("\n[17] 版本号四段且两端各自自洽")
     root = os.path.dirname(HERE)
     ver_py = pdfmask.VERSION
     four = re.compile(r"^\d+\.\d+\.\d+\.\d+$")
@@ -418,9 +418,15 @@ def main():
     gradle_path = os.path.join(root, "android", "app", "build.gradle.kts")
     gradle = open(gradle_path, encoding="utf-8").read() if os.path.exists(gradle_path) else ""
     an = re.search(r'appVersionName\s*=\s*"([^"]+)"', gradle)
-    check("安卓 versionName 与 Windows 端同版",
-          bool(an and an.group(1) == ver_py),
-          "%s ← 代码 %s" % (an.group(1) if an else "没读到", ver_py))
+    an_v = an.group(1) if an else ""
+    check("安卓 versionName 也是四段版本号", bool(four.match(an_v)), an_v or "没读到")
+    # 两端版本号各自独立：只改一端时另一端原地不动是正常的。判断要不要更新时，
+    # 各端只比自己安装包文件名里的版本号（见 dev/test_platform_split.py），
+    # 所以这里不要求两端相等，只在不相同时提醒一句。
+    if an_v and an_v != ver_py:
+        print("        两端版本号不同（Windows %s / 安卓 %s）——只发一端时属正常，"
+              % (ver_py, an_v))
+        print("        发布时只上传这一端的安装包，另一端的「检查更新」不会动。")
 
     print("\n[18] 安卓侧载「未验证」提示三处都在")
 

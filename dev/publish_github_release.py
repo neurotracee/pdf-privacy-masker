@@ -103,6 +103,8 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--tag", required=True)
     ap.add_argument("--title", default="")
+    ap.add_argument("--only", choices=["exe", "apk", "both"], default="both",
+                    help="只传某一端的安装包（只改一端时用，避免另一个平台的同名包/旧包被误传）")
     ap.add_argument("--dry-run", action="store_true")
     a = ap.parse_args()
 
@@ -116,6 +118,17 @@ def main():
     # 校验和文件也一起挂上去：用户能自己核对下载到的包有没有被替换
     files = sorted(os.path.join(d, f) for f in os.listdir(d)
                    if f.lower().endswith((".exe", ".apk", ".txt")) and f != "RELEASE-NOTES.md")
+    if a.only != "both":
+        # 只发一端时，目录里不该出现另一端的包；出现了要报错，不默默跳过
+        # （默默跳过容易让人以为传上去了）
+        other = ".apk" if a.only == "exe" else ".exe"
+        stray = [os.path.basename(f) for f in files if f.lower().endswith(other)]
+        if stray:
+            print("release/%s/ 里混进了另一端的包：%s" % (a.tag, ", ".join(stray)))
+            print("确认是误放就删掉；确实要两端都发，请用 --only both")
+            return 1
+        files = [f for f in files if not f.lower().endswith(other)]
+        print("只发 %s：跳过 %s 包" % (a.only, other))
     print("标题: %s | 正文 %d 字符 | 附件 %d 个" % (title, len(body), len(files)))
 
     tok = token()

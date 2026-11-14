@@ -72,18 +72,28 @@ class UpdaterTest {
     }
 
     @Test
-    fun release_with_only_exe_falls_back_to_release_page() {
-        // 只有 exe 的版本在安卓上装不了：不认它的下载地址，
-        // 但 tag 兜底仍会告诉用户「有新版本」，链接给的是发布页而不是 .exe
+    fun release_with_only_exe_is_not_an_android_update() {
+        // 这一版只给 Windows 发了包（两端版本号各自独立，允许不同步）。
+        // 安卓看到的应是「没有更新」，而不是拿 tag 版本提示一条下载不到 apk 的假更新。
         val json = """
         [{"tag_name":"v9.9.9","html_url":"https://github.com/x/9",
           "assets":[{"name":"PDFPrivacyMasker-9.9.9.exe","browser_download_url":"https://github.com/x/e.exe"}]}]
         """.trimIndent()
         val r = parseReleasesForTest(json, "1.4.0")
+        assertFalse(r.hasUpdate)
+        // 连版本号都不该显示：界面弹「发现 9.9.9」但点下载没东西，比不提示更糟
+        assertEquals("", r.latest)
+    }
+
+    @Test
+    fun legacy_release_without_assets_still_uses_tag() {
+        // 最早的几个版本没挂附件，tag 兜底要留着，否则老用户永远查不到更新
+        val json = """[{"tag_name":"v1.5.0","html_url":"https://github.com/x/15","assets":[]}]"""
+        val r = parseReleasesForTest(json, "1.4.0")
         assertTrue(r.ok)
-        assertEquals("9.9.9.0", r.latest)
-        // 链接是「这个版本的发布页」，而不是安卓装不了的 .exe
-        assertEquals("https://github.com/x/9", r.url)
+        assertTrue(r.hasUpdate)
+        assertEquals("1.5.0.0", r.latest)
+        assertEquals("https://github.com/x/15", r.url)
     }
 
     @Test

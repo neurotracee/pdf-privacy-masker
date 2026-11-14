@@ -190,17 +190,32 @@ object Updater {
             val body = rel.optString("body")
             val strong = isStrongUpdate(body)
 
-            ver(rel.optString("tag_name"))?.let { v ->
-                val old = tagVer
-                if (old == null || cmp(v, old) > 0) {
-                    tagVer = v
-                    tagUrl = page
-                    tagStrong = strong
-                    tagBody = body
+            val assets = rel.optJSONArray("assets")
+            val names = ArrayList<String>()
+            if (assets != null) {
+                for (j in 0 until assets.length()) {
+                    names.add((assets.optJSONObject(j)?.optString("name") ?: "").lowercase())
+                }
+            }
+            // 这一版只给另一个平台发了包（例如只发 Windows 的 exe）时，安卓没有更新。
+            // 此时不能拿 tag 版本兜底，否则会提示一条下载不到 apk 的假更新。
+            val mineCount = names.count { it.endsWith(ASSET_SUFFIX) }
+            val anyPkg = names.count { it.endsWith(".exe") || it.endsWith(".apk") }
+            val otherOnly = anyPkg > 0 && mineCount == 0
+
+            if (!otherOnly) {
+                ver(rel.optString("tag_name"))?.let { v ->
+                    val old = tagVer
+                    if (old == null || cmp(v, old) > 0) {
+                        tagVer = v
+                        tagUrl = page
+                        tagStrong = strong
+                        tagBody = body
+                    }
                 }
             }
 
-            val assets = rel.optJSONArray("assets") ?: continue
+            if (assets == null) continue
             for (j in 0 until assets.length()) {
                 val a = assets.optJSONObject(j) ?: continue
                 val name = a.optString("name")

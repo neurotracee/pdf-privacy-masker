@@ -77,6 +77,10 @@ def allowed_download(url):
 # 在这里补 0 变成 (1,4,6,0)，与 1.4.6.0 视为同一版，历史 Release 照旧能比。
 VER_SEG = 4
 
+# 两个平台各自的安装包后缀。用来判断「这一版到底给谁发了包」：只发了一端时，
+# 另一端不该看到更新提示（Windows 与安卓的版本号是各自独立的，允许不同步）。
+PLATFORM_SUFFIXES = (".exe", ".apk")
+
 
 def ver_tuple(text):
     """把 v1.4.6.1 / 1.4.7 / 1.4.6.1-beta 之类统一成 (1,4,7,0)，取不出数字返回 None。"""
@@ -479,8 +483,15 @@ def parse_releases(data, suffix, page_fallback):
         tag = (rel.get("tag_name") or "").strip()
         body = rel.get("body") or ""
         strong = update_strong(body)
+        names = [str(a.get("name") or "").lower()
+                 for a in (rel.get("assets") or []) if isinstance(a, dict)]
+        mine = [n for n in names if n.endswith(suffix)]
+        # 这个版本只给「另一个平台」发了包（例如只发 Windows 的 exe）时，本平台
+        # 其实没有更新。此时不能再拿 tag 版本兜底，否则安卓会看到一条指向 exe
+        # 发布页、却下不到 apk 的假更新。一个包都没有的老版本才允许 tag 兜底。
+        other_only = bool([n for n in names if n.endswith(PLATFORM_SUFFIXES)]) and not mine
         tv = ver_tuple(tag)
-        if tv and (tag_only is None or tv > tag_only[0]):
+        if tv and not other_only and (tag_only is None or tv > tag_only[0]):
             tag_only = (tv, page, tag, strong, body)
         for a in rel.get("assets") or []:
             name = a.get("name") or ""
