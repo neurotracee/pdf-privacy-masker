@@ -10,7 +10,7 @@
 
 **中文** | [English](#pdf-privacy-masker)
 
-> **本项目此前已在 GitHub 发布，后首次同步至国内开源平台 Gitee（https://gitee.com/bio234/pdf-privacy-masker）**
+> **本项目此前已在 GitHub 发布，后于 2026 年 11 月 7 日首次同步至国内开源平台 Gitee（https://gitee.com/bio234/pdf-privacy-masker）**
 >
 > 注：GitHub 和 Gitee 这两个仓库都由同一名开发者维护，GitHub 建得更早。写这句是为了避免有人误以为其中一个是抄来的副本。
 
@@ -313,7 +313,7 @@ by the Free Software Foundation, either version 3 of the License, or
 
 [中文](#pdf-隐私打码工具) | **English**
 
-> **This project was originally published on GitHub, and was first mirrored to Gitee (https://gitee.com/bio234/pdf-privacy-masker), the domestic open-source platform, later on.**
+> **This project was originally published on GitHub, and was first mirrored to Gitee (https://gitee.com/bio234/pdf-privacy-masker), the domestic open-source platform, on 7 November 2026.**
 >
 > Note: this GitHub repository and the Gitee repository above are owned by the same developer. The GitHub repository was created earlier — stating this here so nobody mistakes one for a copy of the other.
 
