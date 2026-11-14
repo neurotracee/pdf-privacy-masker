@@ -1,4 +1,4 @@
-PDF 隐私打码工具 · 使用说明  v1.4.7.0（Windows）
+PDF 隐私打码工具 · 使用说明  v1.4.6.1（Windows）
 ================================================
 
 完整说明、版本更新记录、常见问题都在开源仓库：
@@ -7,7 +7,7 @@ https://github.com/neurotracee/pdf-privacy-masker
 
 
 【一、开始用】
-1. 双击 PDFPrivacyMasker-1.4.7.0.exe。
+1. 双击 PDFPrivacyMasker-1.4.6.1.exe。
 2. 界面会自己在浏览器里打开（地址 127.0.0.1 的随机端口，只有本机能访问）。
 3. 把 PDF 拖进虚线框，或点「选择 PDF 文件」。
 4. 等 1-2 秒，识别结果逐条列在左边，右边是页面预览（扫描件慢一些，每页约 1 秒）。
@@ -88,7 +88,7 @@ https://github.com/neurotracee/pdf-privacy-masker
 
 
 【九、文件位置】
-程序本体：PDFPrivacyMasker-1.4.7.0.exe（就在这个文件夹里；
+程序本体：PDFPrivacyMasker-1.4.6.1.exe（就在这个文件夹里；
           若已被改名为「PDF隐私打码工具.exe」，那是同一个文件）
 整个文件夹可以拷到别处或 U 盘直接用，换电脑也不需要安装。
 （挪动位置后，桌面快捷方式要右键→属性→重新指向新的 exe）

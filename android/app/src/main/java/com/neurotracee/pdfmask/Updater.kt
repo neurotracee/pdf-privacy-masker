@@ -243,7 +243,7 @@ object Updater {
 
     fun isStrongUpdate(body: String?): Boolean = !body.isNullOrBlank() && STRONG_RE.containsMatchIn(body)
 
-    /** 取版本号的前四段（主.次.修订.补丁）；不足四段补 0，取不到返回 null */
+    /** 取版本号的前四段（主.次.修订.小版本）；不足四段补 0，取不到返回 null */
     fun ver(text: String): IntArray? {
         val m = VER_RE.find(text) ?: return null
         return intArrayOf(
@@ -254,7 +254,7 @@ object Updater {
         )
     }
 
-    /** 四段版本号：主.次.修订.补丁。老的三段写法（1.4.6）在这里补 0，与 1.4.6.0 同版 */
+    /** 四段版本号：主.次.修订.小版本。老的三段写法（1.4.6）在这里补 0，与 1.4.6.0 同版 */
     private val VER_RE = Regex("(\\d+)\\.(\\d+)(?:\\.(\\d+))?(?:\\.(\\d+))?")
 
     fun cmp(a: IntArray, b: IntArray): Int {

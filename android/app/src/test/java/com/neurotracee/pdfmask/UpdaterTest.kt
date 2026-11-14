@@ -16,15 +16,15 @@ class UpdaterTest {
 
     @Test
     fun ver_parses_common_forms() {
-        // 版本号统一四段：主.次.修订.补丁。三段写法补 0，与四段同版
+        // 版本号统一四段：主.次.修订.小版本。三段写法补 0，与四段同版
         assertEquals(4, Updater.ver("1.4.0")!!.size)
         assertEquals(listOf(1, 4, 0, 0), Updater.ver("v1.4.0")!!.toList())
         assertEquals(listOf(1, 4, 0, 0), Updater.ver("PDFPrivacyMasker-1.4.0-arm64.apk")!!.toList())
         assertEquals(listOf(1, 5, 2, 0), Updater.ver("PDFPrivacyMasker-1.5.2.exe")!!.toList())
         assertEquals(listOf(2, 0, 0, 0), Updater.ver("2.0")!!.toList())
         // 四段版本号本身
-        assertEquals(listOf(1, 4, 7, 0), Updater.ver("v1.4.7.0")!!.toList())
-        assertEquals(listOf(1, 4, 7, 1), Updater.ver("PDFPrivacyMasker-1.4.7.1-arm64.apk")!!.toList())
+        assertEquals(listOf(1, 4, 6, 1), Updater.ver("v1.4.6.1")!!.toList())
+        assertEquals(listOf(1, 4, 6, 2), Updater.ver("PDFPrivacyMasker-1.4.6.2-arm64.apk")!!.toList())
         assertEquals(null, Updater.ver("no-version-here"))
     }
 
@@ -35,9 +35,11 @@ class UpdaterTest {
         assertTrue(Updater.cmp(Updater.ver("1.4.0")!!, Updater.ver("1.10.0")!!) < 0)
         // 1.4.6 与 1.4.6.0 是同一版，不算更新
         assertTrue(Updater.cmp(Updater.ver("1.4.6")!!, Updater.ver("1.4.6.0")!!) == 0)
-        // 补丁段能拉开新旧，这是四段版本号存在的意义
-        assertTrue(Updater.cmp(Updater.ver("1.4.7.1")!!, Updater.ver("1.4.7.0")!!) > 0)
-        assertTrue(Updater.cmp(Updater.ver("1.4.7.0")!!, Updater.ver("1.4.7")!!) == 0)
+        // 小版本段能拉开新旧：日常发版就动这一位，这是四段版本号存在的意义
+        assertTrue(Updater.cmp(Updater.ver("1.4.6.2")!!, Updater.ver("1.4.6.1")!!) > 0)
+        assertTrue(Updater.cmp(Updater.ver("1.4.6.1")!!, Updater.ver("1.4.6")!!) > 0)
+        // 大版本（第三位）永远压过小版本（第四位）：1.4.7.0 > 1.4.6.9
+        assertTrue(Updater.cmp(Updater.ver("1.4.7.0")!!, Updater.ver("1.4.6.9")!!) > 0)
     }
 
     @Test

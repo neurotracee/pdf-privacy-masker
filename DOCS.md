@@ -213,7 +213,7 @@ pdf-privacy-masker/
 **D. 发 Release（安装包）**
 
 1. 仓库右侧「Releases」→「Draft a new release」。
-2. Tag 填 `v<版本号>`（四段写法，例：`v1.4.7.0`），标题写这一版最要紧的那件事。
+2. Tag 填 `v<版本号>`（四段写法，例：`v1.4.6.1`），标题写这一版最要紧的那件事。
 3. 说明直接从 `CHANGELOG.md` 复制这一版的内容。
 4. 附件上传 `PDFPrivacyMasker-<版本号>.exe` 与 `PDFPrivacyMasker-<版本号>-arm64.apk`——**文件名一个字符都不要改**，检查更新靠它读版本号。
 5. 发布后，两端各点一次「检查更新」验证。

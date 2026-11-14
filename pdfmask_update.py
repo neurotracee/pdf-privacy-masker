@@ -73,13 +73,13 @@ def allowed_download(url):
 
 # ---------------------------------------------------------------- 版本号工具
 
-# 版本号统一四段：主.次.修订.补丁（例：1.4.7.0）。老的三段版本号（1.4.6）
+# 版本号统一四段：主.次.修订.小版本（例：1.4.6.1）。老的三段版本号（1.4.6）
 # 在这里补 0 变成 (1,4,6,0)，与 1.4.6.0 视为同一版，历史 Release 照旧能比。
 VER_SEG = 4
 
 
 def ver_tuple(text):
-    """把 v1.4.7.0 / 1.4.7 / 1.4.7.0-beta 之类统一成 (1,4,7,0)，取不出数字返回 None。"""
+    """把 v1.4.6.1 / 1.4.7 / 1.4.6.1-beta 之类统一成 (1,4,7,0)，取不出数字返回 None。"""
     nums = re.findall(r"\d+", text or "")
     if not nums:
         return None
@@ -90,12 +90,12 @@ def ver_tuple(text):
 
 
 def ver_text(t):
-    """(1,4,7,0) → "1.4.7.0"。界面和弹窗显示版本号都走这里，避免手写格式。"""
+    """(1,4,7,0) → "1.4.6.1"。界面和弹窗显示版本号都走这里，避免手写格式。"""
     return ".".join(str(x) for x in t)
 
 
 def asset_ver(name):
-    """从文件名里抠版本：PDFPrivacyMasker-1.4.7.0.exe → (1,4,7,0)。"""
+    """从文件名里抠版本：PDFPrivacyMasker-1.4.6.1.exe → (1,4,7,0)。"""
     m = re.search(r"(\d+\.\d+(?:\.\d+){0,2})", name or "")
     return ver_tuple(m.group(1)) if m else None
 
@@ -508,7 +508,7 @@ def parse_releases(data, suffix, page_fallback):
 def check_update(current, suffix, t, ui_lang=None, source=None, order=None):
     """返回给界面的字典。任何失败都转成 ok=False + 兜底链接，绝不让界面卡住。
 
-    current : 当前版本号（四段，例如 1.4.7.0；老的三段写法会自动补 0）
+    current : 当前版本号（四段，例如 1.4.6.1；老的三段写法会自动补 0）
     suffix  : 本平台安装包后缀（.exe / .apk）
     t       : 中英双语翻译函数 t(zh, en)
     source  : 设置里的更新源："auto" / "gitee" / "github"

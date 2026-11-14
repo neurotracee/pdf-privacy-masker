@@ -398,7 +398,7 @@ def main():
                     if ln.strip().startswith(("P1", "P2", "P3", "P4", "P5", "P6", "P7", "P8"))]
             print("\n".join(keep[:14]))
 
-    # 版本号统一四段（主.次.修订.补丁），三处必须对得上，否则「检查更新」会误判新旧
+    # 版本号统一四段（主.次.修订.小版本），三处必须对得上，否则「检查更新」会误判新旧
     print("\n[17] 版本号四段且三处一致")
     root = os.path.dirname(HERE)
     ver_py = pdfmask.VERSION
@@ -433,6 +433,12 @@ def main():
     readme_txt = _read("README.md")
     check("README 中文段写了怎么装", "已知悉应用风险" in readme_txt)
     check("README 英文段写了怎么装", "Install anyway" in readme_txt)
+    check("README 解释了「信息将被第三方收集」", "信息将被第三方收集" in readme_txt
+          and "third parties" in readme_txt)
+    check("README 写明只连两个仓库", "gitee.com" in readme_txt and "github.com" in readme_txt)
+    rel_notes = _read("release/v1.4.6.1/RELEASE-NOTES.md")
+    check("发布正文开头也带这三段", "信息将被第三方收集" in rel_notes
+          and "不上传" in rel_notes and "gitee.com" in rel_notes)
     faq_txt = _read("docs/04-常见问题.md")
     check("常见问题里有 ADV 词条", "ADV" in faq_txt and "未验证" in faq_txt)
     notes_kt = _read("android/app/src/main/java/com/neurotracee/pdfmask/ui/UpdateNotes.kt")

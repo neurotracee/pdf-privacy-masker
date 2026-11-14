@@ -4,8 +4,10 @@
 
 更新级别：建议（主要是扫描件识别准确率；另把版本号格式改成四段）
 
-> 版本号：**1.4.7.0**。从这一版起版本号改成四段写法 `主.次.修订.补丁`，
-> 第四位留给「刚发出去就得马上修」的紧急补丁，平时发版写 0。规则见 `CONTRIBUTING.md` 第 4 节。
+> 版本号：**1.4.6.1**。这一版只动**第四位**——它是「小版本」，日常修缺陷、改文案、补文档就动它。
+> 从这一版起版本号统一写成四段 `主.次.修订.小版本`：越靠右越细、动得越勤；
+> 第三位才是「大版本」（成体系的新能力，如 v1.4.6 的扫描件 OCR），
+> 第二位留给多项大改合并发布，第一位要等整代翻新。规则见 `CONTRIBUTING.md` 第 4 节。
 
 > **一句话**：拿 8 页真实单据当刁难文档压测扫描件，暴露出 6 处识别缺陷，全部修掉；刁难文档 4.0 现在 86 条真值全过。
 
@@ -46,10 +48,16 @@
   勾选「已知悉应用风险」→ 仍然安装即可，并说明这是国内四大厂 2026 年 11 月起的校验、
   不是包坏了、每次更新都会再提示。与发布正文是否为空无关，永远显示——用户点「下载」前
   唯一一定会看到的位置就是这里。
-- 安卓安装说明与常见问题新增 **ADV「未验证应用提醒」** 一节：这是 2026 年 11 月 9 日起
-  OPPO / vivo / 小米 / 荣耀 对侧载 apk 的开发者实名校验，与安装包本身无关。
-  写明「勾选『已知悉应用风险』→ 仍然安装」的处理办法、按钮变灰的两种原因、
-  国内这套只提醒不拦截、没有海外 24 小时等待，以及**把包发给别人时该一起说什么**。
+- **README 开头新增三段说明**（中英双语）：① 为什么会弹「开发者身份未验证」——四家 ADV 需本人身份证、
+  实名银行卡与人脸活体，作者未成年、拿不到本人实名的银行卡，因此无法完成，提示会一直存在但不阻止安装；
+  ② 为什么会提示「信息将被第三方收集」——系统安装器对所有非商店来源包的模板文案，本程序没有第三方 SDK；
+  ③ 唯一的联网权限是自动/手动检查更新，只连 Gitee 与 GitHub 两个仓库，不上传任何文件或个人信息。
+- **README 章节顺序调整**：把「界面」整节移到「打码效果演示」之后（先看效果、再看界面），只搬位置，
+  正文一字未改，英文半边同步。隐私说明补了「没有第三方 SDK」「联网只到两个域名」两条。
+- **新写 `release/v1.4.6.1/RELEASE-NOTES.md`**：开头先放同样三段说明，再列本版改动；
+  `release/v1.4.6/RELEASE-NOTES.md` 也补了这三段（该版本仍是当前下载页）。
+- 安卓安装说明与常见问题新增 **ADV「未验证应用提醒」** 与**「信息将被第三方收集」**两条问答，
+  并写了「把安装包发给别人时该一起说什么」。
 - `docs/06` 发布清单新增一条：Release 正文必须带同一段说明，应用内与发布页两处都要有。
 - 新增 `dev/sign_adv_empty_apk.py`：用发版密钥给平台的「含签名 APK 空包」签名，
   并核对指纹与正式发版 apk 一致（ADV 应用验证用；本项目暂未做验证）。
@@ -68,9 +76,12 @@
 
 # Unreleased (main)
 
-> **Version**: **1.4.7.0**. From this release on, versions use four parts
-> (`major.minor.patch.build`); the fourth part is reserved for emergency hotfixes and
-> stays `0` for normal releases.
+> **Version**: **1.4.6.1**. This release only moves the **fourth part** — the "small" slot
+> used for everyday fixes, wording and docs. Versions are now four parts
+> (`major.minor.feature.small`): the further right, the finer and the more often it moves.
+> The third part is for a "big" release (a whole new capability, such as the scanned-PDF OCR
+> in v1.4.6), the second for several big changes shipped together, and the first only when a
+> generation turns over.
 
 > **One line**: An 8-page adversarial scan suite exposed six OCR defects — all fixed; 86/86 expected values now pass.
 

@@ -92,7 +92,7 @@ Downloads happen in-app and are verified before being handed to the installer.
 
 
 def _ver_key(name):
-    """v1.4.7.0 / v1.4.6 / v1.4 → 四段元组，用于挑最新一版（老的三段写法补 0）"""
+    """v1.4.6.1 / v1.4.6 / v1.4 → 四段元组，用于挑最新一版（老的三段写法补 0）"""
     m = re.match(r"^v(\d+)\.(\d+)(?:\.(\d+))?(?:\.(\d+))?$", name)
     if not m:
         return None
@@ -165,14 +165,14 @@ def main():
     # 走一遍真实入口：解析 GitHub 的 releases JSON
     got = U.parse_releases(json.loads(json.dumps(fake_release(body))), ".exe", U.GITHUB_PAGE)
     check("能从资产名认出最新版", got and U.ver_text(got["ver"]) == "1.4.4.0")
-    # 四段版本号（主.次.修订.补丁）的解析与排序
-    four = U.asset_ver("PDFPrivacyMasker-1.4.7.0.exe")
-    check("四段版本号能认出来", four == (1, 4, 7, 0), str(four))
+    # 四段版本号（主.次.修订.小版本）的解析与排序
+    four = U.asset_ver("PDFPrivacyMasker-1.4.6.1.exe")
+    check("四段版本号能认出来", four == (1, 4, 6, 1), str(four))
     check("四段比三段新", bool(four) and four > (U.ver_tuple("1.4.6") or ()))
     check("1.4.6 与 1.4.6.0 是同一版",
           U.ver_tuple("1.4.6") == U.ver_tuple("1.4.6.0"))
-    check("补丁段能拉开新旧（1.4.7.1 > 1.4.7.0）",
-          (U.ver_tuple("1.4.7.1") or ()) > (U.ver_tuple("1.4.7.0") or ()))
+    check("小版本段能拉开新旧（1.4.6.2 > 1.4.6.1）",
+          (U.ver_tuple("1.4.6.2") or ()) > (U.ver_tuple("1.4.6.1") or ()))
     check("正文被带回来了", got and got.get("body") == body)
 
     d = U.parse_digest(got["body"])
@@ -190,8 +190,10 @@ def main():
     items = d["notes"]["zh"]
     check("中文条目数量合理（%d 条）" % len(items), 3 <= len(items) <= U.MAX_ITEMS)
     plats = [it["p"] for it in items]
-    check("有条目标成 Windows", "win" in plats, str(plats))
-    check("有条目标成安卓", "android" in plats, str(plats))
+    # 平台标注要能分出两类。不强制必须有「只在 Windows」的条目——
+    # 像 1.4.6.1 这种整版都是两端同步改的版本，标成「两端」才是对的。
+    check("有一条标成两端", "both" in plats, str(plats))
+    check("有一条标成安卓", "android" in plats, str(plats))
     check("每条都有标题和正文",
           all(it["t"] and it.get("b") for it in items))
     check("标题里不再残留平台标注",

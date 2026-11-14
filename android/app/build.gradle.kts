@@ -11,10 +11,10 @@ val keystoreProps = Properties().apply {
     if (keystorePropsFile.exists()) FileInputStream(keystorePropsFile).use { load(it) }
 }
 
-// 版本号统一四段：主.次.修订.补丁（与 Windows 端完全一致，见 CONTRIBUTING.md）。
+// 版本号统一四段：主.次.修订.小版本（与 Windows 端完全一致，见 CONTRIBUTING.md）。
 // versionCode 由 versionName 直接算出来，只改这一个字符串，不会再出现两处对不上。
-// 映射：主*1000000 + 次*10000 + 修订*100 + 补丁（例：1.4.7.0 → 1040700）。
-val appVersionName = "1.4.7.0"
+// 映射：主*1000000 + 次*10000 + 修订*100 + 小版本（例：1.4.6.1 → 1040601）。
+val appVersionName = "1.4.6.1"
 val appVersionCode = appVersionName
     .split(".")
     .map { it.trim().toInt() }
