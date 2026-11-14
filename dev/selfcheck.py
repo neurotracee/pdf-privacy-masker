@@ -386,8 +386,12 @@ def main():
                            env=ENV)
         rep = r.stdout or ""
         line = [ln.strip() for ln in rep.splitlines() if ln.startswith("合计 ")]
-        ok = r.returncode == 0
-        check("扫描件刁难文档：隐私全打、干扰项不误伤", ok, line[0] if line else "见下方输出")
+        if r.returncode == 3:
+            print("  [SKIP] 本机没有中英文混排字体，样张会失真，跳过（不影响其余功能）")
+            ok = True
+        else:
+            ok = r.returncode == 0
+            check("扫描件刁难文档：隐私全打、干扰项不误伤", ok, line[0] if line else "见下方输出")
         if not ok:
             keep = [ln for ln in rep.splitlines()
                     if ln.strip().startswith(("P1", "P2", "P3", "P4", "P5", "P6", "P7", "P8"))]

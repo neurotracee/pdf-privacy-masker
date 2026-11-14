@@ -57,6 +57,9 @@ def gen():
     spec = importlib.util.spec_from_file_location("gen4", GEN)
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
+    if not mod.FF:
+        # 没有中英混排字体时，内置 china-s 会把 ASCII 画成全角，样张失真、结果没有意义
+        return None
     mod.build()
     with open(TRUTH, encoding="utf-8") as f:
         return json.load(f)
@@ -186,6 +189,10 @@ def main():
               % (os.path.basename(SRC), truth["pages"], len(truth["cases"])))
     else:
         truth = gen()
+        if truth is None:
+            print("  [SKIP] 本机没有中英混排字体，样张会失真，跳过")
+            print("         Linux 上装 fonts-noto-cjk 即可让这项真正跑起来")
+            return 3
         print("生成：%s（%d 页，%d 条真值）"
               % (os.path.basename(SRC), truth["pages"], len(truth["cases"])))
     cases = truth["cases"]
