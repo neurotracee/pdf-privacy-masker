@@ -210,7 +210,7 @@ https://api.github.com/repos/neurotracee/pdf-privacy-masker/releases
 
 ## 八、以后每次发版，只要三步
 
-1. 改三处版本号：`pdfmask.py` 的 `VERSION`、`version_info.txt` 两处、`android/app/build.gradle.kts` 的 `versionCode` 和 `versionName`。
+1. 改三处版本号：`pdfmask.py` 的 `VERSION`、`version_info.txt` 两处、`android/app/build.gradle.kts` 的 `appVersionName`（安卓的 `versionCode` 会自动算出来，不用手填）。版本号写四段，例 `1.4.7.0`。
 2. 打包，把产物按 `PDFPrivacyMasker-<新版本>.exe`、`PDFPrivacyMasker-<新版本>-arm64.apk` 命名，放到 `release/<新版本>/`。
 3. 回到本文第二节，把文中的 `v<版本号>` 全部替换成新版本号，正文换成 `CHANGELOG.md` 新增的那一节——**别忘了第一行那句「更新级别：建议」**，删掉它等于按建议处理；想让提醒更重就写成 `更新级别：强烈建议`，但两档都关得掉。
 
