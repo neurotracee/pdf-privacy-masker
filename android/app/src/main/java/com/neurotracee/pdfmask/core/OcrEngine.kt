@@ -46,6 +46,7 @@ object OcrEngine {
 
     /** 渲染页面用的 DPI（180 相当于 2.5 倍缩放），识别裁剪要够清晰 */
     const val RENDER_DPI = 180
+    const val PAD_RATIO = 0.85f
 
     private val MEAN = floatArrayOf(0.485f, 0.456f, 0.406f)
     private val STD = floatArrayOf(0.229f, 0.224f, 0.225f)
@@ -357,7 +358,8 @@ object OcrEngine {
             var Y1 = (b[3] * inv).toInt() + 1
             // 检测框常常比字形窄一点，按字高比例补边：识别看得全，打码也盖得住
             val h = (Y1 - Y0).coerceAtLeast(1)
-            val padX = max(2, (h * 0.45f).roundToInt())
+            // 0.45 时末位数字常被切掉半个，放宽到 0.85（与 Windows 端 PAD_RATIO 对齐）
+            val padX = max(2, (h * PAD_RATIO).roundToInt())
             val padY = max(2, (h * 0.20f).roundToInt())
             val cx0 = (X0 - padX).coerceAtLeast(0)
             val cy0 = (Y0 - padY).coerceAtLeast(0)

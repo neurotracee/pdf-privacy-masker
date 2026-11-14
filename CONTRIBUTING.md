@@ -85,6 +85,7 @@ python dev/selfcheck.py
 | **更新检查 / 版本号解析** | 跑 `python dev/test_source_pick.py`（默认源规则）和 `python dev/test_release_digest.py`（发布正文拆分）；两端逻辑是两份实现（Python + Kotlin），**改一端必须同步另一端** |
 | **安卓端** | 跑 `gradle testReleaseUnitTest`；规则相关的逻辑要与 Windows 端对齐（已有对照测试盯着这件事） |
 | **OCR / 扫描件识别** | 跑 `python dev/test_ocr_redact.py`（造无文字层表单 → 识别 → 打码 → 再 OCR 复核读不出）；两端实现同构，**改一端必须同步另一端**；换了模型要么改，要么把 `assets/ocr/README.md` 里的 SHA-256 一起更新 |
+| **刁难文档 4.0（8 页扫描件）** | 跑 `python dev/test_hard4.py`；三项必须同时为真：漏检 0、泄漏 0、误伤 0。只盯「泄漏」会被整页涂黑骗过，只盯「漏检」则测不出有没有真抹掉 |
 | **界面文案 / 帮助文字** | 中英文都要改，`README.md` 与 `docs/` 里同一处说法要跟着变 |
 | **新增依赖** | 更新 `requirements.txt`（或 `build.gradle.kts`）与 `NOTICE.md`，并确认许可兼容（AGPL-3.0 能用的库才能进） |
 

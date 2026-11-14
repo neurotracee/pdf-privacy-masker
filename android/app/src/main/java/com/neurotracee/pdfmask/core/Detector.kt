@@ -232,6 +232,16 @@ object Detector {
         fun addName(s0: Int, e0: Int, cand0: String) {
             var e = e0
             var cand = (cand0).trim()
+            // 「派件员:吴强工号8823」这类行，标签值会把下一个字段名一起吃进来，
+            // 在第一个字段名处截断，否则整个名字都判不合法、直接漏掉。
+            for (w in T.NAME_CUT) {
+                val k = cand.indexOf(w)
+                if (k > 0) {
+                    e -= cand.length - k
+                    cand = cand.substring(0, k)
+                    break
+                }
+            }
             while (cand.isNotEmpty() && cand.last() in PUNCT) {
                 cand = cand.dropLast(1)
                 e--
@@ -276,6 +286,15 @@ object Detector {
         // 3. 手机号
         for (rx in listOf(T.RE_MOBILE, T.RE_MOBILE_SEP)) {
             for (m in rx.findAll(text)) add(Kind.PHONE, m.range.first, m.range.last + 1, m.value)
+        }
+        // 3.1 标签兜底：识别偶发把末位读丢（139-1111-2222 → 139-1111-222），
+        //     差一位就整条不认。有手机号标签、后面是 9~12 位号码形态就按手机号打。
+        for (m in T.RE_MOBILE_LABEL.findAll(text)) {
+            val g = m.groups[1] ?: continue
+            val dg = g.value.count { it in '0'..'9' }
+            if (dg in 9..12) {
+                add(Kind.PHONE, g.range.first, g.range.first + g.value.length, g.value.trim(), "标签兜底")
+            }
         }
 
         // 3.5 长数字串拆分（表格相邻单元格无分隔时会粘成一串）
@@ -337,6 +356,13 @@ object Detector {
 
         // 4. 邮箱
         for (m in T.RE_EMAIL.findAll(text)) add(Kind.EMAIL, m.range.first, m.range.last + 1, m.value)
+        for (m in T.RE_EMAIL_LABEL.findAll(text)) {
+            val g = m.groups[1] ?: continue
+            val v = g.value.trimEnd('.')
+            if (v.length >= 6 && v.contains('@')) {
+                add(Kind.EMAIL, g.range.first, g.range.first + v.length, v, "标签兜底")
+            }
+        }
         if (text.contains(' ') && text.contains('@')) {
             val idx = text.indices.filter { text[it] != ' ' }
             val flat = idx.map { text[it] }.joinToString("")

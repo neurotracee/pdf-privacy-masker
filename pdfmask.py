@@ -185,8 +185,19 @@ BIRTH_CTX = re.compile(r"(出生|生日|生于|诞辰|DOB|birth)", re.I)
 
 RE_MOBILE = re.compile(r"(?<![0-9])1[3-9][0-9]{9}(?![0-9])")
 RE_MOBILE_SEP = re.compile(r"(?<![0-9])1[3-9][0-9][\s\-][0-9]{4}[\s\-][0-9]{4}(?![0-9])")
-RE_TEL = re.compile(r"(?<![0-9\-])0[0-9]{2,3}[\-\s]?[0-9]{7,8}(?:[\-转][0-9]{1,6})?(?![0-9])")
+RE_TEL = re.compile(r"(?<![0-9\-])\(?0[0-9]{2,3}\)?[\-\s]?[0-9]{3,4}[\-\s]?[0-9]{4}(?:[\-\s]?[转][0-9]{1,6})?(?![0-9])")
 RE_TEL_LABEL = re.compile(r"(?:座机|固话|办公电话|联系电话|电话|传真|Tel|TEL)\s*[:：]?\s*([0-9][0-9\-\s\(\)]{6,20})")
+# 扫描件里域名可能被认丢一个点（example.cn → example.n），此时 TLD 校验会整条丢掉；
+# 有「邮箱」标签就按整段打，别让一个点的识别误差决定隐私去留。
+RE_EMAIL_LABEL = re.compile(
+    r"(?:电子邮箱|邮箱地址|邮箱|E-?mail|邮\s*件)\s*(?:是|为)?\s*[:：]?\s*"
+    r"([A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+)"
+)
+# 号码前的标签：OCR 把末位读丢时，靠它兜底（见 _scan_line 第 3.1 步）
+RE_MOBILE_LABEL = re.compile(
+    r"(?:手机号码|手机号|手机|移动电话|联系方式|联系电话|联系号码)\s*(?:是|为)?\s*[:：]?\s*"
+    r"([0-9][0-9\-\s]{7,17}[0-9])"
+)
 RE_EMAIL = re.compile(r"[A-Za-z0-9._%+\-]+@[A-Za-z0-9\-]+(?:\.[A-Za-z0-9\-]+)*\.[A-Za-z]{2,}")
 RE_ID18 = re.compile(r"(?<![0-9A-Za-z])[0-9]{17}[0-9Xx](?![0-9A-Za-z])")
 RE_ID15 = re.compile(r"(?<![0-9A-Za-z])[0-9]{15}(?![0-9A-Za-z])")
@@ -207,10 +218,14 @@ RE_BANK_LABEL_FB = re.compile(
     r"([0-9][0-9 \-]{14,24})"
 )
 
+_NAME_CUT = ("工号", "手机", "电话", "身份", "性别", "年龄", "邮箱", "地址", "联系",
+             "关系", "职务", "部门", "签字", "日期", "单位", "公司", "学号", "班级")
+
 RE_NAME_LABEL = re.compile(
     r"(?:姓\s*名|名\s*字|申请人|联系人|客户姓名|被保险人|投保人|持卡人|户\s*名|开户名|收件人|签收人|"
     r"员工姓名|本人姓名|签字人|经办人|授权人|委托人|代理人|核验人|审核人|证明人|见证人|收款人|"
-    r"配偶|父亲|母亲)\s*[:：]?\s*"
+    r"配偶|父亲|母亲|寄件人|派件人|派件员|快递员|投递员|接收人|材料接收人|受益人|监护人|接送人|"
+    r"学生姓名|学员姓名|家属|紧急联系人)\s*[:：]?\s*"
     r"([\u4e00-\u9fa5·]{2,8})"
 )
 RE_NAME_HONOR = re.compile(r"([\u4e00-\u9fa5·]{2,4})(?=先生|女士|同学|老师|经理|总监)")
@@ -828,6 +843,13 @@ def _scan_line(text, entries, pno):
     for rx in (RE_MOBILE, RE_MOBILE_SEP):
         for m in rx.finditer(text):
             add("phone", m.start(), m.end(), m.group(0))
+    # 3.1 标签兜底：扫描件的识别偶发「末位数字丢掉」（139-1111-2222 读成 139-1111-222），
+    #     正则就因为差一位而全盘不认。只要同一行有手机号标签、后面确实是 9~12 位的号码形态，
+    #     就按手机号打掉——少打一块的代价是隐私泄漏，多打一块的代价只是那一小块糊了。
+    for m in RE_MOBILE_LABEL.finditer(text):
+        val = m.group(1)
+        if 9 <= len(re.sub(r"[^0-9]", "", val)) <= 12:
+            add("phone", m.start(1), m.end(1), val.strip(), "标签兜底")
 
     # 3.5 长数字串拆分：表格里相邻单元格没有分隔时，
     #     「手机号 + 身份证号」会被拼成一整串 29 位数字，正则的边界断言全部失效。
@@ -893,6 +915,11 @@ def _scan_line(text, entries, pno):
             if s1 - s0 > m.end() - m.start():
                 add("email", s0, s1, m.group(0), "字距还原")
 
+    for m in RE_EMAIL_LABEL.finditer(text):
+        val = m.group(1).rstrip(".")
+        if len(val) >= 6 and "@" in val:
+            add("email", m.start(1), m.start(1) + len(val), val, "标签兜底")
+
     # 5. 座机（0xx-xxxxxxxx / 带标签的电话号码）
     for m in RE_TEL.finditer(text):
         add("tel", m.start(), m.end(), m.group(0))
@@ -945,6 +972,14 @@ def _scan_line(text, entries, pno):
     # 10. 姓名：保留姓氏，只打码名字
     def add_name(s, e, cand):
         cand = (cand or "").strip()
+        # 「派件员:吴强工号8823」这类行，标签值会把后面的字段名一起吃进来，
+        # 在第一个字段名处截断，否则整个名字都判不合法、直接漏掉。
+        for w in _NAME_CUT:
+            k = cand.find(w)
+            if k > 0:
+                e -= len(cand) - k
+                cand = cand[:k]
+                break
         while cand and cand[-1] in _PUNCT:
             cand = cand[:-1]
             e -= 1

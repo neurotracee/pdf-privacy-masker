@@ -377,6 +377,22 @@ def main():
             if not ok:
                 print((r.stdout or "")[-1200:])
 
+    print("\n[16] 刁难文档 4.0：8 页扫描件 / 多人物多号码")
+    if not ready:
+        print("  [SKIP] 同上，没有 OCR 环境")
+    else:
+        r = subprocess.run([sys.executable, os.path.join(HERE, "test_hard4.py"), "--reuse"],
+                           capture_output=True, text=True, encoding="utf-8", errors="replace",
+                           env=ENV)
+        rep = r.stdout or ""
+        line = [ln.strip() for ln in rep.splitlines() if ln.startswith("合计 ")]
+        ok = r.returncode == 0
+        check("扫描件刁难文档：隐私全打、干扰项不误伤", ok, line[0] if line else "见下方输出")
+        if not ok:
+            keep = [ln for ln in rep.splitlines()
+                    if ln.strip().startswith(("P1", "P2", "P3", "P4", "P5", "P6", "P7", "P8"))]
+            print("\n".join(keep[:14]))
+
     print("\n" + "=" * 72)
     print("产物目录:", OUT_DIR, "（不在仓库内，git 工作区保持干净）")
     print("自检结论:", "全部通过" if ok_all else "存在未通过项")

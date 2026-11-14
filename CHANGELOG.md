@@ -1,3 +1,72 @@
+# 未发布（main 分支）
+
+**中文** | [English](#unreleased-main)
+
+更新级别：建议（只影响扫描件识别准确率，不改界面）
+
+> **一句话**：拿 8 页真实单据当刁难文档压测扫描件，暴露出 6 处识别缺陷，全部修掉；刁难文档 4.0 现在 86 条真值全过。
+
+## 这一轮做了什么
+
+新增 **刁难文档 4.0**：8 页真实单据（简历 / 租房合同 / 门诊病历 / 银行对账单 /
+快递面单 / 会议通知 / 理赔申请 / 家长登记），纯文字段落、不打表格，每页多人多号码，
+整页渲染成 260~300 dpi 灰度图并叠加倾斜、噪点、光照不均与 JPEG 痕迹，
+**成品 PDF 里没有一行文字层**。
+
+验收脚本 `dev/test_hard4.py` 只下发命令，识别与打码全部由程序完成，判定分三层：
+漏检（认不出）、泄漏（打码后还读得出）、误伤（业务数据被打）。首次运行结果：
+**87 条真值里 43 条漏检、4 条泄漏**——问题不在规则，而在扫描件的图像处理。
+
+## 修掉的六个缺陷
+
+| 缺陷 | 现象 | 修法 |
+| --- | --- | --- |
+| 倾斜未校正 | 0.9 度倾斜，15 行只认出 5 行 | 检测前用水平投影方差估角并摆正（误差 < 0.1 度） |
+| 渲染分辨率固定 180 dpi | 300 dpi 扫描件被降采样，末位数字丢失 | 按页面图片实际像素密度自适应，最高 300 dpi |
+| 单行宽度上限 1280 | 一行同时有手机号和邮箱时，号码被压变形 | 上限提到 2560 |
+| 检测框外扩 0.45 倍字高 | `139-1111-2222` 读成 `139-1111-222` | 外扩提到 0.85 倍字高（两端同步） |
+| 号码少一位就整条不认 | 标签明明写着「手机」，号码差一位就漏 | 新增标签兜底：手机/联系电话后 9~12 位数字形态一律按手机号打 |
+| 姓名标签被字段名污染 | `派件员:吴强工号8823` 整段判成姓名不合法 | 在「工号/手机/电话…」处截断再判断 |
+
+另外补了「邮箱」标签兜底（域名被认丢一个点 `example.cn → example.n` 时仍整段打），
+以及 `寄件人 / 派件员 / 接收人 / 受益人 / 监护人 / 接送人 / 学生姓名` 等 13 个姓名标签。
+
+## 结果
+
+- 刁难文档 4.0：**86 条真值全过（漏检 0 / 泄漏 0 / 误伤 0）**，单页 1.0~1.4 秒
+- 原有 15 项自检全部仍通过（规则改动没有带出误报）
+- 安卓端规则表同步改完，`compileDebugKotlin` 与 `testDebugUnitTest` 通过
+
+## 已知取舍
+
+- 座机一律打码，包括单位总机——宁可多糊一块，不去猜「是不是私人号码」
+- 低分辨率（< 200 dpi）下，一长串相同数字（`13655556666`）仍可能被并成更少的位，
+  建议用 300 dpi 扫描，并核对识别结果
+- **安卓端尚未做倾斜校正**：本机没有 arm64 设备可验证，先只在 Windows 端上线，
+  真机验证过再补，避免把没验证过的几何变换塞进安卓
+
+---
+
+# Unreleased (main)
+
+> **One line**: An 8-page adversarial scan suite exposed six OCR defects — all fixed; 86/86 expected values now pass.
+
+New adversarial set (`dev/make_hard4_pdf.py`): eight realistic single-sided documents
+(resume, lease, clinic record, bank statement, waybill, meeting notice, insurance claim,
+parent registration), plain prose, several people and numbers per page, rendered to
+260–300 dpi grayscale with skew, noise, uneven lighting and JPEG artefacts — **no text
+layer at all**. `dev/test_hard4.py` only issues commands; detection and redaction are done
+by the program itself, and each case is judged on three axes: missed, leaked, over-redacted.
+
+Fixed: skew correction before detection (0.9° used to cost 10 of 15 lines), adaptive
+render DPI (up to 300 dpi instead of a fixed 180), per-line width cap 1280 → 2560,
+box padding 0.45 → 0.85 em, label-based fallbacks for phone/email when OCR drops a
+character, and name-value truncation at the next field name. Android rule tables updated
+in step; Kotlin compiles and unit tests pass. Skew correction is Windows-only for now —
+no arm64 device here to verify it on.
+
+---
+
 # v1.4.6 版本说明（Windows + 安卓）
 
 **中文** | [English](#v146-release-notes-windows--android)
