@@ -174,6 +174,8 @@ https://gitee.com/bio234/pdf-privacy-masker      # mirror / 镜像（国内访�
 2. 点开安装；系统提示「未知来源」时，允许当前文件管理器安装即可。
 3. 打开后在首页点一下选 PDF，确认勾选，点「生成打码 PDF」再选保存目录。
 
+> **装的时候弹「开发者身份未验证」是正常的，不是包坏了。** 2026 年 11 月起，OPPO / vivo / 小米 / 荣耀对侧载安装的 apk 增加了一道开发者实名校验（ADV），本项目从 Gitee / GitHub 直接分发、没有在国内应用商店上架，所以会被标成「未验证」。处理办法：**勾选「已知悉应用风险」→ 点「仍然安装」**（部分机型还要再输一次锁屏密码），功能一点不受影响。国内这套目前只提醒、不拦截，也不需要像海外 Google 那套等 24 小时；每次装新版本都会再提示一次，属正常现象。若按钮一直是灰的，先确认勾选框已勾上，再检查「设置 → 应用 → 特殊应用权限 → 安装未知应用」里，打开 apk 的那个浏览器或文件管理是否被允许。
+
 权限两个，都只服务于更新：`INTERNET` 用来读一个公开的版本号、下载安装包本身；`REQUEST_INSTALL_PACKAGES`（「安装应用」）只用来把下载好并核对过的安装包交给系统安装器——系统还会再问你一次，你不点就不会装。没有存储权限，选文件走系统文件选择器，打码全程本地完成。
 
 ### 打码后的文件存在哪
@@ -466,6 +468,8 @@ The UI opens automatically in your browser at a random `127.0.0.1` port. Close t
 1. On the **[Releases page](https://github.com/neurotracee/pdf-privacy-masker/releases/latest)**, download `PDFPrivacyMasker-<version>-arm64.apk` (Android 8.0+, arm64 devices; the [Gitee release page](https://gitee.com/bio234/pdf-privacy-masker/releases/latest) has the same file).
 2. Tap to install; allow "unknown sources" for your file manager if the system asks.
 3. Tap a PDF on the home screen, confirm the detections, then tap "Mask PDF" and pick a folder.
+
+> **An "unverified developer" warning during install is expected — your download is not broken.** Since November 2026, OPPO / vivo / Xiaomi / HONOR run an Android Developer Verification (ADV) check on sideloaded apks. This project ships straight from Gitee / GitHub and is not listed on the Chinese app stores, so it is flagged as unverified. To proceed: **tick "I understand the risk" and tap "Install anyway"** (some models then ask for your screen-lock PIN). Nothing else changes. On the mainland this is a warning, not a block, and there is no 24-hour wait like Google's flow abroad; the prompt reappears on every update, which is normal. If "Install anyway" stays greyed out, make sure the risk checkbox is ticked, then check Settings → Apps → Special app access → Install unknown apps and allow the browser or file manager you opened the apk with.
 
 Two permissions, both only for updates: `INTERNET` reads the public version number and downloads the installer; `REQUEST_INSTALL_PACKAGES` hands a verified installer to the system installer (the system asks you again — nothing installs unless you tap it). No storage permission — files are picked through the system file picker, and all masking happens on device.
 

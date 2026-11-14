@@ -40,6 +40,15 @@
 - 原有 15 项自检全部仍通过（规则改动没有带出误报）
 - 安卓端规则表同步改完，`compileDebugKotlin` 与 `testDebugUnitTest` 通过
 
+## 文档补充
+
+- 安卓安装说明与常见问题新增 **ADV「未验证应用提醒」** 一节：这是 2026 年 11 月 9 日起
+  OPPO / vivo / 小米 / 荣耀 对侧载 apk 的开发者实名校验，与安装包本身无关。
+  写明「勾选『已知悉应用风险』→ 仍然安装」的处理办法、按钮变灰的两种原因，
+  以及国内这套只提醒、不拦截、没有海外 24 小时等待。
+- 新增 `dev/sign_adv_empty_apk.py`：用发版密钥给平台的「含签名 APK 空包」签名，
+  并核对指纹与正式发版 apk 一致（ADV 应用验证用）。
+
 ## 已知取舍
 
 - 座机一律打码，包括单位总机——宁可多糊一块，不去猜「是不是私人号码」
@@ -71,6 +80,13 @@ box padding 0.45 → 0.85 em, label-based fallbacks for phone/email when OCR dro
 character, and name-value truncation at the next field name. Android rule tables updated
 in step; Kotlin compiles and unit tests pass. Skew correction is Windows-only for now —
 no arm64 device here to verify it on.
+
+Docs: the Android install guide and FAQ now cover the **ADV "unverified developer"
+prompt** (the sideload identity check OPPO / vivo / Xiaomi / HONOR started on 9 Nov 2026):
+tick "I understand the risk", tap "Install anyway", plus the two reasons the button can
+stay greyed out. On the mainland it is a warning only — no 24-hour wait. New helper
+`dev/sign_adv_empty_apk.py` signs the platform's empty verification package with the
+release key and checks the fingerprint matches the shipped apk.
 
 ---
 
