@@ -225,6 +225,19 @@ RE_BANK_LABEL_FB = re.compile(
     r"(?:银行卡号|银行卡|储蓄卡|信用卡|卡\s*号|账\s*号|账号|账户号)\s*[:：]?\s*"
     r"([0-9][0-9 \-]{14,24})"
 )
+# 车牌：省份简称 + 发牌机关字母 + 序号（普通 5 位 / 新能源 6 位）。
+# 扫描件里常带间隔点「冀C·7D362」，也有写成「冀C 7D362」的。
+RE_PLATE = re.compile(
+    r"(?:[京津沪渝冀豫云辽黑湘皖鲁新苏浙赣鄂桂甘晋蒙陕吉闽贵粤青藏川宁琼]"
+    r"[A-Z][·•\. \-]?[A-Z0-9]{5,6})(?![A-Z0-9])"
+)
+# 跨行断号：扫描件里 19 位卡号被折成两行（「…62170038 / 12045691285…」），
+# 每段都不到 16 位，单行永远匹配不上。用「本行顶到行尾 + 下行以数字开头」
+# 把两段接起来再校验。
+_NUM_RUN = re.compile(r"[0-9][0-9 ]{4,}[0-9]")
+RE_PLATE_CTX = re.compile(r"(?:车辆|机动车|行驶证|行车本|车主|名下)")
+_BANK_CONTEXT = re.compile(r"(?:账户|账号|帐号|卡号|银行卡|储蓄|信用|尾号|余额|转账|汇款|转入|冻结|银行)")
+_PHONE_CONTEXT = re.compile(r"(?:手机|电话|联系方式|绑定|号码|来电)")
 
 _NAME_CUT = ("工号", "手机", "电话", "身份", "性别", "年龄", "邮箱", "地址", "联系",
              "关系", "职务", "部门", "签字", "日期", "单位", "公司", "学号", "班级")
@@ -252,7 +265,10 @@ RE_NAME_ROLE = re.compile(
     r"借款人|出借人|担保人|保证人|出租人|承租人|出租方|承租方|出售方|购买方|"
     r"委托方|受托方|出卖人|买受人|收货人|发货人|"
     r"投保人|被保险人|受益人|监护人|委托人|受托人|代理人|见证人|经办人|"
-    r"甲方|乙方|丙方|丁方|审判员|执行员|书记员|法官|仲裁员|检察员|公证员)\s*"
+    r"甲方|乙方|丙方|丁方|审判员|执行员|书记员|法官|仲裁员|检察员|公证员|"
+    # 「承办律师：周雅琴」「主办律师 李振华」——律师函、委托书、合同落款都是这种写法，
+    # 只有「律师」二字、前面带承办/主办/委托/代理的也一并认。
+    r"承办律师|主办律师|委托律师|代理律师|律师|鉴定人|检验人|勘验人|记录人|翻译人)\s*"
     r"(?:[（(][^）)]{0,12}[）)])?\s*[:：,，、]?\s*"
     # 右边界：标点、空白、行尾，或者常见虚词/动词。光标点会漏掉正文里
     # 「原告陈志远与被告王建国买卖合同纠纷」这种写法——名字后面直接跟
@@ -463,18 +479,51 @@ RE_ADDR_LABEL = re.compile(
     r"(?:家庭住址|现住址|通讯地址|联系地址|单位地址|邮寄地址|收货地址|户籍地址|注册地址|办公地址|"
     r"居住地址|住\s*址|地\s*址|居住地)\s*[:：]?\s*([^\s]{4,80})"
 )
+# 地址里的「街道段」有两种写法：
+#   · 城市道路：「永泰南路」「河北大街」+ 门牌；
+#   · 乡村地址：「口泉乡赵家小村62号」——乡镇村组后面直接跟门牌，没有「路」。
+# 只认路名时，合同里「甲方将坐落于山西省大同市云冈区口泉乡赵家小村62号的房屋
+# 出租给乙方」这种整句地址一位都匹配不上，正文里的住址就原样留在页面上。
+_ADDR_STREET = (
+    r"(?:[\u4e00-\u9fa5A-Za-z0-9]{1,20}(?:路|街|道|巷|胡同|大道|大街)"
+    r"[\u4e00-\u9fa5A-Za-z0-9]{0,12}"
+    r"|[\u4e00-\u9fa5]{1,10}(?:乡|镇|村|屯|组|嘎查|苏木)[\u4e00-\u9fa5A-Za-z0-9]{0,10})"
+)
 RE_ADDR_FREE = re.compile(
     r"(?:[\u4e00-\u9fa5]{2,8}(?:省|自治区|特别行政区))?[\u4e00-\u9fa5]{2,8}(?:市|自治州|地区)"
     r"[\u4e00-\u9fa5]{1,8}(?:区|县|市|旗)"
-    r"[\u4e00-\u9fa5A-Za-z0-9]{1,20}(?:路|街|道|巷|胡同|大道)"
-    r"[\u4e00-\u9fa5A-Za-z0-9]{0,12}[0-9]{1,5}\s*(?:号|弄)"
-    r"(?:[\u4e00-\u9fa5A-Za-z0-9\-]{0,30})?"
+    + _ADDR_STREET +
+    r"[0-9]{1,5}\s*(?:号|弄)"
+    # 尾段原来只吃 30 字，「朱雀大街南段56号紫郡长安小区9号楼2单元1301室」
+    # 正好在 30 字处被切断，最后「1室」原样留在页面上。放到 60 字，
+    # 再由 _clip_value 式的标签截断收口。
+    r"(?:[\u4e00-\u9fa5A-Za-z0-9\-]{0,60})?"
 )
+# 走到行尾还没出现门牌号（「…永泰南路金」「…河北大街西段98」）：扫描件折行
+# 极常见，号码在下一行开头。这种没有号的前半截单靠 RE_ADDR_FREE 匹配不上，
+# 于是整条地址既不打码、也不会触发「跨行承接」——实测两处住址就是这样漏的。
+# 只在「省 + 市 + 区县 + 路名」四段俱全时认，误伤概率很低（正文里这么完整
+# 的组合基本就是地址本身）。
+RE_ADDR_HEAD = re.compile(
+    r"(?:[\u4e00-\u9fa5]{2,8}(?:省|自治区|特别行政区))"
+    r"[\u4e00-\u9fa5]{2,8}(?:市|自治州|地区)"
+    r"[\u4e00-\u9fa5]{1,8}(?:区|县|市|旗)"
+    + _ADDR_STREET +
+    r"[\u4e00-\u9fa50-9A-Za-z]{0,16}"
+)
+# 「联系地址与联系方式均真实有效」这类句子：标签后面的值根本不是地址。
+# 值里必须至少有一个行政区划 / 道路 / 门牌特征，且不能以虚词开头。
+_ADDR_VALUE_HINT = re.compile(
+    r"(?:省|市|区|县|旗|镇|乡|村|路|街|道|巷|弄|号|室|楼|座|栋|幢|院|苑|园|"
+    r"小区|广场|大厦|公寓|单元|组|屯|胡同)"
+)
+_ADDR_VALUE_BAD_START = "即为与和均是的了在有对按理"
 
 TYPE_NAME = {
     "phone": "手机号",
     "idcard": "身份证号",
     "bankcard": "银行卡号",
+    "plate": "车牌号",
     "email": "邮箱",
     "name": "姓名",
     "tel": "座机号",
@@ -484,7 +533,7 @@ TYPE_NAME = {
     "age": "年龄",
     "manual": "手动框选",
 }
-TYPE_ORDER = ["idcard", "bankcard", "phone", "tel", "email", "address", "name", "birth", "gender", "age", "manual"]
+TYPE_ORDER = ["idcard", "bankcard", "phone", "tel", "email", "address", "plate", "name", "birth", "gender", "age", "manual"]
 
 
 # ---------------------------------------------------------------------------
@@ -809,8 +858,9 @@ def _trim_addr_prefix(text, s, e):
                 "住在", "居所", "位于", "地址为", "为", "在"):
         if text[s:e].startswith(pre) and (e - s) - len(pre) >= 4:
             return s + len(pre)
-    # 兜底：前几个字里出现「在 / 于」，说明地址从它后面开始
-    for k in range(min(6, e - s)):
+    # 兜底：前几个字里出现「在 / 于」，说明地址从它后面开始。
+    # 范围放到 12 字：合同里常写「甲方将坐落于山西省…」，那个「于」在第 6 位。
+    for k in range(min(12, e - s)):
         if text[s + k] in "在于" and (e - (s + k + 1)) >= 4:
             return s + k + 1
     return s
@@ -830,7 +880,7 @@ _ADDR_CONT_HINT = re.compile(
     r"胡同|大道|商厦|新村|花园|苑)")
 
 
-def _addr_continuation(next_text, next_entries, max_chars=24):
+def _addr_continuation(next_text, next_entries, max_chars=40):
     """地址被折行切断时，把下一行承接的那一截也圈进来。
 
     扫描件的地址几乎都是「…永泰南路金 / 水湾小区7号楼2单元1803室」这样
@@ -851,6 +901,77 @@ def _addr_continuation(next_text, next_entries, max_chars=24):
     if r is None or r.width < 2:
         return None
     return seg
+
+
+def _bank_across_lines(text, entries, nxt_text, nxt_entries):
+    """折行的银行卡号：本行末尾一段 + 下行开头一段，拼起来才够 16~19 位。
+
+    扫描件里 19 位卡号经常折成「…开立账户,账号62170038 / 12045691285,余额…」，
+    两段分别是 8 位和 11 位，单行看都不像卡号，Luhn 也无法校验，于是整条
+    卡号原样留在页面上。只在本行数字顶到行尾、下行以数字开头时才拼接，
+    拼完整再做 Luhn 与位数校验，避免把两行无关数字连起来误打。
+    """
+    m = None
+    for mm in _NUM_RUN.finditer(text):
+        m = mm
+    if m is None:
+        return None
+    if text[m.end():].strip(" ，,。;；:：、") != "":
+        return None
+    a = re.sub(r"[^0-9]", "", m.group(0))
+    if not (6 <= len(a) <= 14):
+        return None
+    mb = re.match(r"[0-9][0-9 ]{2,}[0-9]", nxt_text or "")
+    if not mb:
+        return None
+    b = re.sub(r"[^0-9]", "", mb.group(0))
+    if not (3 <= len(b) <= 13):
+        return None
+    whole = a + b
+    if not (16 <= len(whole) <= 19) or len(set(whole)) < 5:
+        return None
+    # 拼接本身已是强证据，但真实材料里卡号未必过 Luhn（生成的样本、OCR 错一位）。
+    # 过不了 Luhn 时要求上下文里有银行/账户类字样，别把两行无关数字连起来打。
+    if not _luhn_ok(whole):
+        near = text[max(0, m.start() - 30):] + (nxt_text or "")[:30]
+        if not _BANK_CONTEXT.search(near):
+            return None
+    ra = _span_rect(entries, m.start(), m.end())
+    rb = _span_rect(nxt_entries, 0, mb.end())
+    if ra is None or rb is None:
+        return None
+    return (pymupdf.Rect(ra), pymupdf.Rect(rb), m.group(0), mb.group(0))
+
+
+def _phone_across_lines(text, entries, nxt_text, nxt_entries):
+    """手机号被折行切成「…159103748 / 26,名下车辆…」时把两段都盖掉。
+
+    11 位手机号断在倒数两三位上，两段各自都不是手机号，正则全都不认。
+    只在本行数字顶到行尾、下行以 2~3 位数字开头、拼起来是合法手机号、
+    且上下文有「手机/电话/绑定」等字样时才认。
+    """
+    m = None
+    for mm in _NUM_RUN.finditer(text):
+        m = mm
+    if m is None or text[m.end():].strip(" ，,。;；:：、") != "":
+        return None
+    a = re.sub(r"[^0-9]", "", m.group(0))
+    if not (8 <= len(a) <= 10):
+        return None
+    mb = re.match(r"[0-9]{2,3}(?![0-9])", nxt_text or "")
+    if not mb:
+        return None
+    whole = a + mb.group(0)
+    if len(whole) != 11 or not re.match(r"1[3-9][0-9]{9}$", whole):
+        return None
+    near = text[max(0, m.start() - 20):] + (nxt_text or "")[:6]
+    if not _PHONE_CONTEXT.search(near):
+        return None
+    ra = _span_rect(entries, m.start(), m.end())
+    rb = _span_rect(nxt_entries, 0, mb.end())
+    if ra is None or rb is None:
+        return None
+    return (pymupdf.Rect(ra), pymupdf.Rect(rb), m.group(0), mb.group(0))
 
 
 def _scan_line(text, entries, pno):
@@ -908,6 +1029,13 @@ def _scan_line(text, entries, pno):
             add("bankcard", m.start(), m.end(), m.group(0))
     for m in RE_BANK_LABEL_FB.finditer(text):
         add("bankcard", m.start(1), m.end(1), m.group(1), "标签兜底")
+    # 车牌：执行裁定书、事故认定上常与「名下车辆」一起出现，属于可定位到个人的信息。
+    # 但单独的「苏A·D2F83」在快递单、板书里只是随手记的编号，不该一律糊掉——
+    # 要求附近有「车辆/机动车/行驶证/名下」这类归属语境才动手。
+    for m in RE_PLATE.finditer(text):
+        near = text[max(0, m.start() - 14):m.end() + 8]
+        if RE_PLATE_CTX.search(near):
+            add("plate", m.start(), m.end(), m.group(0))
 
     # 3. 手机号
     for rx in (RE_MOBILE, RE_MOBILE_SEP):
@@ -1033,11 +1161,35 @@ def _scan_line(text, entries, pno):
     for m in RE_ADDR_LABEL.finditer(text):
         s, e = _clip_value(text, m.start(1))
         s = _trim_addr_prefix(text, s, e)
-        if e - s >= 4:
-            add("address", s, e, text[s:e])
+        seg = text[s:e]
+        # 「送达下列地址即为有效」「联系地址与联系方式均真实有效」——标签后面
+        # 跟的是谓语而不是地址，去掉判据会把整句正文糊掉。
+        if e - s >= 4 and seg and seg[0] not in _ADDR_VALUE_BAD_START \
+                and _ADDR_VALUE_HINT.search(seg):
+            add("address", s, e, seg)
+    def _addr_tail(s, e):
+        """地址的右边界：字段名、「的」、「，」等都不属于地址本身。
+
+        尾部放宽到 60 字之后，「甲方将坐落于…赵家小村62号的房屋出租给乙」
+        会把后半句一起圈进来。地址里几乎不出现「的」，遇到就截断；
+        同时把下一个字段名（「,联系电话」）也截掉。
+        """
+        seg = text[s:e]
+        k = seg.find("的")
+        if k > 0:
+            e = s + k
+            seg = text[s:e]
+        cut = RE_ANY_LABEL.search(seg)
+        if cut and cut.start() > 0:
+            e = s + cut.start()
+        return s, e
+
     for m in RE_ADDR_FREE.finditer(text):
-        s, e = _trim_addr_prefix(text, m.start(), m.end()), m.end()
-        add("address", s, e, text[s:e])
+        s, e = _addr_tail(_trim_addr_prefix(text, m.start(), m.end()), m.end())
+        add("address", s, e, text[s:e].rstrip(" ,，;；"))
+    for m in RE_ADDR_HEAD.finditer(text):
+        s, e = _addr_tail(_trim_addr_prefix(text, m.start(), m.end()), m.end())
+        add("address", s, e, text[s:e].rstrip(" ,，;；"), "无门牌·等续行")
 
     # 10. 姓名：保留姓氏，只打码名字
     def add_name(s, e, cand, loose=False):
@@ -1590,6 +1742,39 @@ def detect(doc, only_pages=None, use_ocr=True):
                                 "type": "address", "text": seg, "rect": pymupdf.Rect(r),
                                 "page": pno, "note": "跨行承接", "src": "ocr"})
                             line_findings.append(findings[-1])
+                # 手机号折行：11 位断在倒数两三位，两段单看都不成立
+                nxt_text, nxt_entries = lines[i + 1]
+                gp = _phone_across_lines(text, entries, nxt_text, nxt_entries)
+                if gp:
+                    ra, rb, ta, tb = gp
+                    # 本行若已被「9~10 位的残缺手机号」命中，不能因此跳过：
+                    # 那一块只盖了前半截，末尾 2~3 位还在下一行开头露着。
+                    covered = any(
+                        f["type"] == "phone" and not (f["rect"] & ra).is_empty
+                        and len(re.sub(r"[^0-9]", "", f["text"])) >= 11
+                        for f in line_findings)
+                    if not covered:
+                        findings.append({
+                            "type": "phone", "text": ta, "rect": ra, "page": pno,
+                            "note": "跨行拼接", "src": "ocr"})
+                        findings.append({
+                            "type": "phone", "text": tb, "rect": rb, "page": pno,
+                            "note": "跨行拼接", "src": "ocr"})
+                        line_findings.extend(findings[-2:])
+                # 银行卡折行：两段都不到 16 位，单行匹配不上
+                got = _bank_across_lines(text, entries, nxt_text, nxt_entries)
+                if got:
+                    ra, rb, ta, tb = got
+                    hit = any(f["type"] == "bankcard" and not (f["rect"] & ra).is_empty
+                              for f in line_findings)
+                    if not hit:
+                        findings.append({
+                            "type": "bankcard", "text": ta, "rect": ra, "page": pno,
+                            "note": "跨行拼接", "src": "ocr"})
+                        findings.append({
+                            "type": "bankcard", "text": tb, "rect": rb, "page": pno,
+                            "note": "跨行拼接", "src": "ocr"})
+                        line_findings.extend(findings[-2:])
         text_lines = lines[:ocr_from]
         for f in _scan_birth_across_lines(text_lines, pno):
             f["rect"] = _to_page_rect(f["rect"], page)

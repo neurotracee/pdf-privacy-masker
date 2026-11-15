@@ -40,6 +40,9 @@ object Kind {
     const val TEL = "tel"
     const val EMAIL = "email"
     const val ADDRESS = "address"
+
+    /** 车牌号：执行裁定、事故认定、快递单上常见，可定位到个人 */
+    const val PLATE = "plate"
     const val NAME = "name"
     const val BIRTH = "birth"
     const val GENDER = "gender"
@@ -51,7 +54,7 @@ object Kind {
     /** 注释区域：内容涉敏、整块盖掉（打码阶段生成，不出现在识别列表里） */
     const val ANNOT = "annot"
 
-    val ORDER = listOf(IDCARD, BANKCARD, PHONE, TEL, EMAIL, ADDRESS, NAME, BIRTH, GENDER, AGE, MANUAL, ANNOT)
+    val ORDER = listOf(IDCARD, BANKCARD, PHONE, TEL, EMAIL, ADDRESS, PLATE, NAME, BIRTH, GENDER, AGE, MANUAL, ANNOT)
 
     fun labelEn(k: String): String = when (k) {
         IDCARD -> "ID number"
@@ -60,6 +63,7 @@ object Kind {
         TEL -> "Landline"
         EMAIL -> "Email"
         ADDRESS -> "Address"
+        PLATE -> "Plate"
         NAME -> "Name"
         BIRTH -> "Birth date"
         GENDER -> "Gender"
@@ -76,6 +80,7 @@ object Kind {
         TEL -> "座机号"
         EMAIL -> "邮箱"
         ADDRESS -> "地址"
+        PLATE -> "车牌号"
         NAME -> "姓名"
         BIRTH -> "出生日期"
         GENDER -> "性别"

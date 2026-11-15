@@ -116,6 +116,7 @@ object Detector {
             }
             findings.addAll(scanBirthAcrossLines(p))
             findings.addAll(scanGenderByHeader(p))
+            findings.addAll(scanNumberAcrossLines(p))
         }
         var res = dedupe(findings)
         res = dedupe(spreadConfirmedNames(pages, res))
@@ -204,7 +205,8 @@ object Detector {
         for (pre in ADDR_TRIM_PREFIX) {
             if (seg.startsWith(pre) && (e - s) - pre.length >= 4) return s + pre.length
         }
-        for (k in 0 until min(6, e - s)) {
+        // 范围放到 12 字：合同里常写「甲方将坐落于山西省…」，那个「于」在第 6 位
+        for (k in 0 until min(12, e - s)) {
             if (text[s + k] in "在于" && (e - (s + k + 1)) >= 4) return s + k + 1
         }
         return s
@@ -294,6 +296,14 @@ object Detector {
             val g = m.groups[1] ?: continue
             if (g.value.isEmpty()) continue
             add(Kind.BANKCARD, g.range.first, g.range.last + 1, g.value, "标签兜底")
+        }
+        // 车牌：只在有「车辆/名下/行驶证」这类归属语境时打。单独一个「苏A·D2F83」
+        // 可能只是板书上的编号，不该一律糊掉（与 Windows 端口径一致）。
+        for (m in T.RE_PLATE.findAll(text)) {
+            val near = text.substring(maxOf(0, m.range.first - 14), minOf(text.length, m.range.last + 9))
+            if (T.PLATE_CONTEXT.containsMatchIn(near)) {
+                add(Kind.PLATE, m.range.first, m.range.last + 1, m.value)
+            }
         }
 
         // 3. 手机号
@@ -449,11 +459,30 @@ object Detector {
             val g = m.groups[1] ?: continue
             val (s0, e0) = clipValue(text, g.range.first)
             val s = trimAddrPrefix(text, s0, e0)
-            if (e0 - s >= 4) add(Kind.ADDRESS, s, e0, text.substring(s, e0))
+            if (e0 - s < 4) continue
+            val seg = text.substring(s, e0)
+            // 「送达下列地址即为有效」「联系地址与联系方式均真实有效」——标签
+            // 后面跟的是谓语而不是地址，不设判据会把整句正文糊掉。
+            if (seg.isEmpty() || seg[0] in T.ADDR_VALUE_BAD_START) continue
+            if (!T.ADDR_VALUE_HINT.containsMatchIn(seg)) continue
+            add(Kind.ADDRESS, s, e0, seg)
+        }
+        // 地址右边界：字段名、「的」、「，」都不属于地址本身
+        fun addrTail(s0: Int, e0: Int): Pair<Int, Int> {
+            var e = e0
+            val k = text.substring(s0, e).indexOf('的')
+            if (k > 0) e = s0 + k
+            val cut = T.RE_ANY_LABEL.find(text.substring(s0, e))
+            if (cut != null && cut.range.first > 0) e = s0 + cut.range.first
+            return s0 to e
         }
         for (m in T.RE_ADDR_FREE.findAll(text)) {
-            val s = trimAddrPrefix(text, m.range.first, m.range.last + 1)
-            add(Kind.ADDRESS, s, m.range.last + 1, text.substring(s, m.range.last + 1))
+            val (s0, e0) = addrTail(trimAddrPrefix(text, m.range.first, m.range.last + 1), m.range.last + 1)
+            add(Kind.ADDRESS, s0, e0, text.substring(s0, e0).trimEnd(' ', ',', '，', ';', '；'))
+        }
+        for (m in T.RE_ADDR_HEAD.findAll(text)) {
+            val (s0, e0) = addrTail(trimAddrPrefix(text, m.range.first, m.range.last + 1), m.range.last + 1)
+            add(Kind.ADDRESS, s0, e0, text.substring(s0, e0).trimEnd(' ', ',', '，', ';', '；'), "无门牌·等续行")
         }
 
         // 10. 姓名（标签 / 签名 / 自指 / 称谓）
@@ -624,6 +653,88 @@ object Detector {
         }
         return out
     }
+
+    // ---------------------------------------------------------------- 跨行号码 / 地址
+
+    /**
+     * 折行补全：扫描件的长信息几乎都会在页边断开。
+     *
+     * - 地址：「…永泰南路金 / 水湾小区7号楼2单元1803室」
+     * - 银行卡：「…账号62170038 / 12045691285,余额…」（两段都不足 16 位）
+     * - 手机号：「…绑定手机号159103748 / 26,名下车辆…」（断在倒数两位）
+     *
+     * 单行看它们都不成立，正则全都不认，于是整条原样留在页面上。
+     * 只在「本行顶到行尾、下行接着写」时拼接，并且拼完整后要过形态校验。
+     */
+    private fun scanNumberAcrossLines(page: PageText): List<Finding> {
+        val out = mutableListOf<Finding>()
+        for (i in 0 until page.lines.size - 1) {
+            val cur = page.lines[i]
+            val nxt = page.lines[i + 1]
+            val t1 = cur.text
+            val t2 = nxt.text.trimStart()
+            if (t1.isBlank() || t2.isBlank()) continue
+            val here = scanLine(cur, page.index)
+
+            // 1) 地址续行
+            val tailAddr = here.filter { it.type == Kind.ADDRESS }.maxByOrNull { it.text.length }
+            if (tailAddr != null && t1.trimEnd().endsWith(tailAddr.text.trim()) &&
+                tailAddr.text.trim().length >= 6
+            ) {
+                var end = 0
+                while (end < t2.length && end < 40 && t2[end] !in ADDR_CONT_STOP) end++
+                val seg = t2.substring(0, end)
+                if (end >= 2 && (ADDR_CONT_HINT.containsMatchIn(seg) || seg[0].isDigit())) {
+                    spanRect(nxt.chars, 0, end)?.let {
+                        out.add(Finding(page.index, Kind.ADDRESS, seg.trim(), it, "跨行承接"))
+                    }
+                    continue
+                }
+            }
+
+            // 2) 号码跨行：本行末尾的数字串顶到行尾，下一行以数字开头
+            val run = T.RE_NUM_RUN.findAll(t1).lastOrNull() ?: continue
+            if (t1.substring(run.range.last + 1).trim(' ', '，', ',', '。', '；', ';', '：', ':', '、').isNotEmpty()) continue
+            val a = run.value.filter { it.isDigit() }
+            if (a.length !in 6..14) continue
+            val mb = Regex("""^[0-9][0-9 ]{2,}[0-9]""").find(t2) ?: continue
+            val b = mb.value.filter { it.isDigit() }
+            if (b.length !in 2..13) continue
+            val whole = a + b
+            val near = t1.takeLast(30) + t2.take(6)
+
+            // 2a) 手机号：拼起来必须是合法 11 位号码
+            if (whole.length == 11 && Regex("""^1[3-9][0-9]{9}$""").matches(whole) &&
+                T.PHONE_CONTEXT.containsMatchIn(near)
+            ) {
+                spanRect(cur.chars, run.range.first, run.range.last + 1)?.let {
+                    out.add(Finding(page.index, Kind.PHONE, run.value, it, "跨行拼接"))
+                }
+                spanRect(nxt.chars, 0, mb.range.last + 1)?.let {
+                    out.add(Finding(page.index, Kind.PHONE, mb.value, it, "跨行拼接"))
+                }
+                continue
+            }
+
+            // 2b) 银行卡：拼起来 16~19 位；过不了 Luhn 时要求上下文有账户字样
+            if (whole.length in 16..19 && whole.toSet().size >= 5 &&
+                (luhnOk(whole) || T.BANK_CONTEXT.containsMatchIn(near))
+            ) {
+                spanRect(cur.chars, run.range.first, run.range.last + 1)?.let {
+                    out.add(Finding(page.index, Kind.BANKCARD, run.value, it, "跨行拼接"))
+                }
+                spanRect(nxt.chars, 0, mb.range.last + 1)?.let {
+                    out.add(Finding(page.index, Kind.BANKCARD, mb.value, it, "跨行拼接"))
+                }
+            }
+        }
+        return out
+    }
+
+    private val ADDR_CONT_STOP = "，,。；;：:！？!?"
+    private val ADDR_CONT_HINT = Regex(
+        """(?:[0-9０-９]{1,5}\s*[号室楼座栋幢院]|小区|广场|花园|大厦|公寓|写字楼|单元|胡同|大道|商厦|新村|苑)"""
+    )
 
     // ---------------------------------------------------------------- 跨行出生
 
