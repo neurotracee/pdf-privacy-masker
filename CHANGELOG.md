@@ -4,6 +4,53 @@
 
 更新级别：建议
 
+> 版本号：**1.4.6.4**，只动第四位（小版本）。
+
+> **一句话**：住址不再漏打——乡村地址（乡镇村 + 门牌）、跨行折断的地址、被后半句挤掉的地址尾部，以及折行的银行卡号和手机号，现在都能认出来并打掉。
+
+## 这次修的是什么
+
+有人反馈「住址还是没打掉」。逐页复核后发现四类漏打，都是规则判据的边界问题，不是模型不行。
+
+### 1. 乡村地址完全匹配不上
+
+地址规则原来只认「路 / 街 / 道 / 巷 / 大道」后面的门牌。而「山西省大同市云冈区口泉乡赵家小村62号」是乡镇村后面直接跟门牌，一位都匹配不上，整句留在页面上。现在街道段同时接受乡、镇、村、屯、组、嘎查、苏木。
+
+### 2. 跨行折断的地址，前半截不进规则
+
+「住山西省大同市平城区永泰南路金 / 水湾小区7号楼2单元1803室」——本行没有门牌号，既不匹配、也触发不了「跨行承接」（承接的前提是本行已经认出地址并且顶到行尾）。新增「省 + 市 + 区县 + 路名」四段俱全时即使没有门牌也认，再由承接逻辑把下一行的门牌接上。
+
+### 3. 地址尾部被切掉，或者吃进正文
+
+- 「…9号楼2单元1301室」超过 30 字上限被切掉「1室」→ 上限放到 60 字；
+- 「甲方将坐落于…62号的房屋出租给乙」会把后半句一起圈进来 → 右边界遇「的」或下一个字段名就收口；
+- 「甲方将坐落于」里的「于」在第 6 位，原来只在前 6 字里找引导词 → 放宽到 12 字。
+
+### 4. 标签后面不是地址也照打
+
+「送达下列地址即为有效」「联系地址与联系方式均真实有效」这类句子原来被整段糊掉。现在地址值必须含行政区划、道路或门牌特征，且不能以虚词开头。
+
+### 顺带补两个同类漏打
+
+- **车牌**：「名下车辆（车牌号冀C·7D362）」原来完全没有规则。现在只在附近有「车辆 / 名下 / 行驶证」等归属语境时打码，避免把板书上随手记的编号也糊掉。
+- **折行的号码**：19 位卡号被折成「…62170038 / 12045691285…」，11 位手机号断在「…159103748 / 26」，两段单看都不成立。现在按「本行顶到行尾 + 下行接着数字」拼接，校验形态后再打。
+
+## 对使用者的影响
+
+扫描件、拍照件里的住址和车牌覆盖明显变好；普通电子版 PDF 行为不变。Windows 与安卓的规则完全同步。
+
+## 已知取舍
+
+- 车牌需要「车辆 / 名下 / 行驶证」这类语境，单独一串车牌样式的编号不会打；
+- 只有村名、没有任何行政区划前缀的片段（如「朱家村62号」）仍然不认；
+- 正文提到的机构名（如「中国建设银行北京建国路支行」）会被当作地址打码——它同样能定位到人，属有意保留。
+
+# v1.4.6.3 版本说明（Windows + 安卓）
+
+**中文** | [English](#v1463-release-notes-windows--android)
+
+更新级别：建议
+
 > 版本号：**1.4.6.3**，只动第四位（小版本）。
 
 > **一句话**：扫描件（灰字、泛黄纸底、一边亮一边暗）的漏检大幅收敛——身份证、手机号、邮箱、地址、姓名都能认出来并打掉，安卓端不再出现「整份文档 0 检出」。
@@ -70,6 +117,47 @@ exe 重新打一遍再传一遍；只发了一端的版本，另一端偶尔会�
 ---
 
 # Unreleased (main)
+
+> **Version**: **1.4.6.4** — the fourth (small) slot. Windows + Android, same rules.
+
+## What was fixed
+
+A user reported that addresses were still left readable. Page-by-page review found four
+boundary problems in the rules (not the model):
+
+1. **Rural addresses never matched.** The street segment only accepted 路 / 街 / 道 / 巷 / 大道
+   followed by a house number. "山西省大同市云冈区口泉乡赵家小村62号" puts the number right
+   after the township/village, so nothing matched and the whole address stayed on the page.
+   The street segment now also accepts 乡 / 镇 / 村 / 屯 / 组 / 嘎查 / 苏木.
+2. **Wrapped addresses were missed entirely.** "住山西省大同市平城区永泰南路金 /
+   水湾小区7号楼2单元1803室" has no house number on the first line, so it neither matched nor
+   triggered the continuation rule. A province + city + district + road prefix is now accepted
+   even without a house number, and the existing continuation logic picks up the next line.
+3. **Address tails were cut or over-extended.** The 30-character tail limit chopped "1室" off
+   "…9号楼2单元1301室" (now 60). "…62号的房屋出租给乙" dragged half a sentence in (now stops at
+   的 or the next field label). The 于 in "甲方将坐落于" sits at position 6 and the lead-in
+   search only looked at the first 6 characters (now 12).
+4. **Labels that were not addresses were masked.** "送达下列地址即为有效" and "联系地址与联系方式
+   均真实有效" used to be blurred as a block. An address value now has to contain a district,
+   road or house-number feature and must not start with a function word.
+
+Two related misses on the same page were fixed as well:
+
+- **Plates**: "名下车辆（车牌号冀C·7D362）" had no rule at all. Plates are now masked when
+  a 车辆 / 名下 / 行驶证 context is nearby, so a plate-shaped string scribbled on a whiteboard
+  is not blurred.
+- **Wrapped numbers**: a 19-digit card number split as "…62170038 / 12045691285…" and an
+  11-digit phone split as "…159103748 / 26" are now joined when the first line ends at the
+  margin and the next starts with digits, then validated before masking.
+
+## Impact
+
+Addresses and plates in scans and photos are covered much better; ordinary digital PDFs
+behave exactly as before. Windows and Android share the same rules.
+
+---
+
+# v1.4.6.3 Release Notes (Windows + Android)
 
 > **Version**: **1.4.6.3** — the fourth (small) slot.
 
