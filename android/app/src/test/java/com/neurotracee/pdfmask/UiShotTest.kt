@@ -37,6 +37,7 @@ import com.neurotracee.pdfmask.ui.AboutPanel
 import com.neurotracee.pdfmask.ui.SaveTargetPanel
 import com.neurotracee.pdfmask.ui.SettingsPanel
 import com.neurotracee.pdfmask.ui.UpdateNotesBlock
+import com.neurotracee.pdfmask.ui.sampleResultForPager
 import com.neurotracee.pdfmask.ui.sampleResultForNotes
 import com.neurotracee.pdfmask.ui.WorkScreen
 import org.junit.Test
@@ -386,6 +387,31 @@ class UiShotTest {
             }
         } finally {
             com.neurotracee.pdfmask.AppPrefs.updateLang("zh")
+        }
+    }
+
+    /** 跨版本说明：默认停在最新版那一页 */
+    @Test
+    @Config(qualifiers = "w360dp-h800dp-xxhdpi")
+    fun update_notes_pager_latest() = shootPanel("42-update-notes-pager-latest") {
+        Column(Modifier.padding(horizontal = 14.dp, vertical = 12.dp)) {
+            UpdateNotesBlock(
+                sampleResultForPager(),
+                androidx.compose.ui.graphics.Color(0xFF2B5BD0)
+            ) {}
+        }
+    }
+
+    /** 跨版本说明：向右滑到更早那一页（v1.4.6.3），下载目标仍写最新版 */
+    @Test
+    @Config(qualifiers = "w360dp-h800dp-xxhdpi")
+    fun update_notes_pager_older() = shootPanel("43-update-notes-pager-older") {
+        Column(Modifier.padding(horizontal = 14.dp, vertical = 12.dp)) {
+            UpdateNotesBlock(
+                sampleResultForPager(),
+                androidx.compose.ui.graphics.Color(0xFF2B5BD0),
+                initialPage = 0
+            ) {}
         }
     }
 

@@ -75,6 +75,10 @@ jobs:
       - name: 两端版本号独立（单平台发版不误伤另一端）
         run: python dev/test_platform_split.py
 
+      # 跨版本说明：翻页只看说明，下载目标必须恒为最新版
+      - name: 跨版本更新说明（pending 页与下载目标）
+        run: python dev/test_pending_notes.py
+
       - name: 发布正文拆分
         run: python dev/test_release_digest.py
 

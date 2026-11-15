@@ -80,7 +80,32 @@ object Updater {
          * 本来该走的是哪个通道，但它连不上、于是换了一个。
          * 空串表示没有发生切换；界面上据实说明一句，用户就不会以为「明明选了 Gitee 怎么用了 GitHub」。
          */
-        val fallbackFrom: String = ""
+        val fallbackFrom: String = "",
+
+        /**
+         * 比当前版本新的每一个版本（升序，旧 → 新），用来在更新弹窗里逐页翻看说明。
+         *
+         * 只收「本平台确实有安装包」的版本，页数 = 用户落后的版本数。
+         * **只用于展示**：下载与安装永远用 [url]（= 最大版本），翻到哪一页都不变。
+         */
+        val pending: List<PendingNote> = emptyList()
+    )
+
+    /** 更新弹窗里的一页：某一版的说明。下载目标不由它决定。 */
+    data class PendingNote(
+        val ver: String,
+        val digest: ReleaseDigest.Digest?,
+        val strong: Boolean,
+        val page: String
+    )
+
+    /** 解析阶段的临时记录 */
+    private data class NoteEntry(
+        val v: IntArray,
+        val url: String,
+        val strong: Boolean,
+        val body: String,
+        val page: String
     )
 
     /** 下载地址是否可信：必须 https，域名在白名单内（含其子域） */
@@ -181,6 +206,8 @@ object Updater {
         var tagUrl = ""
         var tagStrong = false
         var tagBody = ""
+        // 本平台每个可下载版本各记一条，最后按版本升序给弹窗翻页用
+        val notes = ArrayList<NoteEntry>()
 
         for (i in 0 until arr.length()) {
             val rel = arr.optJSONObject(i) ?: continue
@@ -231,16 +258,25 @@ object Updater {
                     bestStrong = strong
                     bestBody = body
                 }
+                if (notes.none { cmp(it.v, v) == 0 }) {
+                    notes.add(NoteEntry(v, url, strong, body, page))
+                }
             }
         }
 
+        // 升序（旧 → 新），只留比当前新的：弹窗默认停在最后一页 = 最新版
+        val pending = notes
+            .sortedWith { a, b -> cmp(a.v, b.v) }
+            .filter { cmp(it.v, cur) > 0 }
+            .map { PendingNote(fmt(it.v), ReleaseDigest.of(it.body), it.strong, it.page) }
+
         bestVer?.let { v ->
             return Result(true, current, fmt(v), cmp(v, cur) > 0, bestUrl, strong = bestStrong,
-                digest = ReleaseDigest.of(bestBody), page = pageFallback)
+                digest = ReleaseDigest.of(bestBody), page = pageFallback, pending = pending)
         }
         tagVer?.let { v ->
             return Result(true, current, fmt(v), cmp(v, cur) > 0, tagUrl, strong = tagStrong,
-                digest = ReleaseDigest.of(tagBody), page = pageFallback)
+                digest = ReleaseDigest.of(tagBody), page = pageFallback, pending = pending)
         }
         return null
     }

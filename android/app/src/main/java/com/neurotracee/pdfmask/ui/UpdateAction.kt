@@ -213,7 +213,9 @@ internal fun UpdateActionBlock(
                         needPerm -> T("继续安装", "Continue")
                         apk != null -> T("继续安装", "Continue")
                         error.isNotBlank() -> T("重试", "Retry")
-                        else -> T("立即更新", "Update now")
+                        // 按钮上写明要装的版本：用户可能刚在说明区翻到旧版本那一页，
+                        // 「立即更新到 v1.4.6.4」能直接打消「会不会装成 1.4.6.3」的疑虑
+                        else -> T("立即更新到 v" + r.latest, "Update to v" + r.latest)
                     },
                     fontSize = 12.5.sp
                 )

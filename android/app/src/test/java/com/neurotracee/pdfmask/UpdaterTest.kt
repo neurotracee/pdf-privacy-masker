@@ -183,4 +183,73 @@ class UpdaterTest {
         assertTrue(r.hasUpdate)
         assertFalse(r.strong)
     }
+
+    // ------------------------------------------------ 跨版本说明（v1.4.6.5）
+
+    /** 造一条 Release（只给安卓的 apk） */
+    private fun apkRel(ver: String, body: String = ""): String =
+        """{"tag_name":"v$ver","html_url":"https://github.com/x/$ver","body":"$body",
+           "assets":[{"name":"PDFPrivacyMasker-$ver-arm64.apk",
+                      "browser_download_url":"https://github.com/x/PDFPrivacyMasker-$ver-arm64.apk"}]}"""
+
+    @Test
+    fun pending_lists_every_version_behind_oldest_first() {
+        // 当前 1.4.6.2，仓库有 1.4.6.3 / 1.4.6.4：两页都要有，且是「旧 → 新」升序。
+        // 故意把 1.4.6.4 放在前面，确认不是照 JSON 顺序堆出来的。
+        val json = "[" + apkRel("1.4.6.4") + "," + apkRel("1.4.6.3") + "]"
+        val r = parseReleasesForTest(json, "1.4.6.2")
+        assertEquals("1.4.6.4", r.latest)
+        assertEquals(listOf("1.4.6.3", "1.4.6.4"), r.pending.map { it.ver })
+    }
+
+    @Test
+    fun pending_last_page_is_always_the_download_target() {
+        // 翻到哪一页都不改变下载目标：url 只能是最大版本，最后一页的版本号必须等于 latest
+        val json = "[" + apkRel("1.4.6.3") + "," + apkRel("1.4.6.4") + "," + apkRel("1.4.6.5") + "]"
+        val r = parseReleasesForTest(json, "1.4.6.2")
+        assertEquals("1.4.6.5", r.latest)
+        assertEquals("1.4.6.5", r.pending.last().ver)
+        assertTrue(r.url.contains("1.4.6.5"))
+        assertFalse(r.url.contains("1.4.6.3"))
+        assertFalse(r.url.contains("1.4.6.4"))
+    }
+
+    @Test
+    fun pending_skips_versions_built_only_for_the_other_platform() {
+        // 只发了 exe 的版本，安卓不该翻出一页「下载不到 apk」的说明
+        val exeOnly = """{"tag_name":"v1.4.6.4","html_url":"https://github.com/x/4",
+            "assets":[{"name":"PDFPrivacyMasker-1.4.6.4.exe",
+                       "browser_download_url":"https://github.com/x/PDFPrivacyMasker-1.4.6.4.exe"}]}"""
+        val json = "[" + exeOnly + "," + apkRel("1.4.6.3") + "]"
+        val r = parseReleasesForTest(json, "1.4.6.2")
+        assertEquals(listOf("1.4.6.3"), r.pending.map { it.ver })
+    }
+
+    @Test
+    fun pending_excludes_current_version() {
+        val json = "[" + apkRel("1.4.6.3") + "," + apkRel("1.4.6.4") + "]"
+        val r = parseReleasesForTest(json, "1.4.6.3")
+        assertEquals(listOf("1.4.6.4"), r.pending.map { it.ver })
+    }
+
+    @Test
+    fun pending_is_empty_when_already_latest() {
+        val json = "[" + apkRel("1.4.6.4") + "]"
+        val r = parseReleasesForTest(json, "1.4.6.4")
+        assertFalse(r.hasUpdate)
+        assertTrue(r.pending.isEmpty())
+    }
+
+    @Test
+    fun each_pending_page_keeps_its_own_notes() {
+        // 每页显示的是这一版自己的正文，不能都拿最新版顶替
+        // 摘要要求 ≥8 字才收（ReleaseDigest 的既有口径），这里写足长度
+        val z3 = "更新级别：建议\\n\\n> **一句话**：第三版修掉了扫描件长句整行漏检的问题\\n"
+        val z4 = "更新级别：建议\\n\\n> **一句话**：第四版修掉了住址被折行切开时漏打的问题\\n"
+        val json = "[" + apkRel("1.4.6.4", z4) + "," + apkRel("1.4.6.3", z3) + "]"
+        val r = parseReleasesForTest(json, "1.4.6.2")
+        val texts = r.pending.map { it.digest?.pick(false)?.brief ?: "" }
+        assertTrue("第 1 页应是 1.4.6.3 的说明：" + texts[0], texts[0].contains("第三版"))
+        assertTrue("第 2 页应是 1.4.6.4 的说明：" + texts[1], texts[1].contains("第四版"))
+    }
 }

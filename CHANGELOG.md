@@ -4,6 +4,45 @@
 
 更新级别：建议
 
+> 版本号：**1.4.6.5**，只动第四位（小版本）。
+
+> **一句话**：更新弹窗能翻旧账了——落后好几个版本时，可以一页一版地翻看每一版改了什么；但下载装的永远是最后那一版（最新版）。
+
+## 这次加的是什么
+
+以前只显示「最新一版」的说明。如果用户从 1.4.6.2 直接跳到 1.4.6.4，中间 1.4.6.3 改了什么、修了哪些问题，他根本看不到——那些修复也就等于没被读到。
+
+现在只要比当前新的版本不止一个，弹窗里就变成**一页一版的说明浏览器**：
+
+- 顶部先告诉你「共 N 个版本未更新（当前 vX → 最新 vY）」；
+- 每页是那一版自己的摘要与条目，不会拿最新版的正文顶替；
+- 页面顺序是「旧 → 新」，**默认停在最后一页（最新版）**；
+- 滑动方向是刻意的相反逻辑：**向右滑 → 上一页（更早的版本）**，向左滑 → 下一页（更新的版本）；左右两个箭头与手势同向；
+- 底部固定一行「下载目标始终是：最新版 vX」，并写明「翻到 v1.4.6.3 这一页点下载，装上的仍然是 v1.4.6.4」。
+
+下载与安装目标与翻页完全解耦：按钮和链接取的永远是最大版本，翻到哪一页都不变。按钮文案也直接写出版本号（「立即更新到 v1.4.6.4」「用浏览器下载最新版 v1.4.6.4」），避免「我翻到 1.4.6.3，会不会装成它」的疑虑。
+
+## 两端实现
+
+- **Windows**：启动时的自动检查弹窗、设置里的手动检查框都支持（两处共用同一套渲染）；
+- **安卓**：更新弹窗用可左右滑的分页，默认停在最新版那一页。
+
+## 只落后一个版本时呢
+
+和以前完全一样：平铺那一版的摘要和条目，没有翻页控件，也不显示「共 N 个版本未更新」。
+
+## 对使用者的影响
+
+多了一个翻页，其他一切不变；不更新的选项仍然在，下载目标反而更明确了。
+
+---
+
+# v1.4.6.4 版本说明（Windows + 安卓）
+
+**中文** | [English](#v1464-release-notes-windows--android)
+
+更新级别：建议
+
 > 版本号：**1.4.6.4**，只动第四位（小版本）。
 
 > **一句话**：住址不再漏打——乡村地址（乡镇村 + 门牌）、跨行折断的地址、被后半句挤掉的地址尾部，以及折行的银行卡号和手机号，现在都能认出来并打掉。
@@ -117,6 +156,42 @@ exe 重新打一遍再传一遍；只发了一端的版本，另一端偶尔会�
 ---
 
 # Unreleased (main)
+
+> **Version**: **1.4.6.5** — the fourth (small) slot. Windows + Android.
+
+## What was added
+
+The update dialog used to show only the newest version's notes. Someone jumping from
+1.4.6.2 straight to 1.4.6.4 never saw what 1.4.6.3 changed — those fixes might as well
+not have existed.
+
+Now, whenever more than one version is newer than the installed one, the dialog becomes a
+**page-per-version notes browser**:
+
+- a header states "N versions behind (vX → vY)";
+- each page carries that version's own summary and items — never the newest notes copied over;
+- pages are ordered oldest → newest and **open on the last page (newest)**;
+- swiping is deliberately reversed: **swipe right → previous page (older)**, swipe left →
+  next page (newer); the two arrow buttons follow the same directions;
+- a fixed footer reads "Download target is always vX (newest)" and spells out that tapping
+  download while viewing v1.4.6.3 still installs v1.4.6.4.
+
+The download target is fully decoupled from paging: buttons and links always use the highest
+version. Buttons also carry the version number ("Update to v1.4.6.4"), so nobody has to wonder
+whether they are about to install the page they happen to be looking at.
+
+## Platforms
+
+- **Windows**: both the startup check dialog and the manual check box (shared rendering);
+- **Android**: a horizontally swipeable pager, opening on the newest page.
+
+## When only one version is behind
+
+Unchanged: a single flat block of notes, no pager, no "N versions behind" header.
+
+---
+
+# v1.4.6.4 Release Notes (Windows + Android)
 
 > **Version**: **1.4.6.4** — the fourth (small) slot. Windows + Android, same rules.
 

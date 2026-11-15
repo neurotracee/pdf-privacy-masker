@@ -306,6 +306,28 @@ main{flex:1;min-height:0;display:flex;overflow:hidden}
   border-radius:50%;display:inline-block;animation:au-rot .9s linear infinite}
 @keyframes au-rot{to{transform:rotate(360deg)}}
 .au-acts{display:flex;gap:9px;justify-content:flex-end;margin-top:18px;flex-wrap:wrap}
+/* ---------- 跨版本说明翻页（v1.4.6.5） ----------
+   当前版本落后好几个版本时，弹窗里能逐页翻看每一版的说明；
+   但翻页只改说明，下载目标永远是最后一页（最新版）。 */
+.vp{margin:10px 0 0;border:1px solid var(--line);border-radius:10px;background:#fbfcfe;overflow:hidden}
+.vp-h{display:flex;flex-wrap:wrap;gap:4px 10px;justify-content:space-between;align-items:baseline;
+  padding:7px 11px;font-size:11.5px;color:var(--ink3);background:#f4f7fd;border-bottom:1px solid var(--line)}
+.vp-h b{color:var(--ink);font-weight:600}
+.vp-body{padding:11px 13px 3px;touch-action:pan-y;cursor:grab;min-height:64px}
+.vp-body.dragging{cursor:grabbing}
+.vp-body .brief{margin:0 0 8px}
+.vp-body .note{margin-top:8px}
+.vp-nav{display:flex;align-items:center;justify-content:space-between;gap:8px;
+  padding:7px 10px;border-top:1px solid var(--line);background:#f7f9fc}
+.vp-nav button{border:1px solid var(--line);background:#fff;border-radius:7px;padding:4px 10px;
+  font-size:12px;color:var(--ink2);cursor:pointer}
+.vp-nav button:hover:not(:disabled){border-color:var(--accent);color:var(--accent)}
+.vp-nav button:disabled{opacity:.38;cursor:default}
+.vp-pos{font-size:11.5px;color:var(--ink3)}
+.vp-goal{padding:6px 11px 8px;font-size:11.5px;color:#1f5b2e;background:#f2fbf4;
+  border-top:1px dashed #cfe8d6}
+.vp-goal b{color:#14501f}
+
 .au-url{margin-top:10px;font-family:ui-monospace,Consolas,monospace;font-size:11px;color:var(--ink3);
   word-break:break-all;background:#f7f9fc;border:1px solid var(--line);border-radius:8px;padding:7px 9px}
 </style>
@@ -479,6 +501,16 @@ main{flex:1;min-height:0;display:flex;overflow:hidden}
     <div class="au-badge" id="autoUpdBadge" hidden></div>
     <h3 id="autoUpdTitle">正在检查更新</h3>
     <p class="sub" id="autoUpdText"></p>
+    <div class="vp" id="autoUpdVp" hidden>
+      <div class="vp-h"><span id="autoUpdVpMeta"></span><span id="autoUpdVpTip"></span></div>
+      <div class="vp-body" id="autoUpdVpBody"></div>
+      <div class="vp-nav">
+        <button type="button" id="autoUpdVpPrev"></button>
+        <span class="vp-pos" id="autoUpdVpPos"></span>
+        <button type="button" id="autoUpdVpNext"></button>
+      </div>
+      <div class="vp-goal" id="autoUpdVpGoal"></div>
+    </div>
     <div class="brief au-brief" id="autoUpdBrief" hidden></div>
     <div class="notes au-notes" id="autoUpdNotes" hidden></div>
     <div class="more au-more" id="autoUpdMore" hidden><a id="autoUpdMoreLink"></a></div>
@@ -556,6 +588,16 @@ main{flex:1;min-height:0;display:flex;overflow:hidden}
       <div class="modal-note" style="margin-top:8px">开着「自动检查」时启动会静默查一次；关掉后只有点这里才会联网。查到的更新来自上面选定的源。</div>
       <div class="upd-box" id="updBox" hidden>
         <div id="updText"></div>
+        <div class="vp" id="updVp" hidden>
+          <div class="vp-h"><span id="updVpMeta"></span><span id="updVpTip"></span></div>
+          <div class="vp-body" id="updVpBody"></div>
+          <div class="vp-nav">
+            <button type="button" id="updVpPrev"></button>
+            <span class="vp-pos" id="updVpPos"></span>
+            <button type="button" id="updVpNext"></button>
+          </div>
+          <div class="vp-goal" id="updVpGoal"></div>
+        </div>
         <div class="brief" id="updBrief" hidden></div>
         <div class="notes" id="updNotes" hidden></div>
         <div class="more" id="updMore" hidden><a id="updMoreLink"></a></div>
@@ -1239,8 +1281,8 @@ let UPD = null;      // {r: 后端返回, opened: 浏览器是否被成功唤起
      摘要（顶部一行，极简）
      详细（可滚动，每条前面标 Windows / 安卓 / 两端）
      具体详见 Release 页面 → */
-function digestOf(r){
-  const d = r && r.digest;
+function digestPick(obj){
+  const d = obj && obj.digest;
   if(!d) return null;
   // 先按当前界面语言取，那份是空的就退回另一种语言（发布页只有中文时也能显示）
   const pick = o => {
@@ -1251,10 +1293,12 @@ function digestOf(r){
     if(o.en && (!Array.isArray(o.en) ? o.en : o.en.length)) return o.en;
     return null;
   };
-  const brief = (pick(d.brief) || '').trim();
-  const items = pick(d.notes) || [];
+  return {brief:(pick(d.brief) || '').trim(), items: pick(d.notes) || []};
+}
+
+function digestNotesHtml(items){
   let html = '';
-  for(const it of items){
+  for(const it of (items || [])){
     const p = (it.p === 'win' || it.p === 'android') ? it.p : 'both';
     const tag = p === 'win' ? 'Windows'
               : (p === 'android' ? T('安卓', 'Android') : T('两端', 'Both'));
@@ -1265,7 +1309,13 @@ function digestOf(r){
     }
     html += '</div>';
   }
-  return {brief:brief, notes:html};
+  return html;
+}
+
+function digestOf(obj){
+  const p = digestPick(obj);
+  if(!p) return null;
+  return {brief:p.brief, notes:digestNotesHtml(p.items)};
 }
 
 /* prefix = 'upd' 或 'autoUpd'，对应 HTML 里的 Brief / Notes / More / MoreLink 四个 id */
@@ -1292,6 +1342,142 @@ function clearDigest(prefix){
   });
 }
 
+/* ---------- 跨版本说明的翻页（v1.4.6.5） ----------
+   当前版本落后好几个版本时（例如 1.4.6.2 对着 1.4.6.3、1.4.6.4），弹窗里可以
+   逐页翻看每一版的说明。页面顺序是「旧 → 新」，默认停在最后一页（最新版）。
+
+   手势方向刻意做成「相反逻辑」：
+     向右滑（手指往右）→ 上一页，也就是**更早**的未更新版本；
+     向左滑（手指往左）→ 下一页，也就是**更新**的版本。
+   左右两个按钮的方向与手势一致，不会出现「箭头和滑动反着来」。
+
+   翻页只改变「看哪一版的说明」：下载按钮、复制链接、底部那行地址全部取
+   r.url（最新版的包），底部固定写明「下载目标：最新版 vX」，翻到旧页时
+   按钮文案也不变——避免用户以为自己在下载翻到的那一版。 */
+const VP = {};
+
+function vpPages(r){
+  return ((r && r.pending) || []).map(p => ({
+    ver: p.ver,
+    digest: p.digest || null,
+    strong: !!p.strong,
+    page: p.page || (r && (r.releasesUrl || r.url)) || '',
+  }));
+}
+
+function vpHide(prefix){
+  const box = $(prefix + 'Vp');
+  if(box) box.hidden = true;
+  delete VP[prefix];
+}
+
+function vpRender(prefix){
+  const st = VP[prefix];
+  if(!st) return;
+  const it = st.pages[st.idx];
+  const body = $(prefix + 'VpBody');
+  if(!body) return;
+  const dig = digestOf(it);
+  let html = '';
+  if(dig && dig.brief) html += '<div class="brief">' + esc(dig.brief) + '</div>';
+  if(dig && dig.notes) html += '<div class="notes">' + dig.notes + '</div>';
+  if(!html){
+    html = '<div class="brief">' + T('这一版没有写更新说明。', 'No notes were written for this version.') + '</div>';
+  }
+  body.innerHTML = html;
+
+  const n = st.pages.length, i = st.idx;
+  const meta = $(prefix + 'VpMeta'), tip = $(prefix + 'VpTip');
+  if(meta){
+    meta.innerHTML = T('共 <b>' + n + '</b> 个版本未更新（当前 v' + st.curVer + ' → 最新 v' + st.latestVer + '）',
+                       n + ' version' + (n > 1 ? 's' : '') + ' behind (v' + st.curVer + ' → v' + st.latestVer + ')');
+  }
+  if(tip){
+    tip.innerHTML = T('正在看 <b>v' + it.ver + '</b> · 右滑看更早，左滑看更新',
+                      'Viewing <b>v' + it.ver + '</b> · swipe right for older, left for newer');
+  }
+  const pos = $(prefix + 'VpPos');
+  if(pos) pos.textContent = (i + 1) + ' / ' + n;
+  const prev = $(prefix + 'VpPrev'), next = $(prefix + 'VpNext');
+  if(prev){
+    prev.textContent = T('‹ 更早版本', '‹ Older');
+    prev.disabled = (i <= 0);
+  }
+  if(next){
+    next.textContent = T('更新版本 ›', 'Newer ›');
+    next.disabled = (i >= n - 1);
+  }
+  const goal = $(prefix + 'VpGoal');
+  if(goal){
+    goal.innerHTML = T('下载目标固定为 <b>最新版 v' + st.latestVer + '</b> —— 翻页只换说明，翻到哪一页点下载装的都是最新版。',
+                       'Download target is always <b>v' + st.latestVer + '</b> — paging only changes the notes.');
+  }
+}
+
+function vpStep(prefix, d){
+  const st = VP[prefix];
+  if(!st) return;
+  const nx = Math.max(0, Math.min(st.pages.length - 1, st.idx + d));
+  if(nx === st.idx) return;
+  st.idx = nx;
+  vpRender(prefix);
+}
+
+function vpWire(prefix){
+  const body = $(prefix + 'VpBody');
+  if(!body || body.dataset.wired) return;
+  body.dataset.wired = '1';
+  let x0 = 0, dx = 0, dragging = false;
+  body.addEventListener('pointerdown', e => {
+    if(e.button !== undefined && e.button !== 0) return;
+    dragging = true; dx = 0; x0 = e.clientX;
+    body.classList.add('dragging');
+    try{ body.setPointerCapture(e.pointerId); }catch(_){ }
+  });
+  body.addEventListener('pointermove', e => {
+    if(!dragging) return;
+    dx = e.clientX - x0;
+    body.style.transform = 'translateX(' + Math.max(-70, Math.min(70, dx)) + 'px)';
+  });
+  const finish = () => {
+    if(!dragging) return;
+    dragging = false;
+    body.classList.remove('dragging');
+    body.style.transform = '';
+    if(dx >= 60) vpStep(prefix, -1);        // 向右滑 → 上一页（更早）
+    else if(dx <= -60) vpStep(prefix, 1);   // 向左滑 → 下一页（更新）
+    dx = 0;
+  };
+  body.addEventListener('pointerup', finish);
+  body.addEventListener('pointercancel', finish);
+  body.addEventListener('pointerleave', finish);
+  const prev = $(prefix + 'VpPrev'), next = $(prefix + 'VpNext');
+  if(prev) prev.onclick = ()=> vpStep(prefix, -1);
+  if(next) next.onclick = ()=> vpStep(prefix, 1);
+}
+
+/* 有多个未更新版本就用翻页，只有一个（或没有）就保持原来的单页渲染 */
+function fillUpdateNotes(prefix, r){
+  const pages = vpPages(r);
+  if(pages.length <= 1){
+    vpHide(prefix);
+    fillDigest(prefix, r);
+    return false;
+  }
+  ['Brief', 'Notes', 'More'].forEach(k=>{
+    const el = $(prefix + k);
+    if(el) el.hidden = true;
+  });
+  const box = $(prefix + 'Vp');
+  if(!box){ fillDigest(prefix, r); return false; }
+  box.hidden = false;
+  VP[prefix] = {pages: pages, idx: pages.length - 1,
+                latestVer: r.latest, curVer: r.current};
+  vpWire(prefix);
+  vpRender(prefix);
+  return true;
+}
+
 function setHelp(){
   $('updHelp').innerHTML = T(
     '还是打不开？按顺序试：<ol>' +
@@ -1313,6 +1499,7 @@ function renderUpdate(){
   box.hidden = false;
   urlBox.hidden = true; acts.hidden = true; help.hidden = true;
   clearDigest('upd');
+  vpHide('upd');
   const detail = $('updDetail');
   detail.hidden = true; detail.textContent = '';
   if(!r || !r.ok){
@@ -1348,8 +1535,18 @@ function renderUpdate(){
     : T('发现新版本 v' + r.latest + '（当前 v' + r.current + '），但没能自动打开浏览器，点下面的按钮再试一次。',
         'New version v' + r.latest + ' is out (you have v' + r.current + '), but the browser did not open — try the button below.');
   txt.textContent += srcLine;
+  // 跨版本：比当前新的版本不止一个时，明确告诉用户「还有几版没更新」
+  const pend = r.pending || [];
+  if(pend.length > 1){
+    txt.textContent += T(
+      ' 你还有 ' + pend.length + ' 个版本没更新（v' + pend[0].ver + ' 等），可以在下面左右滑动逐页看说明。',
+      ' You are ' + pend.length + ' versions behind (v' + pend[0].ver + ' and others) — swipe below to read each one.');
+  }
   // 有发布正文就给摘要和详细，没有就保持原来的样子（不影响任何老版本）
-  fillDigest('upd', r);
+  fillUpdateNotes('upd', r);
+  // 按钮写明「装的是哪一版」，翻页不影响它
+  $('updOpen').textContent = T('用浏览器下载最新版 v' + r.latest,
+                               'Download v' + r.latest + ' in browser');
   urlBox.textContent = r.url || '';
   urlBox.hidden = !urlBox.textContent;
   acts.hidden = false; help.hidden = false;
@@ -1461,6 +1658,7 @@ function autoUpdOpen(){
   $('autoUpdBadge').hidden = true;
   $('autoUpdBadge').className = 'au-badge';
   $('autoUpdSpin').hidden = true;
+  vpHide('autoUpd');
   $('autoUpdUrl').hidden = true;
   $('autoUpdUrl').textContent = '';
   $('autoUpdActs').innerHTML = '';
@@ -1537,7 +1735,13 @@ function autoUpdNew(r, opened){
           'You are on v' + r.current + '. This build fixes problems that keep getting in the way, so updating is strongly suggested — it takes a minute, everything keeps working, and your files never leave your computer.')
       : T('你当前是 v' + r.current + '。新版修了几个已知问题，也更稳——不更新也能继续用，但建议尽快换上。',
           'You are on v' + r.current + '. The new build fixes a few known problems and is more reliable — you can keep using this version, but updating is worth it.'));
-  fillDigest('autoUpd', r);
+  const pend2 = r.pending || [];
+  if(pend2.length > 1){
+    $('autoUpdText').textContent += T(
+      ' 另外你还有 ' + pend2.length + ' 个版本没更新（v' + pend2[0].ver + ' 等），下面可以左右滑动逐页看每一版的说明。',
+      ' You are ' + pend2.length + ' versions behind (v' + pend2[0].ver + ' and others) — swipe below to read each one.');
+  }
+  fillUpdateNotes('autoUpd', r);
   $('autoUpdUrl').hidden = false;
   $('autoUpdUrl').textContent = r.url || r.releasesUrl || '';
   autoUpdBtn(T('暂不更新', 'Not now'), false, autoUpdAskLater);
@@ -1545,7 +1749,7 @@ function autoUpdNew(r, opened){
     const url = r.url || r.releasesUrl || '';
     if (url) copyText(url, T('已复制下载链接：', 'Download link copied: '));
   });
-  autoUpdBtn(T('用浏览器下载', 'Download in browser'), true, async ()=>{
+  autoUpdBtn(T('用浏览器下载最新版 v' + r.latest, 'Download v' + r.latest + ' in browser'), true, async ()=>{
     const ok = await openUpdateUrl(r.url || r.releasesUrl);
     if (!ok){
       toast(T('打不开默认浏览器，可以复制链接自己粘到浏览器里。',

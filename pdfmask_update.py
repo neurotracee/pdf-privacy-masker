@@ -474,6 +474,9 @@ def parse_releases(data, suffix, page_fallback):
         return None
     best = None      # (ver, url, asset, strong, body)
     tag_only = None  # (ver, page, tag, strong, body)
+    # 本平台所有可用版本（按版本号升序）。用户可能跨了好几个版本没更新，
+    # 更新弹窗要能逐页翻看每一版的说明，但下载目标只能是最后一页（最新）。
+    seen = {}
     for rel in data:
         if not isinstance(rel, dict) or rel.get("draft"):
             continue
@@ -505,12 +508,18 @@ def parse_releases(data, suffix, page_fallback):
                 url = page          # 白名单外 → 只给发布页
             if best is None or v > best[0]:
                 best = (v, url, name, strong, body)
+            if v not in seen:
+                seen[v] = {"ver": v, "url": url, "asset": name, "strong": strong,
+                           "body": body, "page": page}
+    # all：本平台每个可下载版本的说明，升序（旧 → 新）。
+    # 只收「本平台确实有安装包」的版本——另一个平台单独发的版本不该出现在这里。
+    allv = [seen[k] for k in sorted(seen)]
     if best:
         return {"ver": best[0], "url": best[1], "asset": best[2], "source": "asset",
-                "strong": best[3], "body": best[4]}
+                "strong": best[3], "body": best[4], "all": allv}
     if tag_only:
         return {"ver": tag_only[0], "url": tag_only[1], "asset": "", "source": "tag",
-                "strong": tag_only[3], "body": tag_only[4]}
+                "strong": tag_only[3], "body": tag_only[4], "all": allv}
     return None
 
 
@@ -550,10 +559,24 @@ def check_update(current, suffix, t, ui_lang=None, source=None, order=None):
             seen_no_asset = ch
             continue
         latest = ver_text(got["ver"])
+        # 跨版本未更新：把「比当前新」的每一版都列出来（升序），供弹窗逐页翻看。
+        # 下载/安装目标永远是 latest，pending 只用于展示说明。
+        pending = []
+        for it in (got.get("all") or []):
+            if it["ver"] <= cur:
+                continue
+            pending.append({
+                "ver": ver_text(it["ver"]),
+                "strong": bool(it.get("strong")),
+                "digest": parse_digest(it.get("body") or ""),
+                "page": it.get("page") or ch["page"],
+            })
         return {
             "ok": True,
             "current": current,
             "latest": latest,
+            "pending": pending,
+            "pendingCount": len(pending),
             "hasUpdate": got["ver"] > cur,
             "strong": bool(got.get("strong")),
             "url": got["url"],
