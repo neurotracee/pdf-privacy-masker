@@ -34,9 +34,7 @@
 
 > **③ 唯一的联网权限，只用于检查更新**
 >
-> 程序只有一处联网：**检查更新**——启动时静默查一次，也可以在设置里改成只在手动点「检查更新」时联网。读到的只是公开发布的版本号与安装包本身，不传文件、不传文档内容、不传任何个人信息。
->
-> - **断网就静默跳过**：不弹窗、不报错，打码功能完全不依赖网络。
+> 程序只有一处联网：**检查更新**——启动时静默查一次，也可以在设置里改成只在手动点「检查更新」时联网。读到的只是公开发布的版本号与安装包本身，不传文件、不传文档内容、不传任何个人信息；断网就静默跳过，不弹窗、不报错，打码功能完全不依赖网络。
 
 ---
 
@@ -366,9 +364,7 @@ by the Free Software Foundation, either version 3 of the License, or
 
 > **③ The only network permission, used only for update checks**
 >
-> The app goes online for exactly one purpose: **checking for updates** — once silently at launch, or only when you tap "Check for updates" if you prefer. It reads the publicly released version number and, if you choose to update, the installer itself. Nothing is uploaded: no files, no document content, no personal information.
->
-> - **Offline means silent skip**: no dialog, no error; redaction never depends on the network.
+> The app goes online for exactly one purpose: **checking for updates** — once silently at launch, or only when you tap "Check for updates" if you prefer. It reads the publicly released version number and, if you choose to update, the installer itself. Nothing is uploaded: no files, no document content, no personal information. Offline it is skipped silently — no dialog, no error, and redaction never depends on the network.
 
 ---
 
