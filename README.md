@@ -5,7 +5,7 @@
 [![Downloads](https://img.shields.io/github/downloads/neurotracee/pdf-privacy-masker/total?label=downloads)](https://github.com/neurotracee/pdf-privacy-masker/releases)
 [![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-green.svg)](https://github.com/neurotracee/pdf-privacy-masker/blob/main/requirements.txt)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Android-blue.svg)](https://github.com/neurotracee/pdf-privacy-masker/releases)
-[![Gitee](https://img.shields.io/badge/Gitee-mirror-c71d23.svg)](https://gitee.com/bio234/pdf-privacy-masker)
+[![Gitee](https://img.shields.io/badge/Gitee-releases-c71d23.svg)](https://gitee.com/bio234/pdf-privacy-masker/releases/latest)
 [![selfcheck](https://github.com/neurotracee/pdf-privacy-masker/actions/workflows/ci.yml/badge.svg)](https://github.com/neurotracee/pdf-privacy-masker/actions/workflows/ci.yml)
 
 **中文** | [English](#pdf-privacy-masker)
@@ -74,7 +74,7 @@
 
 同一个面板里还有**检查更新**和**界面语言（中文 / English）**：
 
-- **检查更新**：打开时静默查一次，有新版本才提示；设置里也可以改成只手动查。断网就跳过，不影响打码。安卓端在应用内下载安装包并交给系统安装器。更新内容的详细说明都写在 [Releases](https://github.com/neurotracee/pdf-privacy-masker/releases) 页面。
+- **检查更新**：打开时静默查一次，有新版本才提示；设置里也可以改成只手动查。断网就跳过，不影响打码。安卓端在应用内下载安装包并交给系统安装器。更新内容的详细说明都写在发布页：[Gitee](https://gitee.com/bio234/pdf-privacy-masker/releases) · [GitHub](https://github.com/neurotracee/pdf-privacy-masker/releases)。
 - **界面语言**：中英文一键切换，立即生效不用重启，选择存在 `settings.json` 里，下次打开还是这个语言。
 - **按返回 / 左右滑手势（v1.4.5 起，安卓）**：工作区里还开着文件时，返回键和全面屏手势会先问一句——**继续编辑** / **保存后离开** / **直接离开**。直接离开是回主页，不是关应用；在主页再按返回才是退出。
 
@@ -181,7 +181,7 @@ https://gitee.com/bio234/pdf-privacy-masker      # mirror / 镜像（国内访�
 
 ### 方式一：直接用打包好的 exe（Windows，推荐）
 
-1. 到 **[Releases 页面](https://github.com/neurotracee/pdf-privacy-masker/releases/latest)** 下载 `PDFPrivacyMasker-<版本号>.exe`（文件名里的版本号就是当前最新版；国内网络慢可以直接去 [Gitee 发布页](https://gitee.com/bio234/pdf-privacy-masker/releases/latest)，两边是同一个包）。
+1. 到发布页下载 `PDFPrivacyMasker-<版本号>.exe`（文件名里的版本号就是当前最新版）：[Gitee 发布页](https://gitee.com/bio234/pdf-privacy-masker/releases/latest) · [GitHub 发布页](https://github.com/neurotracee/pdf-privacy-masker/releases/latest)。两个仓库同步发布同一份包，就近选一个下即可。
 2. 双击运行。**不需要安装 Python，也不需要联网。**
 3. 第一次启动会慢 1–2 秒（单文件程序要先自解压到临时目录），属正常现象。
 4. 如果 Windows 弹「已保护你的电脑」，点「更多信息 → 仍要运行」——程序没有购买数字签名证书，不影响功能。
@@ -192,7 +192,7 @@ https://gitee.com/bio234/pdf-privacy-masker      # mirror / 镜像（国内访�
 
 ### 方式一之二：安装 apk（安卓）
 
-1. 到 **[Releases 页面](https://github.com/neurotracee/pdf-privacy-masker/releases/latest)** 下载 `PDFPrivacyMasker-<版本号>-arm64.apk`（Android 8.0 及以上，arm64 机型；[Gitee 发布页](https://gitee.com/bio234/pdf-privacy-masker/releases/latest) 同款）。
+1. 到发布页下载 `PDFPrivacyMasker-<版本号>-arm64.apk`（Android 8.0 及以上，arm64 机型）：[Gitee 发布页](https://gitee.com/bio234/pdf-privacy-masker/releases/latest) · [GitHub 发布页](https://github.com/neurotracee/pdf-privacy-masker/releases/latest)。两个仓库同步发布同一份包。
 2. 点开安装；系统提示「未知来源」时，允许当前文件管理器安装即可。
 3. 打开后在首页点一下选 PDF，确认勾选，点「生成打码 PDF」再选保存目录。
 
@@ -317,7 +317,7 @@ by the Free Software Foundation, either version 3 of the License, or
 
 这个项目由个人在业余时间维护，取舍很直白：**识别准不准、文件会不会坏、隐私有没有漏**这类问题优先处理；界面润色、锦上添花的功能可以慢慢来。代码全部公开，任何人不经询问就可以 fork 自行改进，不必等作者回复。
 
-- **报缺陷**：到 [Issues](https://github.com/neurotracee/pdf-privacy-masker/issues/new/choose) 按模板填，写清版本号、系统、怎么复现。两端 Issues 都开着，Gitee 那边也行（[Gitee Issues](https://gitee.com/bio234/pdf-privacy-masker/issues)）。
+- **报缺陷**：到 Issues 按模板填，写清版本号、系统、怎么复现。两端 Issues 都开着：[Gitee Issues](https://gitee.com/bio234/pdf-privacy-masker/issues) · [GitHub Issues](https://github.com/neurotracee/pdf-privacy-masker/issues/new/choose)。
 - **提改进 / 提代码**：先看 [CONTRIBUTING.md](CONTRIBUTING.md)，里面有目录结构、怎么跑自检、以及提交时会被要求做什么。
 - **回复可能不快**：看到了会处理，没回不代表没看见，也不代表被否掉。
 
@@ -404,7 +404,7 @@ You can also change this anytime in the Settings panel in the top-right corner �
 
 The same panel also has **Check for updates** and **Language (中文 / English)**:
 
-- **Check for updates**: one silent check at launch, offering an update only when a newer build exists; Settings can switch it to manual only. Offline, it is skipped silently and the app stays fully usable. On Android the installer is downloaded inside the app and handed to the system installer. Detailed notes for each version live on the [Releases](https://github.com/neurotracee/pdf-privacy-masker/releases) page.
+- **Check for updates**: one silent check at launch, offering an update only when a newer build exists; Settings can switch it to manual only. Offline, it is skipped silently and the app stays fully usable. On Android the installer is downloaded inside the app and handed to the system installer. Detailed notes for each version live on the release pages: [Gitee](https://gitee.com/bio234/pdf-privacy-masker/releases) · [GitHub](https://github.com/neurotracee/pdf-privacy-masker/releases).
 - **Language** switches the whole interface between Chinese and English instantly, no restart. The choice is remembered in `settings.json`.
 - **Back button / edge swipe (Android, since v1.4.5)**: while a file is open, both the back button and the full-screen gestures are caught and a small dialog offers **Keep editing** / **Save, then leave** (only once a result exists) / **Leave anyway**. Leaving returns to the app's home screen, not out of the app. Back from the home screen is what exits.
 
@@ -502,7 +502,7 @@ Need closed-source commercial use? You must **both** get an exemption from the p
 
 ### Option 1: Use the packaged exe (recommended, Windows)
 
-1. Go to the **[Releases page](https://github.com/neurotracee/pdf-privacy-masker/releases/latest)** and download `PDFPrivacyMasker-<version>.exe` — the version in the file name is whatever is current; on a slow connection in mainland China use the [Gitee release page](https://gitee.com/bio234/pdf-privacy-masker/releases/latest), it is the same build.
+1. Download `PDFPrivacyMasker-<version>.exe` from a release page — the version in the file name is whatever is current: [Gitee releases](https://gitee.com/bio234/pdf-privacy-masker/releases/latest) · [GitHub releases](https://github.com/neurotracee/pdf-privacy-masker/releases/latest). Both repos publish the same build; use whichever is faster for you.
 2. Double-click to run. **No Python install needed, no network needed.**
 3. First launch takes 1–2 seconds (single-file app self-extracts to temp dir), that's normal.
 4. If Windows shows "Windows protected your PC", click "More info → Run anyway" — the app has no code signing certificate, but it works fine.
@@ -513,7 +513,7 @@ The UI opens automatically in your browser at a random `127.0.0.1` port. Close t
 
 ### Option 1b: Install the apk (Android)
 
-1. On the **[Releases page](https://github.com/neurotracee/pdf-privacy-masker/releases/latest)**, download `PDFPrivacyMasker-<version>-arm64.apk` (Android 8.0+, arm64 devices; the [Gitee release page](https://gitee.com/bio234/pdf-privacy-masker/releases/latest) has the same file).
+1. Download `PDFPrivacyMasker-<version>-arm64.apk` (Android 8.0+, arm64 devices) from a release page: [Gitee releases](https://gitee.com/bio234/pdf-privacy-masker/releases/latest) · [GitHub releases](https://github.com/neurotracee/pdf-privacy-masker/releases/latest). Both repos publish the same build.
 2. Tap to install; allow "unknown sources" for your file manager if the system asks.
 3. Tap a PDF on the home screen, confirm the detections, then tap "Mask PDF" and pick a folder.
 
@@ -636,7 +636,7 @@ The Android app has no separate README on purpose: both platforms share one set 
 
 This project is maintained by one person in their spare time, and the priorities are plain: **does it detect correctly, does it ever break a file, can anything private slip through** — those come first; cosmetic polish and nice-to-haves can wait. The code is fully open — fork and improve it whenever you like, no need to wait for a reply.
 
-- **Report a bug**: use the [issue templates](https://github.com/neurotracee/pdf-privacy-masker/issues/new/choose) and include the version, your OS, and the steps to reproduce. Issues are open on both hosts; [Gitee Issues](https://gitee.com/bio234/pdf-privacy-masker/issues) works too.
+- **Report a bug**: use the issue templates and include the version, your OS, and the steps to reproduce. Issues are open on both hosts: [Gitee Issues](https://gitee.com/bio234/pdf-privacy-masker/issues) · [GitHub Issues](https://github.com/neurotracee/pdf-privacy-masker/issues/new/choose).
 - **Suggest a change or send code**: read [CONTRIBUTING.md](CONTRIBUTING.md) first — it covers the layout, how to run the self-check, and what a patch is expected to include.
 - **Replies may be slow**: if it is seen it gets handled. No reply does not mean it was ignored or rejected.
 
