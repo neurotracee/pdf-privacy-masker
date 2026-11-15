@@ -6,7 +6,18 @@
     python dev/sync_gitee_releases.py --dry-run      # 只看计划，不写入
     python dev/sync_gitee_releases.py                # 真正创建 + 上传（幂等）
     python dev/sync_gitee_releases.py --tag v1.4.3   # 只处理某一个版本
+    python dev/sync_gitee_releases.py --verify-order # 校验 Gitee 的「最新版」是不是真正的最大版本
+    python dev/sync_gitee_releases.py --audit        # 列出各版本创建时间、预发布标记、附件与总配额占用
+    python dev/sync_gitee_releases.py --prune-old-assets --dry-run  # 预览一次性批量清理旧版附件
     python dev/sync_gitee_releases.py --reorder      # 重建全部 Release，让新版排在最上面
+
+Gitee 附件配额（1 GB / 整个仓库）与版本顺序规范
+------------------------------------------------
+见 docs/05-构建与发布.md 的 4.4 节。要点：只保证最新版有附件；旧版本附件
+不逐个删、不逐个改文字，留到 `--prune-old-assets` 一次性批量处理；禁止
+「从旧版开始删附件 → 加新附件 → 回头改旧版文字」的交错操作，因为 Gitee 的
+latest 是「最后创建的非预发布 Release」，不是版本号最大的那个。
+正常同步结束会自动跑一次 `--verify-order` 的同等校验。
 
 为什么要 `--reorder`
 --------------------
@@ -18,7 +29,7 @@ v1.3.0 → v1.4.0 → v1.4.1 → …，最后一次创建的最新版自然落�
 
 凭据：
     Gitee 私人令牌，写在 ~/.gitee_token 或环境变量 GITEE_TOKEN（权限需含 projects）。
-    GitHub 侧读公开 API 不需要令牌；本地缺的安装包会用 ghproxy 镜像下载。
+    GitHub 侧读列表用公开 API，下载大附件时优先用 ~/.github_token 走官方 asset 地址。
 
 幂等：同名 Release 已存在就不重复创建；同名附件已存在就跳过上传。
 """
@@ -108,8 +119,10 @@ def http_json(url, method="GET", data=None, tok=None, retries=4):
 def ver_key(text):
     """v1.4.10 要排在 v1.4.9 后面，所以按数字元组排，不能按字符串排。"""
     nums = re.findall(r"\d+", text or "")
-    t = [int(x) for x in nums[:3]]
-    while len(t) < 3:
+    # 版本号是四段（1.4.6.5），只取前三段会让同一修订下的几个小版本平起平坐，
+    # max() / 排序就会挑错「最新版」。四段全部参与比较。
+    t = [int(x) for x in nums[:4]]
+    while len(t) < 4:
         t.append(0)
     return tuple(t)
 
@@ -318,6 +331,180 @@ def reorder(rels, tok, dry):
             print("  %-8s 创建于 %s" % (r.get("tag_name"), r.get("created_at")))
 
 
+# ---------------------------------------------------------------- 配额 / 顺序
+
+GH_RELEASES_URL = "https://github.com/neurotracee/pdf-privacy-masker/releases"
+GE_LATEST_URL = "https://gitee.com/bio234/pdf-privacy-masker/releases/latest"
+GITEE_QUOTA = 1024 ** 3          # 整个仓库所有历史版本附件累计，1 GB
+
+HISTORY_NOTE_TEMPLATE = """> **本页是历史版本，安装包已从 Gitee 移除。** Gitee 仓库的 Release 附件总额度只有 1 GB，现在只保留最新版的附件；历史版本的附件统一清理，不在本页逐个处理。
+> 需要这一版的安装包，请到 GitHub 发布页下载：
+> https://github.com/neurotracee/pdf-privacy-masker/releases/tag/{tag}
+> 全部历史版本：https://github.com/neurotracee/pdf-privacy-masker/releases
+> 只想装软件用的话，直接下最新版：https://gitee.com/bio234/pdf-privacy-masker/releases/latest
+
+"""
+
+
+def newest_tag(rels):
+    return max((r["tag_name"] for r in rels), key=ver_key)
+
+
+def ge_latest_tag():
+    """直接问 Gitee 的 /releases/latest 落在哪个 tag，不靠列表猜。"""
+    r = subprocess.run(["curl", "-s", "--noproxy", "*", "--max-time", "30",
+                        "-o", os.devnull, "-w", "%{redirect_url}", GE_LATEST_URL],
+                       capture_output=True, text=True)
+    out = (r.stdout or "").strip()
+    m = re.search(r"/tag/([^/?#]+)", out)
+    return m.group(1) if m else ""
+
+
+def ge_attach_files(rid, tok):
+    c, d = http_json("%s/releases/%s/attach_files" % (GE_API, rid), tok=tok)
+    return d if isinstance(d, list) else []
+
+
+def install_assets(files):
+    return [a for a in files if (a.get("name") or "").lower().endswith((".exe", ".apk"))]
+
+
+def verify_order(rels=None, tok=None, quiet=False):
+    """校验「Gitee 显示的最新版」==「版本号最大的版本」。
+
+    三条都过才算绿：latest 重定向、Gitee 列表里最后创建的那个、以及最新版附件
+    与 GitHub API 报的字节数一致（防止镜像截断的残包冒充正式安装包）。
+    """
+    tok = tok or token()
+    rels = rels or gh_releases()
+    if not rels:
+        return False, ["拿不到 GitHub Release 列表"]
+    want = newest_tag(rels)
+    problems = []
+
+    got = ge_latest_tag()
+    if got != want:
+        problems.append("/releases/latest 落在 %s，应为 %s" % (got or "(空)", want))
+
+    ges = gitee_releases()
+    by_created = sorted(ges, key=lambda x: x.get("created_at") or "", reverse=True)
+    top = by_created[0].get("tag_name") if by_created else ""
+    if top != want:
+        problems.append("Gitee 列表第一条是 %s，应为 %s（它是最后创建的非预发布 Release）" % (top, want))
+
+    cur = next((x for x in ges if x.get("tag_name") == want), None)
+    if not cur:
+        problems.append("Gitee 上还没有 %s" % want)
+    else:
+        ghr = next((x for x in rels if x["tag_name"] == want), None)
+        expect = {a["name"]: int(a.get("size") or 0) for a in (ghr.get("assets") or [])}
+        have = {a["name"]: int(a.get("size") or 0) for a in ge_attach_files(cur["id"], tok)}
+        for n, sz in expect.items():
+            if n in have and have[n] != sz:
+                problems.append("附件 %s 大小不符：Gitee %s / GitHub %s" % (n, have[n], sz))
+
+    # 旧版本还有多少附件：不是错误（按策略留到一次性批量清理），但必须看得见
+    old_with_assets = []
+    for r in ges:
+        if r.get("tag_name") == want:
+            continue
+        if install_assets(ge_attach_files(r["id"], tok)):
+            old_with_assets.append(r.get("tag_name"))
+
+    if not quiet or problems:
+        print("=== 版本顺序校验 ===")
+        print("  最大版本：%s" % want)
+        print("  Gitee /releases/latest：%s" % (got or "(取不到)"))
+        print("  Gitee 列表第一条：%s" % (top or "(取不到)"))
+        print("  仍带附件的旧版本：%d 个%s（按策略留待一次性批量清理，不是错误）" % (
+            len(old_with_assets),
+            "：" + ", ".join(old_with_assets) if old_with_assets and not quiet else ""))
+        print("  结果：%s" % ("通过" if not problems else "不通过"))
+        for x in problems:
+            print("    - " + x)
+        if problems:
+            print("  修复：把误建的历史 Release 标 pre-release；必要时用 --reorder 按旧→新重建；")
+            print("        校验通过前不要在 README / 更新说明里写「Gitee 最新版可下载」。")
+    return not problems, problems
+
+
+def audit(tok):
+    """给「后续一次性批量清理」提供依据：谁有附件、谁标了预发布、一共占了多少配额。"""
+    rels = gh_releases()
+    want = newest_tag(rels) if rels else ""
+    ges = sorted(gitee_releases(), key=lambda x: ver_key(x.get("tag_name") or ""))
+    total = 0
+    print("=== Gitee Release 附件审计（配额 %d MB）===" % (GITEE_QUOTA // 1048576))
+    print("%-11s %-5s %-8s %-22s %s" % ("版本", "最新", "预发布", "安装包", "安装包体积"))
+    for r in ges:
+        tag = r.get("tag_name") or ""
+        files = install_assets(ge_attach_files(r["id"], tok))
+        sz = sum(int(a.get("size") or 0) for a in files)
+        total += sz
+        print("%-11s %-5s %-8s %-22s %.2f MB" % (
+            tag, "是" if tag == want else "", "是" if r.get("prerelease") else "",
+            ("%d 个" % len(files)) if files else "无", sz / 1048576))
+    print("安装包合计：%.2f MB / %d MB（%.1f%%）" %
+          (total / 1048576, GITEE_QUOTA // 1048576, total * 100.0 / GITEE_QUOTA))
+    print("旧版本附件不逐个处理；要清理请用 --prune-old-assets（先加 --dry-run 看清单）。")
+
+
+def history_note_body(body, tag):
+    """把旧版正文开头的「附件已移除」提示统一成同一段文字，其余一个字不动。"""
+    note = HISTORY_NOTE_TEMPLATE.format(tag=tag)
+    m = re.search(r"^## ", body, flags=re.M)
+    head_end = m.start() if m else 0
+    head = body[:head_end]
+    if "安装包已移除" in head or "本页是历史版本" in head:
+        body = body[head_end:].lstrip("\n")
+    # 早期手工改过的旧版还留着一块「本页没有，去 GitHub 下」的表格，统一模板里
+    # 已经写了链接，这块就成了重复内容，批量处理时一并去掉。
+    m2 = re.search(r"^## 安装包（本页没有.*?(?=\n更新级别：|\n## |\Z)", body,
+                   flags=re.S | re.M)
+    if m2:
+        body = body[:m2.start()] + body[m2.end():]
+    return note + body
+
+
+def prune_old_assets(tok, dry=False):
+    """一次性批量清理旧版附件（独立任务，正常发版流程不调用）。
+
+    按版本号**从旧到新**统一处理，不夹带「给新版本加附件」的动作；新版附件
+    由发版流程的最后一步负责。结束后立即校验版本顺序，避免 Gitee 的 latest
+    被旧版本顶掉。
+    """
+    rels = gh_releases()
+    if not rels:
+        return
+    want = newest_tag(rels)
+    ges = {r.get("tag_name"): r for r in gitee_releases()}
+    order = sorted((t for t in ges if t != want), key=ver_key)
+    print("=== %s旧版本附件 ===" % ("[dry-run] 预览" if dry else "批量清理"))
+    print("保留最新版 %s 的全部附件；以下按旧 → 新统一处理：" % want)
+    for tag in order:
+        r = ges[tag]
+        files = install_assets(ge_attach_files(r["id"], tok))
+        print("  %-11s 待删 %d 个安装包%s" %
+              (tag, len(files), "" if files else "（已清空，只统一说明文字）"))
+        if dry:
+            continue
+        for a in files:
+            c, resp = http_json("%s/releases/%s/attach_files/%s" % (GE_API, r["id"], a["id"]),
+                                "DELETE", None, tok)
+            if c not in (200, 204):
+                print("    删除 %s 失败：HTTP %s %s" % (a["name"], c, str(resp)[:120]))
+        body = history_note_body((r.get("body") or "").replace("\r\n", "\n"), tag)
+        c, resp = http_json("%s/releases/%s" % (GE_API, r["id"]), "PATCH",
+                            {"tag_name": tag, "name": r.get("name") or tag,
+                             "body": body, "prerelease": bool(r.get("prerelease"))}, tok)
+        print("    说明文字 -> HTTP %s" % c)
+    if dry:
+        print("  [dry-run] 未做任何改动。确认无误后去掉 --dry-run 再跑。")
+    else:
+        print("=== 批量清理后校验版本顺序 ===")
+        verify_order(rels, tok)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--dry-run", action="store_true")
@@ -327,16 +514,31 @@ def main():
                     help="已存在的 Release：整个删掉重建并重传附件（重发同一版本号时用）")
     ap.add_argument("--reorder", action="store_true",
                     help="按版本号升序重建全部 Release，修正 Gitee 的倒序排列")
+    ap.add_argument("--verify-order", action="store_true",
+                    help="只校验 Gitee 的 latest / 列表顺序 / 最新版附件大小，不改任何东西")
+    ap.add_argument("--audit", action="store_true",
+                    help="列出各版本创建时间、预发布标记、附件与 1GB 配额占用")
+    ap.add_argument("--prune-old-assets", action="store_true",
+                    help="一次性批量清理旧版附件并统一说明文字（独立任务，配 --dry-run 预览）")
     a = ap.parse_args()
 
     tok = token()
-    if not tok and not a.dry_run:
+    if not tok and not a.dry_run and not a.verify_order:
         print("缺少 Gitee 令牌：请写入 %s 或设置 GITEE_TOKEN" % os.path.join(HOME, ".gitee_token"))
         return 1
 
     rels = gh_releases()
     if not rels:
         return 1
+    if a.verify_order:
+        ok, _ = verify_order(rels, tok)
+        return 0 if ok else 2
+    if a.audit:
+        audit(tok)
+        return 0
+    if a.prune_old_assets:
+        prune_old_assets(tok, a.dry_run)
+        return 0
     print("GitHub 共 %d 个 Release：%s\n" % (len(rels), ", ".join(r["tag_name"] for r in rels)))
 
     if a.reorder:
@@ -437,6 +639,12 @@ def main():
             print("  -> %s %s" % ("成功" if ok else "失败", info))
 
     print("\n完成。")
+    if not a.dry_run:
+        # 每次动过 Gitee 都必须确认「最新版」没有跑偏，这是 4.4 节的硬规矩
+        ok, _ = verify_order(rels, tok, quiet=True)
+        if not ok:
+            print("警告：版本顺序校验未通过，请先修好再对外说「Gitee 最新版可下载」。")
+            return 2
     return 0
 
 

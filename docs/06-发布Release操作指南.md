@@ -229,3 +229,23 @@ https://api.github.com/repos/neurotracee/pdf-privacy-masker/releases
 > 小抄：想让某一版提醒更重，就把正文第一行改成 `更新级别：强烈建议`，别的话照常写。发完拿旧版打开一次：徽标是橙红色、标题是「强烈建议更新到 vX」，点「暂不更新」会多问一句——就是读到了；如果还是普通蓝标，说明那一行没顶格或被包进了代码块。
 
 `CHANGELOG.md` 只往后加新节，**不要改旧节**——旧节对应的是别人已经下载过的版本，改了就对不上了。
+
+---
+
+## 九、Gitee 那边的配额与版本顺序（网页操作同样适用）
+
+GitHub 的 Release 附件没有这个烦恼，**Gitee 有**：整个仓库所有历史版本的附件加起来只有 **1 GB**。所以 Gitee 这边统一按下面几条办，完整规则见 [05-构建与发布.md 4.4 节](05-构建与发布.md#44-gitee-附件配额与版本顺序规范必须照做)。
+
+1. **只保证最新版的附件可用**。发新版时，Gitee 上最新版要有能装的安装包；旧版本的附件**不逐个删、不逐个改文字**，留到以后用 `python dev/sync_gitee_releases.py --prune-old-assets` 一次性批量清理。
+2. **别交错操作**。绝对不要「从旧版本开始删附件 → 再给新版本加附件 → 回头改旧版本文字」。Gitee 的「最新版」是**最后创建的那个非预发布 Release**，不是版本号最大的那个；中间夹一次历史版本补建，页面上的最新版就会变成旧版本。2026-11-15 已经因此把 latest 顶成过 v1.4.1。
+3. **固定顺序**：先推代码 → GitHub 建 Release 传全部附件 → Gitee 建最新版 Release（必须最后创建）→ 传附件 → 跑 `python dev/sync_gitee_releases.py --verify-order` → 打开 `https://gitee.com/bio234/pdf-privacy-masker/releases/latest` 确认落在本次 tag。
+4. **配额不够时**：Gitee 只放 apk + `SHA256SUMS.txt`，正文写清「Windows exe 请到 https://github.com/neurotracee/pdf-privacy-masker/releases/tag/`<版本号>` 下载」。**不要为了腾地方临时删某个旧版本的附件**。
+5. **历史版本给用户指路**：旧版页面只留更新说明，顶部统一贴这段（`<版本号>` 换成该版 tag）：
+
+   > **本页是历史版本，安装包已从 Gitee 移除。** Gitee 仓库的 Release 附件总额度只有 1 GB，现在只保留最新版的附件；历史版本的附件统一清理，不在本页逐个处理。
+   > 需要这一版的安装包，请到 GitHub 发布页下载：
+   > https://github.com/neurotracee/pdf-privacy-masker/releases/tag/`<版本号>`
+   > 全部历史版本：https://github.com/neurotracee/pdf-privacy-masker/releases
+   > 只想装软件用的话，直接下最新版：https://gitee.com/bio234/pdf-privacy-masker/releases/latest
+
+6. **补建历史版本一律勾 pre-release**，补完立刻跑校验。校验不通过前，别在任何地方写「Gitee 最新版可下载」。
