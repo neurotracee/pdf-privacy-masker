@@ -63,6 +63,7 @@ DET_LIMIT = 1280         # 检测输入的长边上限，越大越准也越慢
 DET_THRESH = 0.30        # 概率图二值化阈值
 BOX_THRESH = 0.50        # 连通域平均分低于此值丢弃（滤掉噪点）
 UNCLIP_RATIO = 1.6       # 外扩比例，把文字笔画框撑到「整行高度」
+UNCLIP_MAX_RATIO_Y = 0.12   # 纵向外扩上限（按行高算）：大了会吞邻行
 MIN_BOX_SIDE = 3         # 最小边长（检测图坐标系），小于此值当噪点
 
 REC_HEIGHT = 48          # 识别输入高（PP-OCR 固定 48）
@@ -72,8 +73,88 @@ PAD_RATIO = 0.85         # 检测框外扩比例（按行高算）：0.45 时细
 SKEW_MAX = 3.0           # 倾斜校正的搜索范围（度）
 SKEW_MIN = 0.20          # 小于这个角度不动，免得白转一次、掉精度
 
+# 低对比度页面的对比度归一化（见 normalize_contrast）
+CONTRAST_MIN_RANGE = 120  # 灰度 p99-p1 低于此值才动手；正常扫描件远大于它
+CONTRAST_LO_P = 5         # 黑场分位
+CONTRAST_HI_P = 90        # 白场分位
+CONTRAST_PAPER_MIN = 150  # 中位灰度低于此值当「照片」处理，不动它
+
 _MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32)
 _STD = np.array([0.229, 0.224, 0.225], dtype=np.float32)
+
+
+def normalize_contrast(rgb):
+    """低对比度纸面页的对比度归一化。
+
+    现实里被「故意刁难」的扫描件常常长这样：泛黄的纸底本身就是浅灰
+    （中位灰度 225 左右），字又不是纯黑，最暗只到 154，整页灰度动态范围
+    只有 60~80。PP-OCR 的检测头输出的是概率图，再过 DET_THRESH 二值化——
+    对比度不足时整行根本激活不起来，于是出现「一页 15 行只认出 8 行」
+    「整页 0 检出」这种断崖式漏检，而规则层再准也救不回来。
+
+    做法是按页自适应做一次线性拉伸：取灰度 5% / 90% 分位当黑白端点，
+    把 [lo, hi] 铺满 [0, 255]。三个保护条件：
+      · 动态范围本来就够（>= CONTRAST_MIN_RANGE）→ 原样返回，正常文档一个
+        像素都不动，不给现有样本引入副作用；
+      · 中位灰度偏暗 → 当照片处理，原样返回，避免把暗背景拉爆；
+      · hi-lo 几乎为 0（空白页）→ 原样返回。
+
+    只影响检测与识别的输入，打码坐标仍然按原图算，所以不会错位。
+    """
+    g = rgb.astype(np.float32).mean(axis=2)
+    sub = g[::4, ::4]
+    lo, hi = np.percentile(sub, [CONTRAST_LO_P, CONTRAST_HI_P])
+    med = float(np.percentile(sub, 50))
+    if med < CONTRAST_PAPER_MIN or (hi - lo) >= CONTRAST_MIN_RANGE or (hi - lo) < 2:
+        return rgb
+    out = np.clip((g - lo) * (255.0 / float(hi - lo)), 0, 255).astype(np.uint8)
+    return np.repeat(out[:, :, None], 3, axis=2)
+
+
+_GRAD_CELL = 64           # 光照估计的网格边长（像素）
+_GRAD_TRIGGER = 14.0      # 网格间纸底亮度差超过这个值，就当「有明显光照渐变」
+
+
+def _paper_field(gray, cell=_GRAD_CELL):
+    """按网格取 90% 分位，估计这一页的「纸底亮度分布」。
+
+    用分位数而不是均值/高斯模糊：一格 64×64 里文字占比通常不到 10%，
+    90% 分位基本落在纸底上，不会被笔画拉低；而均值会被文字污染，除完
+    把笔画漂白、笔画断裂（试过，反而更差）。
+    """
+    h, w = gray.shape
+    ny = max(1, h // cell)
+    nx = max(1, w // cell)
+    gh, gw = h // ny, w // nx
+    blk = gray[:ny * gh, :nx * gw].reshape(ny, gh, nx, gw).transpose(0, 2, 1, 3)
+    field = np.percentile(blk.reshape(ny, nx, gh * gw), 90, axis=2)
+    from PIL import Image
+    small = Image.fromarray(np.clip(field, 0, 255).astype(np.uint8))
+    return np.asarray(small.resize((w, h), Image.BILINEAR), dtype=np.float32)
+
+
+def has_gradient(rgb):
+    """这一页是不是「一边亮一边暗」（拍照 / 扫描时台灯偏一侧）。
+
+    第 8 页这类样本：中心亮、四角暗，全局拉伸会把暗区直接压成黑，
+    行与行粘成一片，识别出来就是乱码。这种页面必须先除掉光照再谈对比度。
+    """
+    g = rgb.astype(np.float32).mean(axis=2)
+    field = _paper_field(g)
+    tiny = field[::32, ::32]
+    return (float(tiny.max()) - float(tiny.min())) >= _GRAD_TRIGGER
+
+
+def flatten_illumination(rgb):
+    """用纸底亮度把页面「压平」：每个像素除以所在位置的纸底亮度。
+
+    纸底变成均匀的 255，字还是相对更暗——渐变消失，后面再统一拉伸黑白场
+    就稳定了。返回仍是 HxWx3 uint8，坐标不变。
+    """
+    g = rgb.astype(np.float32).mean(axis=2)
+    field = _paper_field(g)
+    out = np.clip(g / np.maximum(field, 1.0) * 255.0, 0, 255).astype(np.uint8)
+    return np.repeat(out[:, :, None], 3, axis=2)
 
 
 def fold_width(c):
@@ -380,13 +461,31 @@ class OcrEngine(object):
             bh = y1 - y0
             if bw < MIN_BOX_SIDE or bh < MIN_BOX_SIDE:
                 continue
-            score = float(prob[y0:y1, x0:x1].mean())
+            # 置信度只统计「框内真正被判为文字的那些像素」。
+            # 以前算的是外接矩形内的平均概率，而一整行长句的矩形里大部分是
+            # 字间空隙与行间空白，平均值被稀释到 0.25 上下，低于 BOX_THRESH
+            # 0.50 就被整条丢掉了——表现就是「短片段能检出、整行长句全漏」。
+            # 这也是长文本判决书大量漏检的主因（同一页可以从 8 个框变成 18 个）。
+            sub_m = mask[y0:y1, x0:x1]
+            if not sub_m.any():
+                continue
+            score = float(prob[y0:y1, x0:x1][sub_m].mean())
             if score < BOX_THRESH:
                 continue
-            # unclip：按「面积 / 周长」外扩，把笔画框撑成整行框
+            # unclip：按「面积 / 周长」外扩，把笔画框撑成整行框。
+            # 但外扩是各向同性的，而这两个方向的需求正好相反：
+            #   · 水平：必须留够余量，否则行首行尾的字会被切掉半个
+            #     （实测「出生日期」被读成「出生期」、「1994年3月8日」丢「日」）；
+            #   · 垂直：绝不能大，长行按公式会扩到 0.8 倍行高，直接把上下
+            #     相邻行吞进裁剪框，识别出来是「楼2单元…楼2执行人…」这种半截串。
+            # 所以横向照公式扩，纵向压到 0.12 倍行高。
             d = bw * bh * UNCLIP_RATIO / (2.0 * (bw + bh) + 1e-6)
-            out.append(((x0 - d) * sx, (y0 - d) * sy,
-                        (x1 + d) * sx, (y1 + d) * sy, score))
+            dx = d
+            # 纵向只对「细长行」收紧；短框（姓名、日期这类）仍然各向同性地扩，
+            # 收紧它们会把字的上下沿切掉，OCR 会把「出生日期」读成「出生期」。
+            dy = min(d, bh * UNCLIP_MAX_RATIO_Y) if bw >= 6 * bh else d
+            out.append(((x0 - dx) * sx, (y0 - dy) * sy,
+                        (x1 + dx) * sx, (y1 + dy) * sy, score))
         return out
 
     # -- 识别 ---------------------------------------------------------------
@@ -488,9 +587,18 @@ class OcrEngine(object):
             rot = 0.0
         rc_x, rc_y = full.shape[1] / 2.0, full.shape[0] / 2.0
 
+        # 极低对比度的纸面页先拉一次黑白场再送进网络（灰字 + 泛黄底是
+        # 扫描件漏检的头号原因）；有明显光照渐变的，先把光照除掉再拉伸，
+        # 否则暗区会被压死、行与行粘成一片。正常页面这两步都不生效。
+        if has_gradient(full):
+            work = normalize_contrast(flatten_illumination(full))
+        else:
+            work = normalize_contrast(full)
+
         h, w = full.shape[:2]
         scale = min(1.0, DET_LIMIT / float(max(h, w)))
-        small = _resize_rgb(full, int(round(w * scale)), int(round(h * scale))) if scale < 1.0 else full
+        small = (_resize_rgb(work, int(round(w * scale)), int(round(h * scale)))
+                 if scale < 1.0 else work)
         boxes = self._detect(small)
         if not boxes:
             return []
@@ -517,7 +625,7 @@ class OcrEngine(object):
         if not crops:
             return []
 
-        patches = [full[a[0]:a[1], a[2]:a[3]] for a in crops]
+        patches = [work[a[0]:a[1], a[2]:a[3]] for a in crops]
         recs = []
         for i in range(0, len(patches), REC_BATCH):
             recs.extend(self._rec_batch(patches[i:i + REC_BATCH]))

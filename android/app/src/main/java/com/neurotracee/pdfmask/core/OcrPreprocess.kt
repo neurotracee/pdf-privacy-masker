@@ -1,0 +1,169 @@
+package com.neurotracee.pdfmask.core
+
+import android.graphics.Bitmap
+import kotlin.math.max
+import kotlin.math.min
+import kotlin.math.roundToInt
+
+/**
+ * 扫描件的前处理：把「灰字 + 泛黄纸底」「一边亮一边暗」这类页面，拉回
+ * 检测网络习惯的黑白纸面。
+ *
+ * 与 Windows 端 `pdfmask_ocr.normalize_contrast` / `flatten_illumination`
+ * 是同一套算法、同一套阈值，两端结果要对得上。
+ *
+ * 两条规则，都是按页自适应，不写死任何一页的亮度：
+ *
+ * 1. **对比度归一化**：灰度 5% / 90% 分位当黑白端点，把 [lo, hi] 铺满
+ *    [0,255]。只在「动态范围 < 120 且纸底够亮」时生效——刁难样本实测
+ *    纸底 225、字最暗 154，动态范围只有 62~76，检测头整行激活不起来，
+ *    一页 15 行只认出 8 行。正常文档一个像素都不动。
+ *
+ * 2. **光照压平**：把页面切成 64px 的格子，每格取 90% 分位当「纸底亮度」，
+ *    再做双线性插值，逐像素除去。拍歪、台灯偏一侧的扫描件会出现
+ *    「中心亮、四角暗」，全局拉伸会把暗区直接压死、行与行粘成一片，
+ *    识别出来就是乱码——这种页面必须先除光照再谈对比度。
+ *
+ * 用分位数而不是均值：一格 64×64 里文字占比通常不到 10%，90% 分位基本
+ * 落在纸底上；用均值会被笔画拉低，除完把笔画漂白、笔画断裂。
+ *
+ * 所有函数都只吃 FloatArray，便于在 JVM 单元测试里直接验证。
+ */
+object OcrPreprocess {
+
+    private const val CELL = 64
+    private const val GRAD_TRIGGER = 14f
+    private const val RANGE_MIN = 120f
+    private const val PAPER_MIN = 150f
+    private const val LO_P = 0.05f
+    private const val HI_P = 0.90f
+
+    /** 处理结果：需要替换时返回新 Bitmap，不需要时返回 null（调用方继续用原图） */
+    fun normalize(src: Bitmap): Bitmap? {
+        val w = src.width
+        val h = src.height
+        if (w < 32 || h < 32) return null
+        val px = IntArray(w * h)
+        src.getPixels(px, 0, w, 0, 0, w, h)
+
+        val gray = FloatArray(w * h)
+        for (i in gray.indices) {
+            val p = px[i]
+            gray[i] = (((p shr 16) and 0xFF) * 0.299f +
+                ((p shr 8) and 0xFF) * 0.587f +
+                (p and 0xFF) * 0.114f)
+        }
+
+        var work = gray
+        if (hasGradient(work, w, h)) work = flatten(work, w, h)
+        if (!needsContrast(work, w, h)) return null
+
+        val (lo, hi) = percentileRange(work, LO_P, HI_P)
+        if (hi - lo < 2f) return null
+        val scale = 255f / (hi - lo)
+        val out = IntArray(w * h)
+        for (i in out.indices) {
+            var v = ((work[i] - lo) * scale).roundToInt()
+            if (v < 0) v = 0
+            if (v > 255) v = 255
+            out[i] = (0xFF shl 24) or (v shl 16) or (v shl 8) or v
+        }
+        return Bitmap.createBitmap(out, w, h, Bitmap.Config.ARGB_8888)
+    }
+
+    /** 纸底够亮、但动态范围太窄 → 值得拉一次黑白场 */
+    fun needsContrast(gray: FloatArray, w: Int, h: Int): Boolean {
+        val med = percentile((0 until gray.size step 7).map { gray[it] }.sorted(), 0.5f)
+        if (med < PAPER_MIN) return false
+        val (lo, hi) = percentileRange(gray, LO_P, HI_P)
+        return hi - lo < RANGE_MIN && hi - lo >= 2f
+    }
+
+    /** 网格纸底亮度差超过阈值 → 有明显光照渐变 */
+    fun hasGradient(gray: FloatArray, w: Int, h: Int): Boolean {
+        val f = paperField(gray, w, h)
+        var lo = Float.MAX_VALUE
+        var hi = -Float.MAX_VALUE
+        for (v in f) {
+            if (v < lo) lo = v
+            if (v > hi) hi = v
+        }
+        return hi - lo >= GRAD_TRIGGER
+    }
+
+    /** 逐像素除以所在地的纸底亮度：纸底变均匀，字仍然更暗 */
+    fun flatten(gray: FloatArray, w: Int, h: Int): FloatArray {
+        val f = paperField(gray, w, h)
+        val out = FloatArray(gray.size)
+        val ny = max(1, h / CELL)
+        val nx = max(1, w / CELL)
+        for (y in 0 until h) {
+            val fy = (y.toFloat() / (h - 1).coerceAtLeast(1)) * (ny - 1)
+            val y0 = fy.toInt().coerceIn(0, ny - 1)
+            val y1 = min(y0 + 1, ny - 1)
+            val ty = fy - y0
+            for (x in 0 until w) {
+                val fx = (x.toFloat() / (w - 1).coerceAtLeast(1)) * (nx - 1)
+                val x0 = fx.toInt().coerceIn(0, nx - 1)
+                val x1 = min(x0 + 1, nx - 1)
+                val tx = fx - x0
+                val v00 = f[y0 * nx + x0]
+                val v10 = f[y0 * nx + x1]
+                val v01 = f[y1 * nx + x0]
+                val v11 = f[y1 * nx + x1]
+                val top = v00 + (v10 - v00) * tx
+                val bot = v01 + (v11 - v01) * tx
+                val bg = top + (bot - top) * ty
+                var v = gray[y * w + x] / max(bg, 1f) * 255f
+                if (v < 0f) v = 0f
+                if (v > 255f) v = 255f
+                out[y * w + x] = v
+            }
+        }
+        return out
+    }
+
+    /** 每格取 90% 分位当纸底亮度，得到 ny×nx 的网格 */
+    private fun paperField(gray: FloatArray, w: Int, h: Int): FloatArray {
+        val ny = max(1, h / CELL)
+        val nx = max(1, w / CELL)
+        val ch = h / ny
+        val cw = w / nx
+        val field = FloatArray(ny * nx)
+        val buf = FloatArray(max(1, ch * cw))
+        for (gy in 0 until ny) {
+            for (gx in 0 until nx) {
+                var k = 0
+                var y = gy * ch
+                while (y < (gy + 1) * ch) {
+                    var x = gx * cw
+                    val row = y * w
+                    while (x < (gx + 1) * cw) {
+                        buf[k++] = gray[row + x]
+                        x++
+                    }
+                    y++
+                }
+                field[gy * nx + gx] = percentile(buf.copyOf(k).sorted().toList(), 0.90f)
+            }
+        }
+        return field
+    }
+
+    private fun percentileRange(gray: FloatArray, loP: Float, hiP: Float): Pair<Float, Float> {
+        val sample = ArrayList<Float>(gray.size / 4 + 1)
+        var i = 0
+        while (i < gray.size) {
+            sample.add(gray[i])
+            i += 4
+        }
+        val s = sample.sorted()
+        return percentile(s, loP) to percentile(s, hiP)
+    }
+
+    private fun percentile(sorted: List<Float>, p: Float): Float {
+        if (sorted.isEmpty()) return 0f
+        val idx = ((sorted.size - 1) * p).roundToInt().coerceIn(0, sorted.size - 1)
+        return sorted[idx]
+    }
+}

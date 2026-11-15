@@ -246,6 +246,15 @@ object Detector {
                 cand = cand.dropLast(1)
                 e--
             }
+            // 四字姓名几乎只出现在复姓里；单姓开头的四字串多半是
+            // 「王建国买」「解除合同」这类把动词一起吃进来的假名。
+            // 以虚词收尾的（「陈志远与」「马春梅上」「陈述」）一律截尾，
+            // 而不是整条丢弃——整条丢掉等于「马春梅上述…」一个名字都不打。
+            while (cand.length > 2 && cand.last() in T.NAME_TAIL_STOP) cand = cand.dropLast(1)
+            if (cand.length == 4 && cand.substring(0, 2) !in T.COMPOUND_SURNAME) {
+                cand = cand.substring(0, 3)
+            }
+            e = s0 + cand.length
             if (cand.isEmpty() || cand in T.NAME_STOP || !looksName(cand)) return
             val keep = if (cand.length >= 3 && cand.substring(0, 2) in T.COMPOUND_SURNAME) 2 else 1
             if (cand.length - keep < 1) return
@@ -262,6 +271,10 @@ object Detector {
         for (m in T.RE_ID_LABEL_FB.findAll(text)) {
             val g = m.groups[1] ?: continue
             if (g.value.isEmpty()) continue
+            // 只要字段名后面是 15 位以上的数字串就整串盖掉：多打几个数字只是糊掉，
+            // 少打等于身份证号留在页面上。与 Windows 端口径一致。
+            val digits = g.value.count { it.isDigit() || it == 'X' || it == 'x' }
+            if (digits < 15) continue
             add(Kind.IDCARD, g.range.first, g.range.last + 1, g.value, "标签兜底")
         }
 
@@ -444,7 +457,7 @@ object Detector {
         }
 
         // 10. 姓名（标签 / 签名 / 自指 / 称谓）
-        for (rx in listOf(T.RE_NAME_LABEL, T.RE_NAME_SIGN, T.RE_NAME_SELF)) {
+        for (rx in listOf(T.RE_NAME_LABEL, T.RE_NAME_SIGN, T.RE_NAME_SELF, T.RE_NAME_ROLE)) {
             for (m in rx.findAll(text)) {
                 val g = m.groups[1] ?: continue
                 if (g.value.isEmpty()) continue

@@ -1374,7 +1374,11 @@ $('checkBtn').addEventListener('click', async ()=>{
   btn.textContent = T('检查中…', 'Checking…');
   $('updBox').hidden = false;
   $('updBox').className = 'upd-box';
-  $('updText').textContent = T('正在连接 GitHub 查询最新版本…', 'Contacting GitHub for the latest release…');
+  // 这里必须写实际要连的那个源：以前写死「正在连接 GitHub」，而默认源是
+  // Gitee，于是出现「先说 GitHub，最后又说本次从 Gitee 读取」的自相矛盾。
+  const _srcName = (CFG && CFG.resolvedSource === 'github') ? 'GitHub' : 'Gitee';
+  $('updText').textContent = T('正在连接 ' + _srcName + ' 查询最新版本…',
+                               'Contacting ' + _srcName + ' for the latest release…');
   $('updUrl').hidden = true; $('updActions').hidden = true; $('updHelp').hidden = true;
 
   let r;
@@ -1480,11 +1484,13 @@ function autoUpdBtn(label, primary, fn){
 function autoUpdChecking(){
   if (!autoUpdOpen()) return;
   AUTO.state = 'check';
+  // 同上：说实际要连的那个源，别把 GitHub / Gitee 写死
+  const src = (CFG && CFG.resolvedSource === 'github') ? 'GitHub' : 'Gitee';
   $('autoUpdTitle').textContent = T('正在检查更新', 'Checking for updates');
   $('autoUpdText').textContent = T(
-    '正在向 GitHub 读一次版本号，不传任何文件。网络慢的话可以直接关掉，不影响使用。',
-    'Reading the latest version number from GitHub. No files are sent. If the network is slow, just close this.');
-  $('autoUpdSpinText').textContent = T('连接 GitHub…', 'Contacting GitHub…');
+    '正在向 ' + src + ' 读一次版本号，不传任何文件。网络慢的话可以直接关掉，不影响使用。',
+    'Reading the latest version number from ' + src + '. No files are sent. If the network is slow, just close this.');
+  $('autoUpdSpinText').textContent = T('连接 ' + src + '…', 'Contacting ' + src + '…');
   $('autoUpdSpin').hidden = false;
   autoUpdBtn(T('跳过，先进入', 'Skip and continue'), false, ()=>{
     AUTO.skipped = true;

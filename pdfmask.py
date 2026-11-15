@@ -154,6 +154,7 @@ NAME_STOP = set("""
 合计 总计 小计 金额 人民币 元整 现金 转账 支付 票据 合同 协议 附件 页码 共页 第页 内容 项目 名称 型号
 程序 办法 方式 期间 部门 单位 情况 标准 规范 要求 说明 系统 记录 数据 信息 文件 材料 流程 规定 制度 格式
 办法 事项 工作 业务 服务 产品 技术 管理 安全 质量 效率 成本 费用 时间 地点 原因 结果 问题 方案 计划 报告
+单元 楼栋 楼层 门牌 房间 车库 车位 栋号 室号 广场 大厦 花园 公寓 别墅 中心 广场
 """.split())
 
 # 全局标签词表：用于截断「值」的边界
@@ -177,8 +178,10 @@ RE_ANY_LABEL = re.compile("(?:%s)" % LABEL_ALT, re.I)
 DATE_BODY = r"[0-9]{4}\s*[年\-/\.]\s*[0-9]{1,2}\s*[月\-/\.]\s*[0-9]{1,2}\s*日?"
 RE_ANY_DATE = re.compile(DATE_BODY)
 RE_BIRTH_LABEL = re.compile(
-    r"(?:出生日期|出生年月日|出生年月|出生地|生\s*日|出\s*生|生于|DOB|Date\s*of\s*Birth)\s*"
-    r"(?:是|为|于)?\s*[:：]?\s*"
+    # 「出生日期」里的「日」在扫描件里常被认成「口/目」，标签整条就匹配不上了
+    # （实测「出生日期：1994年3月8日」被读成「出生口期:1994年3月8」，生日整条漏掉）
+    r"(?:出生[日口目〇囗]?\s*期|出生年月日|出生年月|出生地|生\s*日|出\s*生|生于|DOB|Date\s*of\s*Birth)\s*"
+    r"(?:是|为|于)?\s*[:：,，、]?\s*"
     r"(%s|[0-9]{8})" % DATE_BODY,
     re.I,
 )
@@ -211,9 +214,12 @@ RE_BANK_GROUPED = re.compile(
 )
 
 # 校验位/校验和不过时的兜底：字段名明确就照打（应对 OCR 错一位）
+# 长度放宽到 15~22 位：真实材料里出现过 18 位以外的写法（生成式文档、把户号
+# 拼在后面的扫描件），旧规则只认 17+1 或 15 位，遇到 19~20 位的整串会**一位
+# 都不匹配**（前后边界断言卡死），等于整条身份证号原样留在页面上。
 RE_ID_LABEL_FB = re.compile(
-    r"(?:身份证|公民身份号码|证件号|证件号码|证号|ID\s*No)\s*[:：]?\s*"
-    r"([0-9]{17}[0-9Xx]|[0-9]{15})"
+    r"(?:身份证|公民身份号码|身份证号码|证件号|证件号码|证号|ID\s*No)\s*[:：]?\s*"
+    r"([0-9][0-9 \t]{13,30}[0-9Xx])"
 )
 RE_BANK_LABEL_FB = re.compile(
     r"(?:银行卡号|银行卡|储蓄卡|信用卡|卡\s*号|账\s*号|账号|账户号)\s*[:：]?\s*"
@@ -223,15 +229,39 @@ RE_BANK_LABEL_FB = re.compile(
 _NAME_CUT = ("工号", "手机", "电话", "身份", "性别", "年龄", "邮箱", "地址", "联系",
              "关系", "职务", "部门", "签字", "日期", "单位", "公司", "学号", "班级")
 
+# 以这些字收尾的一定不是姓名：都是虚词、动词、方位词。
+# 例：「陈志远与」「马春梅上」「陈述」——名字本身没错，是尾巴多咬了一个字。
+_NAME_TAIL_STOP = set("与和及向到在系为是已未将应称说表示签的上买卖按依等以均也就还不述了着过把被让给从对")
+
 RE_NAME_LABEL = re.compile(
     r"(?:姓\s*名|名\s*字|申请人|联系人|客户姓名|被保险人|投保人|持卡人|户\s*名|开户名|收件人|签收人|"
     r"员工姓名|本人姓名|签字人|经办人|授权人|委托人|代理人|核验人|审核人|证明人|见证人|收款人|"
     r"配偶|父亲|母亲|寄件人|派件人|派件员|快递员|投递员|接收人|材料接收人|受益人|监护人|接送人|"
-    r"学生姓名|学员姓名|家属|紧急联系人)\s*[:：]?\s*"
+    r"学生姓名|学员姓名|家属|紧急联系人)\s*[:：,，、]?\s*"
     r"([\u4e00-\u9fa5·]{2,8})"
 )
 RE_NAME_HONOR = re.compile(r"([\u4e00-\u9fa5·]{2,4})(?=先生|女士|同学|老师|经理|总监)")
-# 「本人某某，」「我叫某某。」这类无标签自指姓名
+
+# 法律文书 / 合同里的「角色 + 姓名」：原告：陈志远、被告王建国、甲方（签字）：赵国安、
+# 审判员 张凤岐、执行员李振华……
+# 这类文书通常**不写「姓名：」**，只用角色指代当事人，靠上面那套标签一个都抓不到。
+# 这里允许「（甲方）」这类括注插在中间，冒号可有可无——但姓名最后仍要过
+# _looks_name（姓氏表 + 停用词），所以「甲方应于」「原告向本院」不会被误判。
+RE_NAME_ROLE = re.compile(
+    r"(?:原告|被告|第三人|上诉人|被上诉人|申请执行人|被执行人|申请人|被申请人|"
+    r"借款人|出借人|担保人|保证人|出租人|承租人|出租方|承租方|出售方|购买方|"
+    r"委托方|受托方|出卖人|买受人|收货人|发货人|"
+    r"投保人|被保险人|受益人|监护人|委托人|受托人|代理人|见证人|经办人|"
+    r"甲方|乙方|丙方|丁方|审判员|执行员|书记员|法官|仲裁员|检察员|公证员)\s*"
+    r"(?:[（(][^）)]{0,12}[）)])?\s*[:：,，、]?\s*"
+    # 右边界：标点、空白、行尾，或者常见虚词/动词。光标点会漏掉正文里
+    # 「原告陈志远与被告王建国买卖合同纠纷」这种写法——名字后面直接跟
+    # 「与/买/到/向」，光看标点一个都抓不到。虚词表只影响「名字后面紧接
+    # 什么」，名字本身仍要过姓氏表，所以「向本院提」这类不会被当成姓名。
+    r"([\u4e00-\u9fa5·]{2,4})"
+    r"(?=[，,。、；;：:）)】\s]|$|与|和|及|向|到|在|系|为|是|已|未|将|应|"
+    r"称|说|表示|签|的|上|买|卖|按|依|等|以|均|也|就|还|不)"
+)# 「本人某某，」「我叫某某。」这类无标签自指姓名
 RE_NAME_SELF = re.compile(
     r"(?:本人|我\s*叫|申请人|甲方|乙方|丙方|借款人|出借人|出租人|承租人)\s*([\u4e00-\u9fa5·]{2,4})"
     r"(?=[，,。、；;：:\s（）()]|$)"
@@ -790,6 +820,39 @@ def _trim_addr_prefix(text, s, e):
 # 单行扫描
 # ---------------------------------------------------------------------------
 
+_ADDR_CONT_STOP = "，,。；;：:！？!?"
+# 承接行必须含「门牌号」特征才算地址续行：
+# 数字+号/室/楼/座/栋，或者小区/广场/花园/大厦/公寓/单元这类楼盘词。
+# 早先只要求出现「层/路/区」等字，结果「2层多功能厅」也被当成地址续行，
+# 把会场楼层糊掉了——这类业务数据不能动。
+_ADDR_CONT_HINT = re.compile(
+    r"(?:[0-9０-９]{1,5}\s*[号室楼座栋幢院]|小区|广场|花园|大厦|公寓|写字楼|单元|"
+    r"胡同|大道|商厦|新村|花园|苑)")
+
+
+def _addr_continuation(next_text, next_entries, max_chars=24):
+    """地址被折行切断时，把下一行承接的那一截也圈进来。
+
+    扫描件的地址几乎都是「…永泰南路金 / 水湾小区7号楼2单元1803室」这样
+    折成两行的，逐行识别天然只能看到前半截。只在前一行的地址正好顶到
+    行尾、且下一行开头确实是门牌/楼盘字样时才接上，避免误伤普通正文。
+    """
+    if not next_text or not next_entries:
+        return None
+    end = 0
+    while end < len(next_text) and end < max_chars and next_text[end] not in _ADDR_CONT_STOP:
+        end += 1
+    if end < 2:
+        return None
+    seg = next_text[:end]
+    if not _ADDR_CONT_HINT.search(seg) and not seg[:1].isdigit():
+        return None
+    r = _span_rect(next_entries, 0, end)
+    if r is None or r.width < 2:
+        return None
+    return seg
+
+
 def _scan_line(text, entries, pno):
     found = []
     taken = []  # 已占用的 (start,end)，避免重复命中
@@ -825,8 +888,13 @@ def _scan_line(text, entries, pno):
         if _id15_ok(m.group(0)):
             add("idcard", m.start(), m.end(), m.group(0))
     # 校验位不通过但字段名明确 → 照打（扫描/OCR 错一位很常见）
+    # 只要字段名后面是 15 位以上的连续数字串，就整串盖掉：多打的代价是几个
+    # 数字糊掉，少打的代价是身份证号留在页面上。实测刁难样本里 19~20 位的
+    # 号码靠这条从「一位都不打」变成「整串打掉」。
     for m in RE_ID_LABEL_FB.finditer(text):
-        add("idcard", m.start(1), m.end(1), m.group(1), "标签兜底")
+        val = re.sub(r"[^0-9Xx]", "", m.group(1))
+        if 15 <= len(val) <= 30:
+            add("idcard", m.start(1), m.end(1), m.group(1), "标签兜底")
 
     # 2. 银行卡（16-19 位，Luhn 校验）
     for m in RE_BANK.finditer(text):
@@ -972,7 +1040,7 @@ def _scan_line(text, entries, pno):
         add("address", s, e, text[s:e])
 
     # 10. 姓名：保留姓氏，只打码名字
-    def add_name(s, e, cand):
+    def add_name(s, e, cand, loose=False):
         cand = (cand or "").strip()
         # 「派件员:吴强工号8823」这类行，标签值会把后面的字段名一起吃进来，
         # 在第一个字段名处截断，否则整个名字都判不合法、直接漏掉。
@@ -985,21 +1053,41 @@ def _scan_line(text, entries, pno):
         while cand and cand[-1] in _PUNCT:
             cand = cand[:-1]
             e -= 1
-        if not cand or cand in NAME_STOP or not _looks_name(cand):
+        # 汉字姓名最多四字，而四字几乎只出现在复姓（欧阳/司马/上官…）里。
+        # 单姓开头的四字串多半是「王建国买」「解除合同」这类把动词、名词
+        # 一起吃进来的假名；以虚词/动词收尾的也不是姓名（「陈志远与」
+        # 「马春梅上」「陈述」）。
+        # 这里是**截尾**而不是整条丢弃：整条丢掉等于「马春梅上述…」这种常见
+        # 写法一个名字都不打，宁可留下干净的三字。
+        while len(cand) > 2 and cand[-1] in _NAME_TAIL_STOP:
+            cand = cand[:-1]
+            e -= 1
+        if len(cand) == 4 and cand[:2] not in COMPOUND_SURNAME:
+            cand = cand[:3]
+            e -= 1
+        if not cand or cand in NAME_STOP:
+            return
+        # loose：字段名强到不需要姓氏表背书。扫描件会把「王建国」认成「主建国」，
+        # 「主」不在常见姓氏里，按姓氏表就把整条丢掉了——但它前面明明写着
+        # 「出租方(甲方):」，这是一个人名而无疑。只对「角色/字段名 + 分隔符」的
+        # 场景放开，叙述文本仍然走严格口径。
+        if not loose and not _looks_name(cand):
             return
         keep = 2 if (len(cand) >= 3 and cand[:2] in COMPOUND_SURNAME) else 1
         if len(cand) - keep < 1:
             return
         add("name", s + keep, e, cand, "保留姓氏:%s" % cand[:keep])
 
-    for rx in (RE_NAME_LABEL, RE_NAME_SIGN, RE_NAME_SELF):
+    for rx in (RE_NAME_LABEL, RE_NAME_SIGN, RE_NAME_SELF, RE_NAME_ROLE):
         for m in rx.finditer(text):
             s, e = _clip_value(text, m.start(1))
             cand = text[s:e]
             if not _looks_name(cand.strip()):
                 s, e = m.start(1), m.end(1)
                 cand = text[s:e]
-            add_name(s, e, cand)
+            # 匹配段里带冒号/逗号分隔符的，说明前面是明确的字段名，可放宽姓氏校验
+            loose = bool(re.search(r"[:：,，、]", text[m.start(0):m.start(1)]))
+            add_name(s, e, cand, loose)
     for m in RE_NAME_HONOR.finditer(text):
         add_name(m.start(1), m.end(1), m.group(1))
 
@@ -1479,12 +1567,29 @@ def detect(doc, only_pages=None, use_ocr=True):
                 pass
         for i, (text, entries) in enumerate(lines):
             is_ocr = i >= ocr_from
-            for f in _scan_line(text, entries, pno):
+            line_findings = _scan_line(text, entries, pno)
+            for f in line_findings:
                 # OCR 给的矩形本来就在显示坐标系里，不用再转一次
                 f["rect"] = pymupdf.Rect(f["rect"]) if is_ocr else _to_page_rect(f["rect"], page)
                 if is_ocr:
                     f["src"] = "ocr"
                 findings.append(f)
+            # 地址折行：本行的地址若有顶到行尾的，把下一行开头那截地址也打上
+            if is_ocr and i + 1 < len(lines) and entries:
+                tail = entries[-1][1]
+                touched = tail is not None and any(
+                    f["type"] == "address" and f["rect"].x1 >= tail.x1 - 2
+                    for f in line_findings)
+                if touched:
+                    nxt_text, nxt_entries = lines[i + 1]
+                    seg = _addr_continuation(nxt_text, nxt_entries)
+                    if seg:
+                        r = _span_rect(nxt_entries, 0, len(seg))
+                        if r is not None:
+                            findings.append({
+                                "type": "address", "text": seg, "rect": pymupdf.Rect(r),
+                                "page": pno, "note": "跨行承接", "src": "ocr"})
+                            line_findings.append(findings[-1])
         text_lines = lines[:ocr_from]
         for f in _scan_birth_across_lines(text_lines, pno):
             f["rect"] = _to_page_rect(f["rect"], page)
@@ -1597,26 +1702,30 @@ def _pixelate(img, block, seed=0, flatten=0.30, darken=0.85):
     return small.resize((w, h), Image.NEAREST)
 
 
-def _merge_rects(rects, pad=0.35):
-    """相交的框合并成一块，避免马赛克互相切割出缝隙"""
-    items = [pymupdf.Rect(r) + (-pad, -pad, pad, pad) for r in rects]
-    changed = True
-    while changed:
-        changed = False
-        out = []
-        for b in items:
-            hit = -1
-            for i, a in enumerate(out):
-                if not (a & b).is_empty:
-                    hit = i
-                    break
-            if hit >= 0:
-                out[hit] = out[hit] | b
-                changed = True
-            else:
-                out.append(b)
-        items = out
-    return items
+def _merge_rects(rects):
+    """同一行内相邻的框合并成一块，避免马赛克之间切出细缝。
+
+    只合「纵向明显重叠、横向几乎挨着」的框。原来的做法是给每个框加 0.35
+    的 pad 后反复求交并集——那会通过传递闭包把整段文字连成一个大矩形
+    （判决书第一页十几处命中并成一块 450×120 的灰砖），既盖住大量无关
+    内容，也把本来清楚的行一起糊掉。跨行不合并，行与行各自成块。
+    """
+    items = [pymupdf.Rect(r) for r in rects if not pymupdf.Rect(r).is_empty]
+    items.sort(key=lambda r: (round(r.y0, 1), r.x0))
+    out = []
+    for b in items:
+        for i, a in enumerate(out):
+            hmin = min(a.height, b.height)
+            if hmin <= 0:
+                continue
+            overlap = min(a.y1, b.y1) - max(a.y0, b.y0)
+            gap = max(a.x0, b.x0) - min(a.x1, b.x1)
+            if overlap >= hmin * 0.6 and gap <= max(a.height, b.height) * 1.2:
+                out[i] = a | b
+                break
+        else:
+            out.append(b)
+    return out
 
 
 # ---------------------------------------------------------------- 注释 / 书签

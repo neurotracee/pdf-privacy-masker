@@ -159,14 +159,24 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 current = 0
                 stage = Stage.READY
                 if (pair.second.isEmpty()) {
+                    val ocrErr = OcrEngine.lastError
                     toast(
-                        if (ocrPages > 0) tr(
-                            "扫描页已用本机 OCR 识别，未发现敏感信息；可在预览上手动框选补充",
-                            "Scanned pages were read with on-device OCR and nothing was found. Add boxes manually if needed."
-                        ) else tr(
-                            "没有识别到隐私信息，可以在预览上手动框选",
-                            "Nothing detected. You can drag boxes on the preview."
-                        )
+                        when {
+                            // 有扫描页、但 OCR 没跑起来：必须说清楚，不能报「没有隐私信息」
+                            ocrPages == 0 && ocrErr.isNotBlank() ->
+                                tr("这一份是扫描件，需要本机 OCR 才能识别，但 OCR 初始化失败（" +
+                                        ocrErr + "）。请确认安装的是完整安装包，重启应用再试。",
+                                    "This is a scanned document and needs on-device OCR, but OCR failed to start (" +
+                                        ocrErr + "). Make sure you installed the full package and reopen the app.")
+                            ocrPages > 0 -> tr(
+                                "扫描页已用本机 OCR 识别，未发现敏感信息；可在预览上手动框选补充",
+                                "Scanned pages were read with on-device OCR and nothing was found. Add boxes manually if needed."
+                            )
+                            else -> tr(
+                                "没有识别到隐私信息，可以在预览上手动框选",
+                                "Nothing detected. You can drag boxes on the preview."
+                            )
+                        }
                     )
                 }
             }.onFailure {

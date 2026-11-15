@@ -39,6 +39,7 @@ object OcrEngine {
     private const val DET_THRESH = 0.30f
     private const val BOX_THRESH = 0.50f
     private const val UNCLIP_RATIO = 1.6f
+    private const val UNCLIP_MAX_RATIO = 0.12f
     private const val MIN_BOX_SIDE = 3
 
     private const val REC_HEIGHT = 48
@@ -56,6 +57,10 @@ object OcrEngine {
     @Volatile private var rec: OrtSession? = null
     @Volatile private var chars: Array<String>? = null
     @Volatile private var failed = false
+
+    /** 最近一次初始化失败的原因，供界面如实提示（空串表示没失败过） */
+    @Volatile var lastError: String = ""
+        private set
 
     /** 模型和推理库是否就绪；失败时整个 OCR 静默跳过，不影响其它功能 */
     fun available(ctx: Context): Boolean = ensure(ctx)
@@ -78,6 +83,10 @@ object OcrEngine {
             true
         } catch (t: Throwable) {
             failed = true
+            // 记下原因：模型解压失败、内存不足、ABI 不匹配都会落到这里。
+            // 以前是纯静默返回 false，用户只看到「没有识别到隐私信息」，
+            // 分不清是「真没有」还是「OCR 根本没跑起来」。
+            lastError = t.javaClass.simpleName + ": " + (t.message ?: "")
             false
         }
     }
@@ -221,8 +230,14 @@ object OcrEngine {
             val bh = y1 - y0 + 1
             if (bw < MIN_BOX_SIDE || bh < MIN_BOX_SIDE) continue
             if (sum / n < BOX_THRESH) continue
-            // unclip：按面积/周长外扩，把笔画框撑成整行框
-            val dd = bw * bh * UNCLIP_RATIO / (2f * (bw + bh) + 1e-6f)
+            // unclip：按面积/周长外扩，把笔画框撑成整行框。
+            // 纯按公式算，长行的外扩会接近 0.8 倍行高，把上下相邻行吞进裁剪框，
+            // 送给识别模型后直接吐空串——判决书、合同这类长句文档会大面积漏检。
+            // 加个 0.12 倍行高的上限（与 Windows 端 UNCLIP_MAX_RATIO 对齐）。
+            // 实测 0.35 时判决书的长行仍会把上一行尾巴带进裁剪框，
+            // 识别成「楼2单元...楼2执行人...」这种半截串，号码被切成两半。
+            val dd = min(bw * bh * UNCLIP_RATIO / (2f * (bw + bh) + 1e-6f),
+                         bh * UNCLIP_MAX_RATIO)
             boxes.add(floatArrayOf(
                 (x0 - dd) * sx, (y0 - dd) * sy, (x1 + 1 + dd) * sx, (y1 + 1 + dd) * sy
             ))
@@ -326,6 +341,18 @@ object OcrEngine {
     fun readPage(page: PageText, bitmap: Bitmap): List<Line> {
         val bw = bitmap.width
         val bh = bitmap.height
+        // 灰字 + 泛黄底 / 一边亮一边暗的扫描页，先拉黑白场、除掉光照再送进网络。
+        // 不做这一步时，检测头对这类页面几乎不激活（实测整页 0 检出），
+        // 与 Windows 端 OcrEngine 的 normalize_contrast / flatten_illumination 同源。
+        val work = OcrPreprocess.normalize(bitmap) ?: bitmap
+        try {
+            return readPageInner(page, work, bw, bh)
+        } finally {
+            if (work !== bitmap) work.recycle()
+        }
+    }
+
+    private fun readPageInner(page: PageText, bitmap: Bitmap, bw: Int, bh: Int): List<Line> {
         // 检测在缩小图上跑（快），识别回到原图裁（准）
         val scale = min(1f, DET_LIMIT / max(bw, bh).toFloat())
         val small = if (scale < 1f) {
@@ -391,7 +418,7 @@ object OcrEngine {
             val hh = it.y1 - it.y0
             var hit = -1
             for (g in groups.indices) {
-                if (abs(centers[g] - cy) <= max(2f, max(heights[g], hh) * 0.42f)) { hit = g; break }
+                if (abs(centers[g] - cy) <= max(2f, max(heights[g], hh) * 0.30f)) { hit = g; break }
             }
             if (hit < 0) {
                 groups.add(mutableListOf(it))
