@@ -62,6 +62,24 @@ object OcrEngine {
     @Volatile var lastError: String = ""
         private set
 
+    /**
+     * 最近一次 [augment] 的体检结果：渲染了几页、det 出几个框、识别出几行。
+     *
+     * 0 检出的三种情况必须能分开：「OCR 没跑起来」「跑了但一个字没认出来」
+     * 「认出来了但规则没命中」。只报「没有识别到隐私信息」，用户和排查的人
+     * 都只能靠猜。
+     */
+    @Volatile var lastStats: String = ""
+        private set
+
+    private var statPages = 0
+    private var statBoxes = 0
+    private var statLines = 0
+    private var statFail = ""
+    private var statPeak = 0f
+    private var statFallback = 0
+    private var statSample = ""
+
     /** 模型和推理库是否就绪；失败时整个 OCR 静默跳过，不影响其它功能 */
     fun available(ctx: Context): Boolean = ensure(ctx)
 
@@ -187,9 +205,16 @@ object OcrEngine {
 
         val mask = BooleanArray(ph * pw)
         var any = false
+        var peak = 0f
         for (i in 0 until ph * pw) {
-            if (prob[i] > DET_THRESH) { mask[i] = true; any = true }
+            val v = prob[i]
+            if (v > peak) peak = v
+            if (v > DET_THRESH) { mask[i] = true; any = true }
         }
+        // 概率图峰值是判断「模型到底有没有被激活」的唯一直接证据：
+        // 整页 0.02 说明喂进去的图模型不认识（输入/前处理错了），
+        // 0.9 以上说明检测正常，问题出在后面的过滤或识别环节。
+        if (peak > statPeak) statPeak = peak
         if (!any) return emptyList()
 
         val boxes = ArrayList<FloatArray>()
@@ -230,16 +255,18 @@ object OcrEngine {
             val bh = y1 - y0 + 1
             if (bw < MIN_BOX_SIDE || bh < MIN_BOX_SIDE) continue
             if (sum / n < BOX_THRESH) continue
-            // unclip：按面积/周长外扩，把笔画框撑成整行框。
-            // 纯按公式算，长行的外扩会接近 0.8 倍行高，把上下相邻行吞进裁剪框，
-            // 送给识别模型后直接吐空串——判决书、合同这类长句文档会大面积漏检。
-            // 加个 0.12 倍行高的上限（与 Windows 端 UNCLIP_MAX_RATIO 对齐）。
-            // 实测 0.35 时判决书的长行仍会把上一行尾巴带进裁剪框，
-            // 识别成「楼2单元...楼2执行人...」这种半截串，号码被切成两半。
-            val dd = min(bw * bh * UNCLIP_RATIO / (2f * (bw + bh) + 1e-6f),
-                         bh * UNCLIP_MAX_RATIO)
+            // unclip：按面积/周长外扩，把笔画框撑成整行框。两个方向需求正好相反：
+            //   · 横向必须留够余量，否则行首行尾的字被切掉半个
+            //     （「出生日期」读成「出生期」、末尾的「日」丢掉）；
+            //   · 纵向绝不能大，长行按公式会扩到 0.8 倍行高，把上下相邻行
+            //     吞进裁剪框，识别出来是「楼2单元…楼2执行人…」这种半截串。
+            // 所以横向照公式扩，纵向只对细长行（bw >= 6*bh）压到 0.12 倍行高。
+            // 与 Windows 端 pdfmask_ocr._detect 逐行对齐，两端同图同结果。
+            val d = bw * bh * UNCLIP_RATIO / (2f * (bw + bh) + 1e-6f)
+            val dx = d
+            val dy = if (bw >= 6 * bh) min(d, bh * UNCLIP_MAX_RATIO) else d
             boxes.add(floatArrayOf(
-                (x0 - dd) * sx, (y0 - dd) * sy, (x1 + 1 + dd) * sx, (y1 + 1 + dd) * sy
+                (x0 - dx) * sx, (y0 - dy) * sy, (x1 + 1 + dx) * sx, (y1 + 1 + dy) * sy
             ))
         }
         return boxes
@@ -307,26 +334,15 @@ object OcrEngine {
         // CTC 去重：相邻同类合并成一个字，同时记下时间步区间
         val sb = StringBuilder()
         val spans = ArrayList<FloatArray>()
-        var prev = -1
-        var t0 = 0
-        var t1 = 0
-        fun flush(c: Int) {
-            if (c == 0) return
+        val ids = IntArray(T) { argmax(it * C) }
+        for (g in ctcGroups(ids)) {
+            val c = g[0]
             val ch = if (c < dict.size) dict[c] else ""
             // 空白字符不进结果：spans 与文本必须严格 1:1，否则字和框会错位
-            if (ch.isBlank()) return
+            if (ch.isBlank()) continue
             sb.append(foldWidth(ch[0]))
-            spans.add(floatArrayOf(t0.toFloat() / T, t1.toFloat() / T))
+            spans.add(floatArrayOf(g[1].toFloat() / T, g[2].toFloat() / T))
         }
-        for (t in 0 until T) {
-            val c = argmax(t * C)
-            if (c == prev) { t1 = t + 1; continue }
-            flush(prev)
-            prev = c
-            t0 = t
-            t1 = t + 1
-        }
-        flush(prev)
         return Rec(sb.toString(), spans)
     }
 
@@ -344,12 +360,30 @@ object OcrEngine {
         // 灰字 + 泛黄底 / 一边亮一边暗的扫描页，先拉黑白场、除掉光照再送进网络。
         // 不做这一步时，检测头对这类页面几乎不激活（实测整页 0 检出），
         // 与 Windows 端 OcrEngine 的 normalize_contrast / flatten_illumination 同源。
-        val work = OcrPreprocess.normalize(bitmap) ?: bitmap
+        //
+        // 前处理只是「锦上添花」，绝不能让整页作废：以前它抛异常会一路冒到
+        // augment 的 catch，整页直接判空，界面上还只显示「没有识别到隐私信息」。
+        val work = try {
+            OcrPreprocess.normalize(bitmap)
+        } catch (t: Throwable) {
+            if (statFail.isBlank()) statFail = "preprocess " + t.javaClass.simpleName
+            null
+        } ?: bitmap
+        var lines: List<Line>
         try {
-            return readPageInner(page, work, bw, bh)
+            lines = readPageInner(page, work, bw, bh)
         } finally {
             if (work !== bitmap) work.recycle()
         }
+        // 加了前处理反而一个字都没认出来 → 退回原图再跑一次。
+        // 前处理的判据是按页自适应的（对比度、光照），遇到「整页本来偏暗」
+        // 或「彩色底纹」这类页面有可能把它拉坏；宁可多花一次检测，
+        // 也不能因为一道可选的增强把整页判死。
+        if (lines.isEmpty() && work !== bitmap) {
+            statFallback++
+            lines = readPageInner(page, bitmap, bw, bh)
+        }
+        return lines
     }
 
     private fun readPageInner(page: PageText, bitmap: Bitmap, bw: Int, bh: Int): List<Line> {
@@ -368,6 +402,7 @@ object OcrEngine {
         } finally {
             if (small !== bitmap) small.recycle()
         }
+        statBoxes += boxes.size
         if (boxes.isEmpty()) return emptyList()
 
         val inv = 1f / scale                      // 检测图 → 原图
@@ -468,6 +503,8 @@ object OcrEngine {
             }
             if (sb.isNotBlank()) out.add(Line(sb.toString(), boxesOut))
         }
+        statLines += out.size
+        if (statSample.isBlank() && out.isNotEmpty()) statSample = out.first().text
         return out
     }
 
@@ -483,9 +520,22 @@ object OcrEngine {
         pages: List<PageText>,
         onProgress: (Int) -> Unit = {}
     ): List<PageText> {
-        if (!ensure(ctx)) return pages
+        statPages = 0
+        statBoxes = 0
+        statLines = 0
+        statFail = ""
+        statPeak = 0f
+        statFallback = 0
+        statSample = ""
+        if (!ensure(ctx)) {
+            lastStats = "模型未就绪"
+            return pages
+        }
         val need = pages.filter { it.lines.isEmpty() }
-        if (need.isEmpty()) return pages
+        if (need.isEmpty()) {
+            lastStats = "无需 OCR"
+            return pages
+        }
         val result = pages.toMutableList()
         var pfd: ParcelFileDescriptor? = null
         var renderer: PdfRenderer? = null
@@ -506,24 +556,67 @@ object OcrEngine {
                         pg.render(b, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
                         b
                     }
-                } catch (_: Throwable) {
+                } catch (t: Throwable) {
+                    noteFail("render", t)
                     null
                 } ?: continue
+                statPages++
                 val lines = try {
                     readPage(p, bmp)
-                } catch (_: Throwable) {
+                } catch (t: Throwable) {
+                    noteFail("ocr", t)
                     emptyList()
                 } finally {
                     bmp.recycle()
                 }
                 if (lines.isNotEmpty()) result[p.index] = p.copy(lines = lines)
             }
-        } catch (_: Throwable) {
-            // 渲染不了就当没有 OCR，保持原样
+        } catch (t: Throwable) {
+            // 渲染不了就当没有 OCR，保持原样——但原因必须留下来，不能静默
+            noteFail("open", t)
         } finally {
             try { renderer?.close() } catch (_: Throwable) {}
             try { pfd?.close() } catch (_: Throwable) {}
         }
+        lastStats = "渲染 $statPages 页 · 检测框 $statBoxes 个 · 认出文字行 $statLines 行" +
+            (if (statPages > 0) " · 峰值 ${String.format(java.util.Locale.US, "%.2f", statPeak)}" else "") +
+            (if (statFallback > 0) " · 退回原图 $statFallback 页" else "") +
+            (if (statSample.isNotBlank()) " · 首行「${statSample.take(16)}」" else "") +
+            (if (statFail.isNotBlank()) " · 中断：$statFail" else "")
+        // 打进 logcat，插上数据线就能看到这一份到底是「没渲染」「没出框」还是「没认出字」
+        android.util.Log.i("PdfMaskOcr", lastStats)
         return result
     }
+
+    /** 记下第一处异常：真正吞掉整份文档的，往往是内存不足而不是网络或模型 */
+    private fun noteFail(where: String, t: Throwable) {
+        if (statFail.isNotBlank()) return
+        statFail = where + " " + t.javaClass.simpleName
+        if (lastError.isBlank()) lastError = statFail + (t.message?.let { " ($it)" } ?: "")
+        android.util.Log.e("PdfMaskOcr", "OCR 中断于 $where", t)
+    }
+}
+
+/**
+ * CTC 贪心解码：把「每帧的 argmax 字符索引」压成 `[字符索引, 起始帧, 结束帧)`。
+ *
+ * 抽成纯函数是为了能被单元测试覆盖。这里曾经出过一个把整份扫描件打成 0 检出的
+ * 事故：CTC 的 blank 是 0，而「还没有上一个字符」用 -1 当哨兵，若把 -1 也送进
+ * 字典查表就是 `ArrayIndexOutOfBoundsException: length=6625; index=-1`，
+ * 异常又被上层 catch 吞成「这页没有文字」，界面上只显示「没有识别到隐私信息」。
+ * 所以这里只收 > 0 的索引，0 与 -1 一律跳过。
+ */
+internal fun ctcGroups(ids: IntArray): List<IntArray> {
+    val out = ArrayList<IntArray>()
+    var prev = -1
+    var t0 = 0
+    for (t in ids.indices) {
+        val c = ids[t]
+        if (c == prev) continue
+        if (prev > 0) out.add(intArrayOf(prev, t0, t))
+        prev = c
+        t0 = t
+    }
+    if (prev > 0) out.add(intArrayOf(prev, t0, ids.size))
+    return out
 }

@@ -69,6 +69,15 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     var ocrPages = 0
         private set
 
+    /**
+     * 本次 OCR 的体检数字（渲染几页 / 出几个框 / 认出几行）。
+     *
+     * 只在「一处都没检出来」时显示在标题下面，正常情况界面上不出现，
+     * 这样万一哪天又整份 0 检出，截图本身就带着线索，不用再靠猜。
+     */
+    var ocrStats by mutableStateOf("")
+        private set
+
     fun toast(msg: String) {
         message = msg
     }
@@ -158,19 +167,32 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 savedName = ""
                 current = 0
                 stage = Stage.READY
+                ocrStats = OcrEngine.lastStats.let {
+                    if (it == "无需 OCR" || it == "模型未就绪") "" else it
+                }
                 if (pair.second.isEmpty()) {
                     val ocrErr = OcrEngine.lastError
+                    val stats = OcrEngine.lastStats
                     toast(
                         when {
                             // 有扫描页、但 OCR 没跑起来：必须说清楚，不能报「没有隐私信息」
                             ocrPages == 0 && ocrErr.isNotBlank() ->
-                                tr("这一份是扫描件，需要本机 OCR 才能识别，但 OCR 初始化失败（" +
-                                        ocrErr + "）。请确认安装的是完整安装包，重启应用再试。",
-                                    "This is a scanned document and needs on-device OCR, but OCR failed to start (" +
-                                        ocrErr + "). Make sure you installed the full package and reopen the app.")
+                                tr("这一份是扫描件，需要本机 OCR 才能识别，但 OCR 没能完成（" +
+                                        ocrErr + "）。" + stats +
+                                        " 请确认安装的是完整安装包，重启应用再试。",
+                                    "This is a scanned document and needs on-device OCR, but OCR did not finish (" +
+                                        ocrErr + "). " + stats +
+                                        " Make sure you installed the full package and reopen the app.")
                             ocrPages > 0 -> tr(
-                                "扫描页已用本机 OCR 识别，未发现敏感信息；可在预览上手动框选补充",
-                                "Scanned pages were read with on-device OCR and nothing was found. Add boxes manually if needed."
+                                "扫描页已用本机 OCR 识别（" + stats + "），未发现敏感信息；可在预览上手动框选补充",
+                                "Scanned pages were read with on-device OCR (" + stats +
+                                    ") and nothing was found. Add boxes manually if needed."
+                            )
+                            // 跑了 OCR 却一行字都没认出来：把体检数字摊开，别再让人猜
+                            stats.isNotBlank() && stats != "无需 OCR" -> tr(
+                                "本机 OCR 跑完了（" + stats + "），没有认出文字，可在预览上手动框选",
+                                "On-device OCR finished (" + stats +
+                                    ") but read no text. You can drag boxes on the preview."
                             )
                             else -> tr(
                                 "没有识别到隐私信息，可以在预览上手动框选",

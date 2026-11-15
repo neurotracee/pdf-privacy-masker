@@ -73,7 +73,7 @@ object OcrPreprocess {
 
     /** 纸底够亮、但动态范围太窄 → 值得拉一次黑白场 */
     fun needsContrast(gray: FloatArray, w: Int, h: Int): Boolean {
-        val med = percentile((0 until gray.size step 7).map { gray[it] }.sorted(), 0.5f)
+        val med = percentileOf(sample(gray, 7), 0.5f)
         if (med < PAPER_MIN) return false
         val (lo, hi) = percentileRange(gray, LO_P, HI_P)
         return hi - lo < RANGE_MIN && hi - lo >= 2f
@@ -144,26 +144,44 @@ object OcrPreprocess {
                     }
                     y++
                 }
-                field[gy * nx + gx] = percentile(buf.copyOf(k).sorted().toList(), 0.90f)
+                // 用原始 float 数组排序：一页 A4 有 700 多个格子、每格 4000 像素，
+                // 走 List<Float> 会装箱近 300 万个对象，中端机上 GC 直接卡住十几秒。
+                java.util.Arrays.sort(buf, 0, k)
+                field[gy * nx + gx] = pick(buf, k, 0.90f)
             }
         }
         return field
     }
 
     private fun percentileRange(gray: FloatArray, loP: Float, hiP: Float): Pair<Float, Float> {
-        val sample = ArrayList<Float>(gray.size / 4 + 1)
-        var i = 0
-        while (i < gray.size) {
-            sample.add(gray[i])
-            i += 4
-        }
-        val s = sample.sorted()
-        return percentile(s, loP) to percentile(s, hiP)
+        val s = sample(gray, 4)
+        java.util.Arrays.sort(s)
+        return pick(s, s.size, loP) to pick(s, s.size, hiP)
     }
 
-    private fun percentile(sorted: List<Float>, p: Float): Float {
-        if (sorted.isEmpty()) return 0f
-        val idx = ((sorted.size - 1) * p).roundToInt().coerceIn(0, sorted.size - 1)
+    /** 等距抽样，避免全量拷贝 */
+    private fun sample(gray: FloatArray, step: Int): FloatArray {
+        val n = gray.size / step + 1
+        val out = FloatArray(n)
+        var i = 0
+        var k = 0
+        while (i < gray.size && k < n) {
+            out[k++] = gray[i]
+            i += step
+        }
+        return if (k == n) out else out.copyOf(k)
+    }
+
+    /** 在已排序的 [0, n) 上取分位 */
+    private fun pick(sorted: FloatArray, n: Int, p: Float): Float {
+        if (n <= 0) return 0f
+        val idx = ((n - 1) * p).roundToInt().coerceIn(0, n - 1)
         return sorted[idx]
+    }
+
+    private fun percentileOf(values: FloatArray, p: Float): Float {
+        if (values.isEmpty()) return 0f
+        java.util.Arrays.sort(values)
+        return pick(values, values.size, p)
     }
 }

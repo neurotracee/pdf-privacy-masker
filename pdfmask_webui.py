@@ -416,11 +416,11 @@ main{flex:1;min-height:0;display:flex;overflow:hidden}
             框选手动打码
           </button>
           <div class="spacer"></div>
-          <div class="hint-chip" title="按住鼠标拖动可以框出要打码的区域；双击页面上的方框，可以取消或恢复该处打码">
+          <div class="hint-chip" title="左键按住拖动 = 框出要打码的区域；Ctrl+滚轮或笔记本双指捏合 = 缩放；放大后按住右键拖动 = 看前后左右；双击页面上的方框 = 取消或恢复该处打码">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                  stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/>
               <path d="M12 11v5"/><path d="M12 8h.01"/></svg>
-            拖动框选 · 双击方框取消/恢复打码
+            拖动框选 · 双击取消 · Ctrl+滚轮缩放 · 右键平移
           </div>
           <label class="switch">
             <input type="checkbox" id="maskPreview" checked><span class="track"></span>预览打码效果
@@ -655,7 +655,7 @@ const DICT = {
   '换':'Swap', '识别结果 ':'Detected ', ' 处':' items',
   '全选':'All', '全不选':'None',
   '框选手动打码':'Draw a box',
-  '拖动框选 · 双击方框取消/恢复打码':'Drag to draw · double-click a box to mute/unmute',
+  '拖动框选 · 双击取消 · Ctrl+滚轮缩放 · 右键平移':'Drag to box · double-click to mute · Ctrl+wheel zoom · right-drag to pan',
   '预览打码效果':'Preview mosaic',
   '已选 ':'Selected ', ' 处 · 生成后原文将被永久打散':' items · text will be destroyed for good',
   '重新选择文件':'Choose another file', '生成打码 PDF':'Generate masked PDF',
@@ -716,8 +716,8 @@ const DICT = {
   '复制链接':'Copy link',
   '扫描件是纯图片、没有文字层，会自动用本地 OCR 识别（离线运行、不联网）；识别不到时可手工框选':
     'A scan has no text layer, so it is read with local OCR (offline, nothing uploaded); fall back to the manual box tool if needed',
-  '按住鼠标拖动可以框出要打码的区域；双击页面上的方框，可以取消或恢复该处打码':
-    'Hold and drag to draw a box; double-click a box on the page to mute or unmute it',
+  '按住鼠标拖动可以框出要打码的区域；Ctrl+滚轮或笔记本双指捏合可以缩放；放大后按住右键拖动能看前后左右；双击页面上的方框，可以取消或恢复该处打码':
+    'Hold and drag to draw a box; Ctrl+wheel or a two-finger pinch zooms; right-drag pans once zoomed in; double-click a box to mute or unmute it',
   '重新选择文件':'Choose another file',
   '关闭程序':'Quit'
 };
@@ -1037,6 +1037,40 @@ $('nextPage').addEventListener('click', ()=>{
 });
 $('zoomIn').addEventListener('click', ()=>{ S.zoom = Math.min(3, +(S.zoom+0.2).toFixed(2)); refreshPreview(); });
 $('zoomOut').addEventListener('click', ()=>{ S.zoom = Math.max(0.6, +(S.zoom-0.2).toFixed(2)); refreshPreview(); });
+
+/* 缩放：Ctrl+滚轮，或笔记本触摸板双指捏合（浏览器会把它报成 ctrl+wheel）。
+   普通滚轮不拦，仍然让页面正常滚动。 */
+$('canvasWrap').addEventListener('wheel', e=>{
+  if(!e.ctrlKey) return;
+  e.preventDefault();
+  const step = e.deltaY < 0 ? 0.1 : -0.1;
+  const next = Math.min(3, Math.max(0.6, +(S.zoom + step).toFixed(2)));
+  if(next === S.zoom) return;
+  S.zoom = next;
+  refreshPreview();
+}, {passive:false});
+
+/* 平移：放大后按住右键（或中键）拖动。左键始终留给画框，不抢主功能。 */
+let panning = null;
+$('canvasWrap').addEventListener('mousedown', e=>{
+  if(e.button !== 2 && e.button !== 1) return;
+  const w = $('canvasWrap');
+  if(!$('pageImg').src) return;
+  e.preventDefault();
+  panning = {x:e.clientX, y:e.clientY, l:w.scrollLeft, t:w.scrollTop};
+  w.style.cursor = 'grabbing';
+});
+$('canvasWrap').addEventListener('contextmenu', e=>{ if(panning || S.zoom > 1.01) e.preventDefault(); });
+window.addEventListener('mousemove', e=>{
+  if(!panning) return;
+  const w = $('canvasWrap');
+  w.scrollLeft = panning.l - (e.clientX - panning.x);
+  w.scrollTop  = panning.t - (e.clientY - panning.y);
+});
+window.addEventListener('mouseup', e=>{
+  if(e.button !== 2 && e.button !== 1) return;
+  if(panning){ panning = null; $('canvasWrap').style.cursor = ''; }
+});
 $('maskPreview').addEventListener('change', e=>{ S.mask = e.target.checked; refreshPreview(); });
 $('drawBtn').addEventListener('click', ()=>{
   S.drawing = !S.drawing;

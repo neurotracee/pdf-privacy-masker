@@ -3,8 +3,15 @@ package com.neurotracee.pdfmask.ui
 import android.graphics.Bitmap
 
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.gestures.detectDragGestures
-import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.ui.input.pointer.changedToUpIgnoreConsumed
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.Image
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
@@ -210,10 +217,20 @@ private fun DocHeader(vm: AppViewModel, onPickAnother: () -> Unit) {
                 color = MaterialTheme.colorScheme.onBackground
             )
             Text(
-                T(
-                    "${vm.pages.size} 页 · 识别到 ${vm.findings.size} 处 · 已选 ${vm.selected.size} 处",
-                    "${vm.pages.size} pages · ${vm.findings.size} found · ${vm.selected.size} selected"
-                ),
+                // 一处都没检出来、但 OCR 确实跑过时，把体检数字直接摆在这行灰字里：
+                // 「渲染 8 页 · 检测框 0 个」和「检测框 120 个 · 认出 0 行」是两种完全
+                // 不同的故障，截个图就够定位，不用再让用户配合抓日志。
+                if (vm.findings.isEmpty() && vm.ocrStats.isNotBlank()) {
+                    T(
+                        "${vm.pages.size} 页 · 识别到 0 处 · OCR：${vm.ocrStats}",
+                        "${vm.pages.size} pages · 0 found · OCR: ${vm.ocrStats}"
+                    )
+                } else {
+                    T(
+                        "${vm.pages.size} 页 · 识别到 ${vm.findings.size} 处 · 已选 ${vm.selected.size} 处",
+                        "${vm.pages.size} pages · ${vm.findings.size} found · ${vm.selected.size} selected"
+                    )
+                },
                 fontSize = 11.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -243,8 +260,8 @@ private fun WorkHintBar() {
         Spacer(Modifier.width(6.dp))
         Text(
             T(
-                "拖动可框选 · 双击方框取消或恢复打码",
-                "Drag to box-select · double-tap a box to toggle masking"
+                "双指缩放/移动 · 长按拖动画框 · 双击取消",
+                "Pinch to zoom/move · long-press to box · double-tap to toggle"
             ),
             fontSize = 11.5.sp,
             color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -547,6 +564,14 @@ private fun PreviewPane(
             }
             val dash = remember { PathEffect.dashPathEffect(floatArrayOf(9f, 6f)) }
             val pageBmp = remember(bmp) { bmp.asImageBitmap() }
+            // 预览缩放与平移：双指捏合或按住拖动空白处；缩放后单指拖动改为平移，
+            // 想画框就长按再拖——1 倍时行为完全不变，老用户的手感不会被打乱。
+            var zoom by remember(page) { mutableFloatStateOf(1f) }
+            var pan by remember(page) { mutableStateOf(Offset.Zero) }
+            var lastTapAt by remember { mutableLongStateOf(0L) }
+            var lastTapPos by remember { mutableStateOf(Offset.Zero) }
+            var pendingTap by remember { mutableStateOf<Job?>(null) }
+            val gestureScope = rememberCoroutineScope()
             // 双击命中：按页面坐标判断，另加 10dp 宽容，小字框也点得中
             val touchPadPx = with(density) { 10.dp.toPx() }
             // 提示文案在组合期取好，双击回调里不能调 @Composable
@@ -575,24 +600,105 @@ private fun PreviewPane(
                     Modifier
                         .size(bw, bh)
                         .clip(RoundedCornerShape(4.dp))
-                        // 轻点 = 放大查看；双击方框 = 取消/恢复该处打码；拖拽 = 手动框选
-                        .pointerInput(page, scaleX, scaleY) {
-                            detectTapGestures(
-                                onTap = { onExpand() },
-                                onDoubleTap = { pos ->
-                                    val hit = hitTest(pos)
-                                    if (hit != null) {
-                                        val wasOn = hit.id in vm.selected
-                                        vm.toggle(hit.id)
-                                        vm.toast(if (wasOn) msgMaskOff else msgMaskOn)
+                        // 手势约定（和桌面端一致）：
+                        //   · 双指捏合 = 放大/缩小；两指一起移动 = 看前后左右
+                        //   · 单指长按后拖动 = 画虚线框（放大到 6 倍也能画，框自动落回页面坐标）
+                        //   · 单指直接拖也能画框（1 倍时的老习惯不变）
+                        //   · 轻点 = 放大查看，双击方框 = 取消/恢复该处打码
+                        .pointerInput(page, scaleX, scaleY, boxWpx, boxHpx) {
+                            val maxZoom = 6f
+                            val slop = 10f
+                            fun toContent(p: Offset) =
+                                Offset((p.x - pan.x) / zoom, (p.y - pan.y) / zoom)
+                            fun clampPan() {
+                                val maxX = (zoom - 1f) * boxWpx
+                                val maxY = (zoom - 1f) * boxHpx
+                                pan = Offset(pan.x.coerceIn(-maxX, 0f), pan.y.coerceIn(-maxY, 0f))
+                            }
+                            awaitEachGesture {
+                                val down = awaitFirstDown(requireUnconsumed = false)
+                                val t0 = System.currentTimeMillis()
+                                var mode = 0          // 0 未定 / 1 缩放或平移 / 2 画框
+                                val start = down.position
+                                var prevPos = down.position
+                                var lastDist = 0f
+                                var lastCentroid = Offset.Zero
+                                var isTap = true
+                                var multi = false
+
+                                while (true) {
+                                    val ev = awaitPointerEvent()
+                                    val pressed = ev.changes.filter { it.pressed }
+                                    if (pressed.isEmpty()) break
+
+                                    if (pressed.size >= 2) {
+                                        multi = true
+                                        isTap = false
+                                        if (mode != 1) {
+                                            mode = 1
+                                            lastDist = 0f
+                                            lastCentroid = Offset.Zero
+                                            dragFrom = null
+                                            dragTo = null
+                                        }
+                                        val cx = pressed.map { it.position.x }.average().toFloat()
+                                        val cy = pressed.map { it.position.y }.average().toFloat()
+                                        val c = Offset(cx, cy)
+                                        val d = (pressed[0].position - pressed[1].position).getDistance()
+                                        if (lastDist > 1f && d > 1f) {
+                                            val nz = (zoom * (d / lastDist)).coerceIn(1f, maxZoom)
+                                            val k = nz / zoom
+                                            // 以两指中心为锚点缩放：指下的字不会跑掉
+                                            var np = Offset(c.x - (c.x - pan.x) * k, c.y - (c.y - pan.y) * k)
+                                            // 两指整体移动就是平移：放大后靠这个看前后左右
+                                            np += c - lastCentroid
+                                            pan = np
+                                            zoom = nz
+                                            clampPan()
+                                        }
+                                        lastDist = d
+                                        lastCentroid = c
+                                        ev.changes.forEach { it.consume() }
+                                        continue
                                     }
+
+                                    val pos = pressed[0].position
+                                    if (mode == 0) {
+                                        val moved = (pos - start).getDistance()
+                                        if (moved > slop) {
+                                            // 单指只干一件事：画框。缩放后的移动交给双指，
+                                            // 免得想拖动画框时页面先被推走。
+                                            isTap = false
+                                            mode = 2
+                                            dragFrom = toContent(start)
+                                            dragTo = toContent(pos)
+                                        } else if (System.currentTimeMillis() - t0 > 380L) {
+                                            // 长按：不管当前缩放多少，都开始画框
+                                            isTap = false
+                                            mode = 2
+                                            dragFrom = toContent(start)
+                                            dragTo = toContent(pos)
+                                        }
+                                    }
+                                    when (mode) {
+                                        1 -> {
+                                            pan = Offset(
+                                                pan.x + (pos.x - prevPos.x),
+                                                pan.y + (pos.y - prevPos.y)
+                                            )
+                                            clampPan()
+                                            ev.changes.forEach { it.consume() }
+                                        }
+                                        2 -> {
+                                            dragTo = toContent(pos)
+                                            pressed[0].consume()
+                                        }
+                                    }
+                                    prevPos = pos
+                                    if (pressed[0].changedToUpIgnoreConsumed()) break
                                 }
-                            )
-                        }
-                        .pointerInput(page, scaleX, scaleY) {
-                            detectDragGestures(
-                                onDragStart = { o -> dragFrom = o; dragTo = o },
-                                onDragEnd = {
+
+                                if (mode == 2) {
                                     val a = dragFrom
                                     val b = dragTo
                                     dragFrom = null
@@ -609,90 +715,132 @@ private fun PreviewPane(
                                             )
                                         }
                                     }
-                                },
-                                onDragCancel = { dragFrom = null; dragTo = null }
-                            ) { change, _ ->
-                                dragTo = change.position
-                                change.consume()
+                                } else {
+                                    dragFrom = null
+                                    dragTo = null
+                                }
+
+                                if (isTap && !multi) {
+                                    val now = System.currentTimeMillis()
+                                    val near = (down.position - lastTapPos).getDistance() < 90f
+                                    if (now - lastTapAt < 340L && near) {
+                                        // 双击：取消/恢复这一处打码
+                                        lastTapAt = 0L
+                                        pendingTap?.cancel()
+                                        pendingTap = null
+                                        val hit = hitTest(toContent(down.position))
+                                        if (hit != null) {
+                                            val wasOn = hit.id in vm.selected
+                                            vm.toggle(hit.id)
+                                            vm.toast(if (wasOn) msgMaskOff else msgMaskOn)
+                                        }
+                                    } else {
+                                        lastTapAt = now
+                                        lastTapPos = down.position
+                                        pendingTap?.cancel()
+                                        // 延迟 340ms 再进放大视图，给双击留出判定时间
+                                        pendingTap = gestureScope.launch {
+                                            delay(340)
+                                            onExpand()
+                                        }
+                                    }
+                                }
                             }
                         }
                 ) {
-                    Image(
-                        bitmap = pageBmp,
-                        contentDescription = T("第 ${page + 1} 页预览", "Page ${page + 1} preview"),
-                        contentScale = ContentScale.FillBounds,
-                        modifier = Modifier.fillMaxSize()
-                    )
-                    Canvas(Modifier.fillMaxSize()) {
-                        val sx = size.width / pageText.width
-                        val sy = size.height / pageText.height
-                        for (f in vm.findings) {
-                            if (f.page != page) continue
-                            val on = f.id in vm.selected
-                            val tl = Offset(f.rect.x0 * sx, f.rect.y0 * sy)
-                            val sz = Size(
-                                (f.rect.width * sx).coerceAtLeast(1f),
-                                (f.rect.height * sy).coerceAtLeast(1f)
-                            )
-                            if (f.type == Kind.MANUAL) {
-                                // 手动框选：蓝色虚线，一眼看得出是手画的
-                                drawRect(
-                                    color = if (on) Color(0x262563EB) else Color(0x1494A3B8),
-                                    topLeft = tl, size = sz
+                    // 缩放/平移只作用于页面内容这一层：手势本身在外层用原始坐标收，
+                    // 所以放大到 6 倍画出来的框，坐标依然能准确落回页面。
+                    Box(
+                        Modifier
+                            .fillMaxSize()
+                            .graphicsLayer {
+                                // 用 this. 前缀：外层有同名的 scaleX/scaleY（页面点→像素比例），
+                                // 不加限定符会被外层 val 遮住，报「Val cannot be reassigned」
+                                this.scaleX = zoom
+                                this.scaleY = zoom
+                                this.translationX = pan.x
+                                this.translationY = pan.y
+                                this.transformOrigin = TransformOrigin(0f, 0f)
+                            }
+                    ) {
+                        Image(
+                            bitmap = pageBmp,
+                            contentDescription = T("第 ${page + 1} 页预览", "Page ${page + 1} preview"),
+                            contentScale = ContentScale.FillBounds,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                        Canvas(Modifier.fillMaxSize()) {
+                            val sx = size.width / pageText.width
+                            val sy = size.height / pageText.height
+                            for (f in vm.findings) {
+                                if (f.page != page) continue
+                                val on = f.id in vm.selected
+                                val tl = Offset(f.rect.x0 * sx, f.rect.y0 * sy)
+                                val sz = Size(
+                                    (f.rect.width * sx).coerceAtLeast(1f),
+                                    (f.rect.height * sy).coerceAtLeast(1f)
                                 )
-                                drawRect(
-                                    color = if (on) Color(0xFF2563EB) else Color(0xFF94A3B8),
-                                    topLeft = tl, size = sz,
-                                    style = Stroke(width = 1.8.dp.toPx(), pathEffect = dash)
-                                )
-                            } else {
-                                val fill = when {
-                                    f.suspect -> Color(0x55F59E0B)
-                                    on -> Color(0x66E5484D)
-                                    else -> Color(0x3394A3B8)
-                                }
-                                val stroke = when {
-                                    f.suspect -> Color(0xFFB45309)
-                                    on -> Color(0xFFE5484D)
-                                    else -> Color(0xFF94A3B8)
-                                }
-                                drawRect(color = fill, topLeft = tl, size = sz)
-                                if (on) {
+                                if (f.type == Kind.MANUAL) {
+                                    // 手动框选：蓝色虚线，一眼看得出是手画的
                                     drawRect(
-                                        color = stroke,
+                                        color = if (on) Color(0x262563EB) else Color(0x1494A3B8),
+                                        topLeft = tl, size = sz
+                                    )
+                                    drawRect(
+                                        color = if (on) Color(0xFF2563EB) else Color(0xFF94A3B8),
                                         topLeft = tl, size = sz,
-                                        style = Stroke(width = 0.8f)
+                                        style = Stroke(width = 1.8.dp.toPx(), pathEffect = dash)
+                                    )
+                                } else {
+                                    val fill = when {
+                                        f.suspect -> Color(0x55F59E0B)
+                                        on -> Color(0x66E5484D)
+                                        else -> Color(0x3394A3B8)
+                                    }
+                                    val stroke = when {
+                                        f.suspect -> Color(0xFFB45309)
+                                        on -> Color(0xFFE5484D)
+                                        else -> Color(0xFF94A3B8)
+                                    }
+                                    drawRect(color = fill, topLeft = tl, size = sz)
+                                    if (on) {
+                                        drawRect(
+                                            color = stroke,
+                                            topLeft = tl, size = sz,
+                                            style = Stroke(width = 0.8f)
+                                        )
+                                    }
+                                }
+                            }
+                            // 正在拖拽的虚线预览框
+                            val a = dragFrom
+                            val b = dragTo
+                            if (a != null && b != null) {
+                                val l = min(a.x, b.x)
+                                val t = min(a.y, b.y)
+                                val w = kotlin.math.abs(b.x - a.x)
+                                val h = kotlin.math.abs(b.y - a.y)
+                                if (w > 1f && h > 1f) {
+                                    drawRect(Color(0x262563EB), Offset(l, t), Size(w, h))
+                                    drawRect(
+                                        Color(0xFF2563EB), Offset(l, t), Size(w, h),
+                                        style = Stroke(
+                                            width = 1.8.dp.toPx(),
+                                            pathEffect = PathEffect.dashPathEffect(floatArrayOf(6f, 4f))
+                                        )
                                     )
                                 }
                             }
                         }
-                        // 正在拖拽的虚线预览框
-                        val a = dragFrom
-                        val b = dragTo
-                        if (a != null && b != null) {
-                            val l = min(a.x, b.x)
-                            val t = min(a.y, b.y)
-                            val w = kotlin.math.abs(b.x - a.x)
-                            val h = kotlin.math.abs(b.y - a.y)
-                            if (w > 1f && h > 1f) {
-                                drawRect(Color(0x262563EB), Offset(l, t), Size(w, h))
-                                drawRect(
-                                    Color(0xFF2563EB), Offset(l, t), Size(w, h),
-                                    style = Stroke(
-                                        width = 1.8.dp.toPx(),
-                                        pathEffect = PathEffect.dashPathEffect(floatArrayOf(6f, 4f))
-                                    )
-                                )
-                            }
-                        }
+
                     }
 
                     // 放大镜：拖拽时在手指上方/右上方实时放大，松手即消失，
                     // 手指压住的那几个字在镜里看得清，落点也就准了；
                     // 正在拉的那条虚线框也一起映射进镜里，边框和手指始终对得上
-                    val finger = dragTo
+                    val finger = dragTo?.let { Offset(it.x * zoom + pan.x, it.y * zoom + pan.y) }
                     if (finger != null) {
-                        val a0 = dragFrom
+                        val a0 = dragFrom?.let { Offset(it.x * zoom + pan.x, it.y * zoom + pan.y) }
                         LoupeOverlay(
                             bmp = bmp,
                             finger = finger,
