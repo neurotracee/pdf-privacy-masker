@@ -148,20 +148,61 @@ def local_asset(tag, name):
     return None
 
 
-def download(name, tag, out_name):
+def gh_token():
+    p = os.path.join(HOME, ".github_token")
+    if os.path.exists(p):
+        return io.open(p, encoding="utf-8").read().strip()
+    return (os.environ.get("GITHUB_TOKEN") or "").strip()
+
+
+def size_ok(path, expect):
+    """GitHub API 报了字节数时，必须一字节不差；没报才退回「大于 1 MB」的粗判。"""
+    if not os.path.isfile(path):
+        return False
+    if expect:
+        return os.path.getsize(path) == expect
+    return os.path.getsize(path) > 1024 * 1024
+
+
+def download(name, tag, out_name, expect_size=0, asset_url=""):
+    """下载 GitHub 附件，并按 API 给出的字节数校验。
+
+    2026-11-15 事故：ghproxy 把 47 MB 的 apk 截断成 3.4 MB，而旧代码只判
+    「> 1 MB 就算成功」，坏包被当成正式安装包装到 Gitee 的 v1.4.7.0 上，
+    点「最新版」会下到装不上的残包。现在优先走 GitHub API 的 asset 地址
+    （token + Accept: application/octet-stream），大小必须完全一致才允许上传。
+    """
     os.makedirs(CACHE, exist_ok=True)
     out = os.path.join(CACHE, out_name)
-    if os.path.exists(out) and os.path.getsize(out) > 1024 * 1024:
+    if size_ok(out, expect_size):
         print("  已有缓存 %s（%.2f MB）" % (out_name, os.path.getsize(out) / 1048576))
         return out
-    url = "https://ghproxy.net/https://github.com/%s/%s/releases/download/%s/%s" % (
+    tok = gh_token()
+    urls = []
+    if asset_url and tok:
+        urls.append(("GitHub API", [
+            "curl", "-sL", "-k", "--noproxy", "*", "--max-time", "600",
+            "-H", "Authorization: token " + tok,
+            "-H", "Accept: application/octet-stream",
+            asset_url, "-o", out, "-w", "%{http_code}"]))
+    mirror = "https://ghproxy.net/https://github.com/%s/%s/releases/download/%s/%s" % (
         GH_OWNER, GH_REPO, tag, urllib.parse.quote(name))
-    print("  下载 %s ..." % name)
-    r = subprocess.run(["curl", "-sL", "--noproxy", "*", "--max-time", "600", url, "-o", out,
-                        "-w", "%{http_code}"], capture_output=True, text=True)
-    ok = os.path.exists(out) and os.path.getsize(out) > 1024 * 1024
-    print("  -> HTTP %s，%.2f MB" % (r.stdout.strip(), (os.path.getsize(out) / 1048576) if ok else 0))
-    return out if ok else None
+    urls.append(("ghproxy 镜像", [
+        "curl", "-sL", "--noproxy", "*", "--max-time", "600",
+        mirror, "-o", out, "-w", "%{http_code}"]))
+    for label, cmd in urls:
+        print("  下载 %s（%s）..." % (name, label))
+        if os.path.exists(out):
+            os.remove(out)
+        r = subprocess.run(cmd, capture_output=True, text=True)
+        sz = os.path.getsize(out) if os.path.exists(out) else 0
+        print("  -> HTTP %s，%.2f MB" % (r.stdout.strip(), sz / 1048576))
+        if size_ok(out, expect_size):
+            return out
+        print("     字节数与 GitHub API 不符（期望 %s），换下一个源" % expect_size)
+    if os.path.exists(out):
+        os.remove(out)
+    return None
 
 
 def upload_asset(release_id, path, tok, tries=3):
@@ -223,12 +264,21 @@ def upload_all(rel, rid, tok, dry):
     tag = rel["tag_name"]
     for asset in (rel.get("assets") or []):
         an = asset["name"]
-        if an in (REMOTE_FALLBACK.get(tag) or []):
-            path = download(an, tag, an)
-        else:
-            path = local_asset(tag, an) or download(an, tag, an)
+        expect = int(asset.get("size") or 0)
+        path = None
+        if an not in (REMOTE_FALLBACK.get(tag) or []):
+            path = local_asset(tag, an)
+            if path and expect and os.path.getsize(path) != expect:
+                print("  本地 %s 大小不符（%s != %s），改用远端" %
+                      (an, os.path.getsize(path), expect))
+                path = None
         if not path:
-            print("  附件 %s 拿不到，跳过" % an)
+            path = download(an, tag, an, expect, asset.get("url") or "")
+        if not path:
+            print("  附件 %s 拿不到或大小校验失败，跳过" % an)
+            continue
+        if expect and os.path.getsize(path) != expect:
+            print("  附件 %s 大小校验失败，拒绝上传" % an)
             continue
         if dry:
             print("  [dry-run] 将上传 %s（%.2f MB）" % (an, os.path.getsize(path) / 1048576))
@@ -363,12 +413,21 @@ def main():
             if an in have or any(h.endswith(an) for h in have):
                 print("  附件 %s 已存在，跳过" % an)
                 continue
-            if an in (REMOTE_FALLBACK.get(tag) or []):
-                path = download(an, tag, an)
-            else:
-                path = local_asset(tag, an) or download(an, tag, an)
+            expect = int(asset.get("size") or 0)
+            path = None
+            if an not in (REMOTE_FALLBACK.get(tag) or []):
+                path = local_asset(tag, an)
+                if path and expect and os.path.getsize(path) != expect:
+                    print("  本地 %s 大小不符（%s != %s），改用远端" %
+                          (an, os.path.getsize(path), expect))
+                    path = None
             if not path:
-                print("  附件 %s 拿不到，跳过" % an)
+                path = download(an, tag, an, expect, asset.get("url") or "")
+            if not path:
+                print("  附件 %s 拿不到或大小校验失败，跳过" % an)
+                continue
+            if expect and os.path.getsize(path) != expect:
+                print("  附件 %s 大小校验失败，拒绝上传" % an)
                 continue
             if a.dry_run:
                 print("  [dry-run] 将上传 %s（%.2f MB）" % (an, os.path.getsize(path) / 1048576))
