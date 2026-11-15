@@ -4,9 +4,47 @@
 
 更新级别：建议
 
-> 版本号：**1.4.6.2**，只动第四位（小版本）。
+> 版本号：**1.4.6.3**，只动第四位（小版本）。
 
-> **一句话**：Windows 和安卓的版本号解绑——只改了安卓，Windows 不用再重打 73MB 的 exe；只发 Windows，安卓也不会收到一条下载不到安装包的假更新。
+> **一句话**：扫描件（灰字、泛黄纸底、一边亮一边暗）的漏检大幅收敛——身份证、手机号、邮箱、地址、姓名都能认出来并打掉，安卓端不再出现「整份文档 0 检出」。
+
+## 这次修的是什么
+
+这一版只动识别内核，界面和功能没变。起因是一份刻意刁难的扫描件：纸张泛黄、字是浅灰、
+第八页还有台灯偏一侧导致的光照渐变。旧版 Windows 只认出零星几条，安卓端整份 0 检出。
+
+### 三个通用缺陷
+
+1. **长句整行被判死。** 检测框的置信度算的是「外接矩形内的平均概率」，而一整行长句的
+   矩形里大半是字间空隙和行间空白，平均值被稀释到 0.25 上下，低于阈值 0.50，整条丢掉。
+   表现就是「短的能检出、长句全漏」。改为只统计框内被判为文字的那些像素。
+2. **外扩把邻行吞进来。** 检测框外扩是各向同性的：横向需要余量（否则行首尾的字被切掉），
+   纵向却绝不能大——长行按公式会扩到 0.8 倍行高，直接盖住上下相邻行，识别出
+   「楼2单元…楼2执行人…」这种半截串。改为横向照公式、纵向对细长行收紧到 0.12 倍行高。
+3. **没有对比度与光照处理。** 字最暗 154、纸底 226，整页动态范围只有 62~76，检测网络
+   大面积不激活。新增按页自适应的黑白场拉伸 + 网格纸底估计的光照压平，
+   并带「动态范围本来就够就不动一个像素」的保护。
+
+### 识别规则（两端同步）
+
+- 身份证标签兜底放宽到 15~30 位整串（材料里确实存在 19~20 位的写法，旧规则一位都不匹配）；
+- 新增「角色 + 姓名」：原告、被告、甲方、出租方、审判员、执行员……合同与法律文书
+  通常不写「姓名：」，只靠角色指代当事人；
+- 姓名改为「截尾」而不是整条丢弃，「马春梅上述…」这种写法现在也能打；
+- 字段名后面的分隔符兼容逗号（OCR 常把冒号读成逗号）；
+- 「出生日期」的「日」被认成「口/目」时仍能识别；
+- 地址折行时，把下一行承接的门牌部分一并打码；
+- 马赛克合并只认同行相邻，修掉「整段糊成一块灰砖」。
+
+## 对使用者的影响
+
+扫描件、拍照件的识别率明显变高，正常的电子版 PDF 行为不变。
+安卓端若 OCR 初始化失败（模型没解压出来、内存不足），现在会明确提示原因，
+而不是像以前那样静静返回「未发现敏感信息」。
+
+---
+
+# v1.4.6.2 版本说明（Windows + 安卓）
 
 ## 这一轮做了什么
 
@@ -33,7 +71,53 @@ exe 重新打一遍再传一遍；只发了一端的版本，另一端偶尔会�
 
 # Unreleased (main)
 
-> **Version**: **1.4.6.2** — the fourth (small) slot.
+> **Version**: **1.4.6.3** — the fourth (small) slot.
+
+> **In one line**: Scanned documents (grey text on yellowed paper, uneven lighting) are now
+> read properly — ID numbers, phone numbers, e-mails, addresses and names all get detected
+> and masked, and Android no longer reports "nothing found" for the whole file.
+
+## What was fixed
+
+This release only touches the recognition core; the interface is unchanged. The trigger was a
+deliberately nasty scan: yellowed paper, light-grey text, and a lamp shining from one side on
+page 8. The previous build caught a handful of items on Windows and **zero** on Android.
+
+1. **Whole long lines were being rejected.** The box score was the mean probability over the
+   bounding rectangle, which for a full-width line is mostly gaps between characters and
+   blank space between lines — diluted to about 0.25, below the 0.50 threshold, so the entire
+   line was dropped. The score now only averages pixels actually classified as text.
+2. **Unclip swallowed neighbouring lines.** The expansion was isotropic: horizontally it is
+   needed (otherwise the first/last glyph gets cut), vertically it must stay small — for a long
+   line the formula expands to 0.8× line height and pulls the lines above and below into the
+   crop, producing half-merged strings. Horizontal expansion now follows the formula, vertical
+   expansion is capped at 0.12× line height for wide boxes.
+3. **No contrast or illumination handling at all.** With ink at 154 and paper at 226 the page
+   spans only 62–76 grey levels, so the detector barely fires. Added per-page black/white point
+   normalisation plus grid-based paper-field flattening, both guarded so that a page with normal
+   contrast is left pixel-for-pixel untouched.
+
+## Rule changes (both platforms)
+
+- The ID-number label fallback now accepts the whole 15–30 digit run (materials really do
+  contain 19–20 digit numbers, which the old boundary assertions never matched);
+- New "role + name" rule: plaintiff, defendant, party A, lessor, judge, clerk… — contracts and
+  court documents rarely write "Name:", they refer to people by role;
+- Names are trimmed instead of discarded, so "Ma Chunmei the aforementioned…" is masked too;
+- Field separators accept a comma (OCR often reads the colon as one);
+- "Date of birth" is still recognised when 日 is misread as 口/目;
+- When an address wraps, the house-number fragment on the next line is masked as well;
+- Rectangle merging only joins neighbours on the same line, fixing giant grey slabs.
+
+## Impact
+
+Scanned and photographed documents are noticeably better covered; ordinary digital PDFs behave
+exactly as before. On Android, a failed OCR initialisation is now reported with a reason instead
+of silently returning "no sensitive information".
+
+---
+
+# v1.4.6.2 Release Notes (Windows + Android)
 
 > **In one line**: Windows and Android no longer share a version number, so shipping one
 > platform no longer forces a rebuild of the other, and a Windows-only release can no longer
