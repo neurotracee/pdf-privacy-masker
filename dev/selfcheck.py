@@ -194,7 +194,12 @@ def main():
     io_ = Image.frombytes("L", (po.width, po.height), po.samples)
     inr = Image.frombytes("L", (pn.width, pn.height), pn.samples)
     d_o, d_n = edge_density(io_), edge_density(inr)
-    check("打码后边缘密度骤降（原 %.1f%% → %.1f%%），字形结构消失" % (d_o * 100, d_n * 100), d_n < d_o * 0.25)
+    # 阈值取 0.35 而不是 0.25：矩形合并改成「只认同行相邻」之后，检测窗口
+    # 就是一行字的高度，马赛克块边界（约 1/块宽 ≈ 2%）不再被大片空白稀释。
+    # 「字形是否真的消失」由上面那条高频能量下降 >90% 兜底，这里只要求
+    # 边界密度显著下降、且仍能看出像素块纹理。
+    check("打码后边缘密度骤降（原 %.1f%% → %.1f%%），字形结构消失" % (d_o * 100, d_n * 100),
+          d_n < d_o * 0.35)
     check("打码区仍有像素块纹理（非纯色块涂抹）", d_n > 0.002,
           "边缘密度 %.2f%%" % (d_n * 100))
 

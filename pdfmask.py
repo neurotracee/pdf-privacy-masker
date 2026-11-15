@@ -1871,7 +1871,9 @@ def redact(doc, findings, review_rects=None):
             except Exception:
                 continue
             img = Image.frombytes("RGB", (pix.width, pix.height), pix.samples)
-            # 块尺寸 ≈ 字高的 1/3：每个汉字被切成 3×3 个色块，笔画结构彻底打散
+            # 块尺寸 ≈ 字高的 1/3：每个汉字被切成 3×3 个色块，笔画结构彻底打散。
+            # 注意 r 现在是逐行的矩形（合并只认同行相邻），高度接近一行字，
+            # 所以不能再按以前「一大片合并块」的经验去放大，否则会糊成纯色。
             block = max(6, int(round(r.height * MOSAIC_ZOOM * 0.42)))
             img = _pixelate(img, block, seed=hash((pno, round(r.y0, 1))))
             buf = io.BytesIO()
