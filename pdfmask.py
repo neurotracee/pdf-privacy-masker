@@ -20,6 +20,7 @@
 #
 # 二次开发或商用必须保留下列内容，详见 ADDITIONAL-TERMS.md：
 #   1. 作者署名：指导作者「项目创作时为初中生」 / 由 腾讯 WorkBuddy × DeepSeek-V4.1-Flash 开发
+#      补充：多数场景与功能维护升级以 DeepSeek-V4.1-Flash 为核心骨架；偶尔也用 GLM 5.3 Flash、Hy4 Flash。
 #   2. 原项目地址，且必须让使用者看得见（「关于」窗口 / 页脚 / --about 输出）
 #   3. 修改过的版本必须注明「本程序基于 <原项目地址> 修改，非原作者发布」
 # 程序名称「PDF 隐私打码工具」与图标不在授权范围内（AGPL-3.0 第 7 条 e 项）。
@@ -39,6 +40,7 @@ PDF 隐私打码工具  (本地离线 · 单文件运行)
 指导作者  : 项目创作时为初中生 —— 需求、识别规则的设计、验收测试全部由本人完成
             维护频率很低（作者时间精力有限，约一两个月看一次），欢迎任何人 fork 改进
 开发      : 腾讯 WorkBuddy × DeepSeek-V4.1-Flash（在指导作者的指令与验收下实现）
+说明：常用、惯用、主要是 DeepSeek-V4.1-Flash——大多数场景和功能维护升级都由它作核心骨架；偶尔也会用其他模型，如 GLM 5.3 Flash、Hy4 Flash。
 
 许可 / License
 --------------
@@ -69,12 +71,13 @@ from thanks_asset import QR_PNG_B64  # 赞赏码图片（base64 内嵌，单文�
 APP_NAME = "PDF 隐私打码工具"
 # 版本号统一四段：主.次.修订.小版本（见 CONTRIBUTING.md「版本号规则」）。
 # 越靠右越细：日常修缺陷、改文案就动第四位；第三位留给成体系的新能力（大版本）。
-VERSION = "1.4.7.1"
+VERSION = "1.4.7.2"
 
 # ---- 署名信息（开源后请勿删除，AGPL-3.0 第 5 条要求保留版权声明） ----
 AUTHOR = "项目创作时为初中生"
 AUTHOR_ROLE = "项目指导作者"
 DEVELOPER = "腾讯 WorkBuddy × DeepSeek-V4.1-Flash"
+DEVELOPER_NOTE = "说明：常用、惯用、主要是 DeepSeek-V4.1-Flash——大多数场景和功能维护升级都由它作核心骨架；偶尔也会用其他模型，如 GLM 5.3 Flash、Hy4 Flash。"
 LICENSE_NAME = "AGPL-3.0-or-later"
 PROJECT_URL = "https://github.com/neurotracee/pdf-privacy-masker"
 
@@ -2854,6 +2857,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 "__VERSION__", VERSION).replace(
                 "__AUTHOR__", AUTHOR).replace(
                 "__DEVELOPER__", DEVELOPER).replace(
+                "__DEVELOPER_NOTE__", DEVELOPER_NOTE).replace(
                 "__LICENSE__", LICENSE_NAME).replace(
                 "__URL__", PROJECT_URL).replace(
                 "__URLGITEE__", GITEE_URL).replace(

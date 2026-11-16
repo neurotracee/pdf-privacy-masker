@@ -1,3 +1,21 @@
+# 1.4.7.2（2026-11-16）
+
+**中文** | [English](#1472)
+
+更新级别：可选（说明与发布策略更新，打码功能与 1.4.7.1 完全相同）
+
+> **一句话**：两端「关于」页与随包文档统一补上开发模型说明；Gitee 发布策略明确为「最新版 + 上一版两端都留」。
+
+## 开发模型说明
+
+常用、惯用、主要是 **DeepSeek-V4.1-Flash**——大多数场景和功能维护升级都以它为**核心骨架**；偶尔也会用其他模型，如 GLM 5.3 Flash、Hy4 Flash。Windows 的 `--about` / 「关于」窗口、安卓「关于」页、README、随包 `使用说明.txt`、`NOTICE.md`、`ADDITIONAL-TERMS.md`、更新日志与发布页均已统一。发行包的署名原句按 AGPL 附加条款保留不变，新增的只是补充说明。
+
+## 发布策略
+
+Gitee 附件总额度只有 1 GB（按仓库所有版本累计），现在**只保留最新版与上一版两个版本的 Windows exe + 安卓 apk + SHA256SUMS**；更早版本统一清理，只留更新说明，用户只能到 GitHub 发布页查看和下载旧版本（发布页与 README 中部均给出具体链接）。Windows 最新版**同样在 Gitee**，不再表述为「只发布在 GitHub」。
+
+---
+
 # 1.4.7.1（2026-11-16）
 
 **中文** | [English](#1471)
@@ -23,7 +41,7 @@
 
 ## 关于开发模型
 
-本版由腾讯 WorkBuddy 的 **Hy4 Flash** 模型接续开发（上一版主要由 DeepSeek-V4.1-Flash 协助）。原因是高峰期积分消耗速度过快，换用更省的模型以便把这几项修复做完；算法、识别规则与输出格式与此前一致，不影响安装包行为。
+**常用、惯用、主要是 DeepSeek-V4.1-Flash**——大多数场景和功能维护升级都以它为**核心骨架**；偶尔也会用其他模型，如 GLM 5.3 Flash、Hy4 Flash。高峰期积分消耗过快时曾临时换用 Hy4 Flash 完成部分修复，代码算法、识别规则与输出格式与此前一致，不影响安装包行为。
 
 ---
 
@@ -214,7 +232,13 @@ exe 重新打一遍再传一遍；只发了一端的版本，另一端偶尔会�
 
 **New: Box / Eraser mode toggle on both clients.** Both modes share the same drag gesture and loupe. The eraser restores only the pixels inside the small rectangle you draw — it never removes the marking box itself, so a prefix like "ID number:" can be brought back while the digits after it remain masked. Double-tap undoes the last erase.
 
-**Development model.** This release was completed with WorkBuddy's Hy4 Flash model instead of DeepSeek-V4.1-Flash: during peak hours credit consumption was too fast. No change to the algorithm, rules or output format.
+## 1.4.7.2 (English)
+
+**Model note.** DeepSeek-V4.1-Flash is the model we usually and mainly rely on — the core backbone for most scenarios and maintenance; other models such as GLM 5.3 Flash and Hy4 Flash are used occasionally. The note now appears in the About dialog on both platforms and in all shipped docs. The required attribution lines are unchanged.
+
+**Gitee assets.** Gitee keeps installers for the latest and the previous release only (exe + apk + SHA256SUMS for both platforms); older releases are GitHub-only, with links in every release page and in the README. The Windows installer of the latest release is on Gitee too.
+
+**Development model.** DeepSeek-V4.1-Flash is the model we usually and mainly rely on - the **core backbone** for most scenarios and maintenance; other models such as GLM 5.3 Flash and Hy4 Flash are used occasionally. Hy4 Flash helped with part of this release during peak hours when credits were consumed too fast. No change to the algorithm, rules or output format.
 
 ---
 

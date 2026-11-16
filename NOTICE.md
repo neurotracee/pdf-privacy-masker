@@ -71,6 +71,10 @@
 ```
 指导作者：项目创作时为初中生 —— 需求、识别规则的设计、验收测试全部由本人完成
 开发    ：腾讯 WorkBuddy × DeepSeek-V4.1-Flash
+
+说明：常用、惯用、主要是 DeepSeek-V4.1-Flash——大多数场景和功能维护升级都由它作核心骨架；偶尔也会用其他模型，如 GLM 5.3 Flash、Hy4 Flash。
+
+Note: DeepSeek-V4.1-Flash is the model we usually and mainly rely on - the core backbone for most scenarios and maintenance; other models such as GLM 5.3 Flash and Hy4 Flash are used occasionally.
 原项目  ：https://github.com/neurotracee/pdf-privacy-masker
 镜像    ：https://gitee.com/bio234/pdf-privacy-masker
 ```

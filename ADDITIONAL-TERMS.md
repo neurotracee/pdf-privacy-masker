@@ -18,6 +18,12 @@
 由 腾讯 WorkBuddy × DeepSeek-V4.1-Flash 开发
 ```
 
+说明：常用、惯用、主要是 DeepSeek-V4.1-Flash——大多数场景和功能维护升级都由它作核心骨架；偶尔也会用其他模型，如 GLM 5.3 Flash、Hy4 Flash。
+
+Note: DeepSeek-V4.1-Flash is the model we usually and mainly rely on - the core backbone for most scenarios and maintenance; other models such as GLM 5.3 Flash and Hy4 Flash are used occasionally.
+
+上面的署名两句必须原样保留；这段只是补充说明，不属于署名本身， fork / 商用时可以照抄，也可以按实际情况改写。
+
 **2. 原项目地址**
 必须让程序的使用者**看得见**这个地址：
 
@@ -109,6 +115,7 @@ under **Section 7(b)** of that license:
 1. You must preserve the author attribution:
    `Advisor: was a junior high school student when this project was created` and
    `Developed by Tencent WorkBuddy × DeepSeek-V4.1-Flash`.
+   Note: DeepSeek-V4.1-Flash is the model we usually and mainly rely on - the core backbone for most scenarios and maintenance; other models such as GLM 5.3 Flash and Hy4 Flash are used occasionally.
 2. You must display the original project URL
    `https://github.com/neurotracee/pdf-privacy-masker`
    (mirror: `https://gitee.com/bio234/pdf-privacy-masker`)

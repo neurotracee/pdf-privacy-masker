@@ -75,6 +75,7 @@ https://github.com/neurotracee/pdf-privacy-masker
 【八、作者与许可】
 指导作者：项目创作时为初中生（需求、识别规则的设计、验收测试全部由本人完成）
 开　　发：腾讯 WorkBuddy × DeepSeek-V4.1-Flash
+说明：常用、惯用、主要是 DeepSeek-V4.1-Flash——大多数场景和功能维护升级都由它作核心骨架；偶尔也会用其他模型，如 GLM 5.3 Flash、Hy4 Flash。
 开源协议：AGPL-3.0-or-later（附第 7 条 b 项附加条款）
 原项目地址：https://github.com/neurotracee/pdf-privacy-masker
 

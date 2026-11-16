@@ -118,6 +118,10 @@ fun AboutPanel(
             )
         )
         InfoRow(T("开发", "Built by"), "腾讯 WorkBuddy × DeepSeek-V4.1-Flash")
+        InfoRow(
+            T("模型说明", "Model note"),
+            T("注：常用、惯用、主要是 DeepSeek-V4.1-Flash（核心骨架）；偶尔 GLM 5.3 Flash / Hy4 Flash。", "Note: usually/mainly DeepSeek-V4.1-Flash (core); occasionally GLM 5.3 Flash / Hy4 Flash.")
+        )
         InfoRow(T("开源协议", "License"), "AGPL-3.0-or-later")
         InfoRow(T("原项目地址", "Upstream"), "github.com/neurotracee/pdf-privacy-masker")
         // 国内访问 GitHub 常被拦，声明里再给一个 Gitee 镜像，方便追溯来源

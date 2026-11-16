@@ -13,9 +13,11 @@
 
 Gitee 附件配额（1 GB / 整个仓库）与版本顺序规范
 ------------------------------------------------
-见 docs/05-构建与发布.md 的 4.4 节。要点：只保证最新版有附件；旧版本附件
-不逐个删、不逐个改文字，留到 `--prune-old-assets` 一次性批量处理；禁止
-「从旧版开始删附件 → 加新附件 → 回头改旧版文字」的交错操作，因为 Gitee 的
+见 docs/05-构建与发布.md 的 4.4 节。要点：Gitee **同时保留最新版与上一版**
+两个版本的两端安装包（Windows exe + 安卓 apk + SHA256SUMS）；再往前的版本
+附件统一清理、只留更新说明，用户只能到 GitHub 发布页查看和下载旧版本。
+旧版本附件不逐个删、不逐个改文字，留到 `--prune-old-assets` 一次性批量处理；
+禁止「从旧版开始删附件 → 加新附件 → 回头改旧版文字」的交错操作，因为 Gitee 的
 latest 是「最后创建的非预发布 Release」，不是版本号最大的那个。
 正常同步结束会自动跑一次 `--verify-order` 的同等校验。
 
@@ -336,9 +338,10 @@ def reorder(rels, tok, dry):
 GH_RELEASES_URL = "https://github.com/neurotracee/pdf-privacy-masker/releases"
 GE_LATEST_URL = "https://gitee.com/bio234/pdf-privacy-masker/releases/latest"
 GITEE_QUOTA = 1024 ** 3          # 整个仓库所有历史版本附件累计，1 GB
+KEEP_RECENT = 2                  # Gitee 保留最近两个版本（最新版 + 上一版），两端都留
 
-HISTORY_NOTE_TEMPLATE = """> **本页是历史版本，安装包已从 Gitee 移除。** Gitee 仓库的 Release 附件总额度只有 1 GB，现在只保留最新版的附件；历史版本的附件统一清理，不在本页逐个处理。
-> 需要这一版的安装包，请到 GitHub 发布页下载：
+HISTORY_NOTE_TEMPLATE = """> **本页是历史版本，安装包已从 Gitee 移除。** Gitee 仓库的 Release 附件总额度只有 1 GB，只保留**最新版与上一版**两个版本的安装包（Windows exe 和安卓 apk 都留在本站）；更早版本的附件已统一清理，只能麻烦你到 GitHub 发布页查看和下载。
+> 这一版的发布页（Windows / 安卓安装包都在 Assets 区）：
 > https://github.com/neurotracee/pdf-privacy-masker/releases/tag/{tag}
 > 全部历史版本：https://github.com/neurotracee/pdf-privacy-masker/releases
 > 只想装软件用的话，直接下最新版：https://gitee.com/bio234/pdf-privacy-masker/releases/latest
@@ -348,6 +351,11 @@ HISTORY_NOTE_TEMPLATE = """> **本页是历史版本，安装包已从 Gitee 移
 
 def newest_tag(rels):
     return max((r["tag_name"] for r in rels), key=ver_key)
+
+
+def recent_tags(rels, n=KEEP_RECENT):
+    """Gitee 要保留的版本：按版本号取最近 n 个（最新版 + 上一版）。"""
+    return set(sorted((r["tag_name"] for r in rels), key=ver_key, reverse=True)[:n])
 
 
 def ge_latest_tag():
@@ -372,8 +380,9 @@ def install_assets(files):
 def verify_order(rels=None, tok=None, quiet=False):
     """校验「Gitee 显示的最新版」==「版本号最大的版本」。
 
-    三条都过才算绿：latest 重定向、Gitee 列表里最后创建的那个、以及最新版附件
-    与 GitHub API 报的字节数一致（防止镜像截断的残包冒充正式安装包）。
+    四条都过才算绿：latest 重定向、Gitee 列表里最后创建的那个、最新版两端
+    安装包（exe + apk）都在，且附件字节数与 GitHub API 一致（防止镜像截断的
+    残包冒充正式安装包）。上一版的两端包缺失只提示不报错。
     """
     tok = tok or token()
     rels = rels or gh_releases()
@@ -400,13 +409,27 @@ def verify_order(rels=None, tok=None, quiet=False):
         expect = {a["name"]: int(a.get("size") or 0) for a in (ghr.get("assets") or [])}
         have = {a["name"]: int(a.get("size") or 0) for a in ge_attach_files(cur["id"], tok)}
         for n, sz in expect.items():
-            if n in have and have[n] != sz:
+            if n.lower().endswith((".exe", ".apk")) and n not in have:
+                problems.append("最新版缺少安装包 %s（Gitee 必须两端都留）" % n)
+            elif n in have and have[n] != sz:
                 problems.append("附件 %s 大小不符：Gitee %s / GitHub %s" % (n, have[n], sz))
 
-    # 旧版本还有多少附件：不是错误（按策略留到一次性批量清理），但必须看得见
+    keep = recent_tags(rels)
+    prev = sorted(keep, key=ver_key, reverse=True)[1:]
+    missing_prev = []
+    for tag in prev:
+        r = next((x for x in ges if x.get("tag_name") == tag), None)
+        if not r:
+            continue
+        have = {a["name"] for a in ge_attach_files(r["id"], tok)}
+        for n in ((next((x for x in rels if x["tag_name"] == tag), {}) or {}).get("assets") or []):
+            if n["name"].lower().endswith((".exe", ".apk")) and n["name"] not in have:
+                missing_prev.append("%s/%s" % (tag, n["name"]))
+
+    # 保留版本之外的旧版还有多少附件：不是错误（留待一次性批量清理），但必须看得见
     old_with_assets = []
     for r in ges:
-        if r.get("tag_name") == want:
+        if r.get("tag_name") in keep:
             continue
         if install_assets(ge_attach_files(r["id"], tok)):
             old_with_assets.append(r.get("tag_name"))
@@ -416,7 +439,10 @@ def verify_order(rels=None, tok=None, quiet=False):
         print("  最大版本：%s" % want)
         print("  Gitee /releases/latest：%s" % (got or "(取不到)"))
         print("  Gitee 列表第一条：%s" % (top or "(取不到)"))
-        print("  仍带附件的旧版本：%d 个%s（按策略留待一次性批量清理，不是错误）" % (
+        print("  Gitee 保留版本：%s（两端安装包）" % ", ".join(sorted(keep, key=ver_key, reverse=True)))
+        if missing_prev and not quiet:
+            print("  上一版缺附件（提示，不算失败）：%s" % ", ".join(missing_prev))
+        print("  仍带附件的更早版本：%d 个%s（按策略留待一次性批量清理，不是错误）" % (
             len(old_with_assets),
             "：" + ", ".join(old_with_assets) if old_with_assets and not quiet else ""))
         print("  结果：%s" % ("通过" if not problems else "不通过"))
@@ -431,22 +457,22 @@ def verify_order(rels=None, tok=None, quiet=False):
 def audit(tok):
     """给「后续一次性批量清理」提供依据：谁有附件、谁标了预发布、一共占了多少配额。"""
     rels = gh_releases()
-    want = newest_tag(rels) if rels else ""
+    keep = recent_tags(rels) if rels else set()
     ges = sorted(gitee_releases(), key=lambda x: ver_key(x.get("tag_name") or ""))
     total = 0
     print("=== Gitee Release 附件审计（配额 %d MB）===" % (GITEE_QUOTA // 1048576))
-    print("%-11s %-5s %-8s %-22s %s" % ("版本", "最新", "预发布", "安装包", "安装包体积"))
+    print("%-11s %-6s %-8s %-22s %s" % ("版本", "Gitee", "预发布", "安装包", "安装包体积"))
     for r in ges:
         tag = r.get("tag_name") or ""
         files = install_assets(ge_attach_files(r["id"], tok))
         sz = sum(int(a.get("size") or 0) for a in files)
         total += sz
-        print("%-11s %-5s %-8s %-22s %.2f MB" % (
-            tag, "是" if tag == want else "", "是" if r.get("prerelease") else "",
+        print("%-11s %-6s %-8s %-22s %.2f MB" % (
+            tag, "保留" if tag in keep else "清走", "是" if r.get("prerelease") else "",
             ("%d 个" % len(files)) if files else "无", sz / 1048576))
     print("安装包合计：%.2f MB / %d MB（%.1f%%）" %
           (total / 1048576, GITEE_QUOTA // 1048576, total * 100.0 / GITEE_QUOTA))
-    print("旧版本附件不逐个处理；要清理请用 --prune-old-assets（先加 --dry-run 看清单）。")
+    print("保留规则：最近 %d 个版本（最新版 + 上一版）两端都留；更早的用 --prune-old-assets 一次性清理。" % KEEP_RECENT)
 
 
 def history_note_body(body, tag):
@@ -459,7 +485,7 @@ def history_note_body(body, tag):
         body = body[head_end:].lstrip("\n")
     # 早期手工改过的旧版还留着一块「本页没有，去 GitHub 下」的表格，统一模板里
     # 已经写了链接，这块就成了重复内容，批量处理时一并去掉。
-    m2 = re.search(r"^## 安装包（本页没有.*?(?=\n更新级别：|\n## |\Z)", body,
+    m2 = re.search(r"^## 安装包.*?(?=\n更新级别：|\n## |\Z)", body,
                    flags=re.S | re.M)
     if m2:
         body = body[:m2.start()] + body[m2.end():]
@@ -476,11 +502,12 @@ def prune_old_assets(tok, dry=False):
     rels = gh_releases()
     if not rels:
         return
-    want = newest_tag(rels)
+    keep = recent_tags(rels)
     ges = {r.get("tag_name"): r for r in gitee_releases()}
-    order = sorted((t for t in ges if t != want), key=ver_key)
+    order = sorted((t for t in ges if t not in keep), key=ver_key)
     print("=== %s旧版本附件 ===" % ("[dry-run] 预览" if dry else "批量清理"))
-    print("保留最新版 %s 的全部附件；以下按旧 → 新统一处理：" % want)
+    print("保留 %s 的两端附件（最新版 + 上一版）；更早的按旧 → 新统一处理：" %
+          ", ".join(sorted(keep, key=ver_key, reverse=True)))
     for tag in order:
         r = ges[tag]
         files = install_assets(ge_attach_files(r["id"], tok))

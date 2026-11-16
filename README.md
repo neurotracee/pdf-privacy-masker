@@ -83,7 +83,7 @@
 ## 这个项目是谁做的
 
 - **指导作者：项目创作时为初中生。** 需求、识别规则的设计、验收测试全部由本人完成。
-- **开发：腾讯 WorkBuddy × DeepSeek-V4.1-Flash。** 在指导作者的指令与反复验收下实现代码。
+- **开发：腾讯 WorkBuddy × DeepSeek-V4.1-Flash。** 在指导作者的指令与反复验收下实现代码。说明：常用、惯用、主要是 DeepSeek-V4.1-Flash——大多数场景和功能维护升级都由它作核心骨架；偶尔也会用其他模型，如 GLM 5.3 Flash、Hy4 Flash。
 - **开源协议：GNU AGPL-3.0-or-later。** 详见 [LICENSE](LICENSE)，另附 [ADDITIONAL-TERMS.md](ADDITIONAL-TERMS.md)。
 - **维护方式**：个人业余时间维护，代码全部公开，欢迎任何人 fork 自行改进，不必询问。具体节奏与反馈渠道见文末「[维护节奏与反馈](#维护节奏与反馈)」。
 
@@ -102,6 +102,10 @@
 ```
 指导作者：项目创作时为初中生
 由 腾讯 WorkBuddy × DeepSeek-V4.1-Flash 开发
+
+说明：常用、惯用、主要是 DeepSeek-V4.1-Flash——大多数场景和功能维护升级都由它作核心骨架；偶尔也会用其他模型，如 GLM 5.3 Flash、Hy4 Flash。
+
+Note: DeepSeek-V4.1-Flash is the model we usually and mainly rely on - the core backbone for most scenarios and maintenance; other models such as GLM 5.3 Flash and Hy4 Flash are used occasionally.
 ```
 
 依据 AGPL-3.0 第 5 条（保留版权声明）；第 7 条 (b) 项明确允许版权方要求保留作者署名。
@@ -179,9 +183,23 @@ https://gitee.com/bio234/pdf-privacy-masker      # mirror / 镜像（国内访�
 
 ## 怎么用
 
+### 安装包下载与版本保留规则（先看这一段）
+
+| 情况 | Gitee（国内，推荐） | GitHub |
+| --- | --- | --- |
+| **最新版**（Windows + 安卓） | [releases/latest](https://gitee.com/bio234/pdf-privacy-masker/releases/latest) 附件区：`PDFPrivacyMasker-<版本号>.exe`、`.apk`、`SHA256SUMS.txt` **都在** | 同一版本，附件齐全 |
+| **上一版**（Windows + 安卓） | 同样保留两端安装包，从 [releases](https://gitee.com/bio234/pdf-privacy-masker/releases) 进入对应 tag | 同一版本，附件齐全 |
+| **更早的版本** | 只留更新说明，**没有安装包**——只能到 GitHub 查看和下载 | [全部历史版本](https://github.com/neurotracee/pdf-privacy-masker/releases)；指定版本：`https://github.com/neurotracee/pdf-privacy-masker/releases/tag/v<版本号>` |
+
+> **为什么要这样分**：Gitee 仓库的 Release 附件总额度只有 **1 GB（按所有历史版本累计）**，装不下十几个版本的 exe + apk。所以 Gitee **只保留最新版和上一版的两端安装包**，更早版本的附件统一清理——这一步确属无奈，需要旧版本的用户只能到 GitHub 发布页查看和下载，链接如下。**Windows 最新版并没有被挪到 GitHub**，exe 和安卓 apk 一样都在 Gitee 附件区。
+>
+> - 最新版：https://gitee.com/bio234/pdf-privacy-masker/releases/latest
+> - 全部历史版本（GitHub）：https://github.com/neurotracee/pdf-privacy-masker/releases
+> - 指定旧版本：https://github.com/neurotracee/pdf-privacy-masker/releases/tag/v`<版本号>`（把 `<版本号>` 换成具体版本，例如 `v1.4.2`）
+
 ### 方式一：直接用打包好的 exe（Windows，推荐）
 
-1. 到发布页下载 `PDFPrivacyMasker-<版本号>.exe`（文件名里的版本号就是当前最新版）：[Gitee 发布页](https://gitee.com/bio234/pdf-privacy-masker/releases/latest) · [GitHub 发布页](https://github.com/neurotracee/pdf-privacy-masker/releases/latest)。两个仓库同步发布同一份包，就近选一个下即可。
+1. 到发布页下载 `PDFPrivacyMasker-<版本号>.exe`（文件名里的版本号就是当前最新版）：[Gitee 发布页](https://gitee.com/bio234/pdf-privacy-masker/releases/latest) · [GitHub 发布页](https://github.com/neurotracee/pdf-privacy-masker/releases/latest)。**两个平台的安装包都在 Gitee 最新版附件区**，GitHub 是同一份文件，就近选一个下即可。
 2. 双击运行。**不需要安装 Python，也不需要联网。**
 3. 第一次启动会慢 1–2 秒（单文件程序要先自解压到临时目录），属正常现象。
 4. 如果 Windows 弹「已保护你的电脑」，点「更多信息 → 仍要运行」——程序没有购买数字签名证书，不影响功能。
@@ -192,7 +210,7 @@ https://gitee.com/bio234/pdf-privacy-masker      # mirror / 镜像（国内访�
 
 ### 方式一之二：安装 apk（安卓）
 
-1. 到发布页下载 `PDFPrivacyMasker-<版本号>-arm64.apk`（Android 8.0 及以上，arm64 机型）：[Gitee 发布页](https://gitee.com/bio234/pdf-privacy-masker/releases/latest) · [GitHub 发布页](https://github.com/neurotracee/pdf-privacy-masker/releases/latest)。两个仓库同步发布同一份包。
+1. 到发布页下载 `PDFPrivacyMasker-<版本号>-arm64.apk`（Android 8.0 及以上，arm64 机型）：[Gitee 发布页](https://gitee.com/bio234/pdf-privacy-masker/releases/latest) · [GitHub 发布页](https://github.com/neurotracee/pdf-privacy-masker/releases/latest)。最新版和上一版的 apk 都留在 Gitee。
 2. 点开安装；系统提示「未知来源」时，允许当前文件管理器安装即可。
 3. 打开后在首页点一下选 PDF，确认勾选，点「生成打码 PDF」再选保存目录。
 
@@ -413,7 +431,7 @@ The same panel also has **Check for updates** and **Language (中文 / English)*
 ## Who made this
 
 - **Lead author: was a junior high school student when this project was created.** Requirements, detection rule design, and acceptance testing were all completed by the author.
-- **Development: Tencent WorkBuddy × DeepSeek-V4.1-Flash.** Code was written under the author's direction and repeated acceptance reviews.
+- **Development: Tencent WorkBuddy × DeepSeek-V4.1-Flash.** Code was written under the author's direction and repeated acceptance reviews. Note: DeepSeek-V4.1-Flash is the model we usually and mainly rely on - the core backbone for most scenarios and maintenance; other models such as GLM 5.3 Flash and Hy4 Flash are used occasionally.
 - **License: GNU AGPL-3.0-or-later.** See [LICENSE](LICENSE), and [ADDITIONAL-TERMS.md](ADDITIONAL-TERMS.md) for extra terms.
 - **Maintained** in spare time by one person. The code is fully open — fork and improve it whenever you like, no need to ask. See [Maintenance & feedback](#maintenance--feedback) at the end for details.
 
@@ -430,6 +448,8 @@ Keep these two lines verbatim, don't replace with someone else's name:
 ```
 Lead author: was a junior high school student when this project was created
 Developed by Tencent WorkBuddy × DeepSeek-V4.1-Flash
+
+Note: DeepSeek-V4.1-Flash is the model we usually and mainly rely on - the core backbone for most scenarios and maintenance; other models such as GLM 5.3 Flash and Hy4 Flash are used occasionally.
 ```
 
 This is based on AGPL-3.0 Section 5 (preserve copyright notices); Section 7(b) explicitly allows the copyright holder to require attribution.
@@ -499,6 +519,21 @@ Need closed-source commercial use? You must **both** get an exemption from the p
 | Zero changes to original | Only reads the original PDF, saves as a new file; auto-numbers to avoid overwriting |
 
 ## How to use
+
+### Where to download, and what is kept where (read this first)
+
+| Case | Gitee (China, recommended) | GitHub |
+| --- | --- | --- |
+| **Latest release** (Windows + Android) | [releases/latest](https://gitee.com/bio234/pdf-privacy-masker/releases/latest) — `PDFPrivacyMasker-<version>.exe`, `.apk` and `SHA256SUMS.txt` are **all there** | Same release, all assets |
+| **Previous release** (Windows + Android) | Both installers are kept too; open [releases](https://gitee.com/bio234/pdf-privacy-masker/releases) and pick its tag | Same release, all assets |
+| **Older releases** | Release notes only, **no installers** — you have to check GitHub for them | [All releases](https://github.com/neurotracee/pdf-privacy-masker/releases); a specific one: `https://github.com/neurotracee/pdf-privacy-masker/releases/tag/v<version>` |
+
+> **Why**: Gitee allows only **1 GB of release attachments per repository** (across all versions), which cannot hold a dozen exe + apk pairs. So Gitee keeps installers for **the latest and the previous release only**; older attachments are removed in one batch. Older versions are therefore unavoidable GitHub-only — sorry about that.
+> The **Windows installer of the latest release is not GitHub-only**: the exe sits in the Gitee assets area next to the apk.
+>
+> - Latest: https://gitee.com/bio234/pdf-privacy-masker/releases/latest
+> - All history (GitHub): https://github.com/neurotracee/pdf-privacy-masker/releases
+> - Specific older version: https://github.com/neurotracee/pdf-privacy-masker/releases/tag/v`<version>`
 
 ### Option 1: Use the packaged exe (recommended, Windows)
 

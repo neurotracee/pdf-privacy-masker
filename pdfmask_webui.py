@@ -458,7 +458,7 @@ main{flex:1;min-height:0;display:flex;overflow:hidden}
     <div class="ver">版本 __VERSION__ · <span id="verNote">本地离线运行</span></div>
     <dl>
       <dt>指导作者</dt><dd>__AUTHOR__。<br>需求、识别规则的设计、验收测试全部由本人完成。</dd>
-      <dt>开发</dt><dd>__DEVELOPER__</dd>
+      <dt>开发</dt><dd>__DEVELOPER__<br><span data-en-html='Note: DeepSeek-V4.1-Flash is the model we usually and mainly rely on - the core backbone for most scenarios and maintenance; other models such as GLM 5.3 Flash and Hy4 Flash are used occasionally.'>说明：常用、惯用、主要是 DeepSeek-V4.1-Flash——大多数场景和功能维护升级都由它作核心骨架；偶尔也会用其他模型，如 GLM 5.3 Flash、Hy4 Flash。</span></dd>
       <dt>开源协议</dt><dd>__LICENSE__</dd>
       <dt>原项目地址</dt><dd class="url" id="aboutUrl" data-url="__URL__" title="点击复制">__URL__</dd>
       <dt>Gitee 镜像</dt><dd class="url" id="aboutUrlGitee" data-url="__URLGITEE__" title="点击复制">__URLGITEE__</dd>
