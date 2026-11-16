@@ -56,13 +56,21 @@
 
 ![打码前后对比](docs/img/comparison.png)
 
-> 左侧是原始文档，右侧是打码后的结果。
+> 左侧是原始文档，右侧是打码后的结果。原图 2100×1182，网页里会被缩小显示——**[点这里打开原图放大看细节](docs/img/comparison.png)**（Gitee / GitHub 页面里也可以直接点上面的图放大）。
 
 ---
 
 ## 界面
 
+**Windows**（浏览器界面）：
+
 ![界面](docs/img/interface.png)
+
+**安卓**（带壳展示：左首页选文件 / 右工作区「手动框选 · 橡皮擦」切换；截图取自真实界面渲染，非示意图）：
+
+![安卓界面](docs/img/android-interface-framed.png)
+
+> 安卓端更多实拍图见 [使用说明-安卓](docs/02-使用说明-安卓.md)：放大镜、扫描件识别、应用内更新。
 
 点「生成打码 PDF」时先问你要存到哪个文件夹，两个勾选决定以后还问不问：
 
@@ -404,13 +412,21 @@ Static comparison, if you want to zoom in on details:
 
 ![Before / After comparison](docs/img/comparison.png)
 
-> Left is the original document, right is the redacted result. Surnames are kept, given names and all numbers are covered by mosaic; meeting dates, amounts, license plates, tracking numbers and other ordinary info are preserved.
+> Left is the original document, right is the redacted result. Full size is 2100x1182; pages shrink it to fit — **[open the full-size image](docs/img/comparison.png)** to zoom into details (on Gitee/GitHub you can also click the image above). Surnames are kept, given names and all numbers are covered by mosaic; meeting dates, amounts, license plates, tracking numbers and other ordinary info are preserved.
 
 ---
 
 ## Interface
 
+**Windows** (browser UI):
+
 ![Interface](docs/img/interface.png)
+
+**Android** (framed mockup: left = home / file picker, right = work screen with the "Draw box / Eraser" switch; captured from a real UI render, not a drawing):
+
+![Android interface](docs/img/android-interface-framed.png)
+
+> More Android screenshots (loupe, scanned-PDF recognition, in-app update) are in [the Android guide](docs/02-使用说明-安卓.md).
 
 When you click "Generate Redacted PDF", it first asks which folder to save to, with two checkboxes deciding whether to ask again:
 
