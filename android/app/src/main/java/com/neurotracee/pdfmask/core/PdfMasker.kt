@@ -104,15 +104,9 @@ object PdfMasker {
 
                 if (backup != null) {
                     for (r in eraserRects) {
-                        val x0 = (r.x0 * (w / pw) - 1.5f).toInt().coerceIn(0, w - 1)
-                        val y0 = (r.y0 * (h / ph) - 1.5f).toInt().coerceIn(0, h - 1)
-                        val x1 = (r.x1 * (w / pw) + 1.5f).toInt().coerceIn(x0 + 1, w)
-                        val y1 = (r.y1 * (h / ph) + 1.5f).toInt().coerceIn(y0 + 1, h)
-                        val ww = x1 - x0
-                        val hh = y1 - y0
-                        val px = IntArray(ww * hh)
-                        backup.getPixels(px, 0, ww, x0, y0, ww, hh)
-                        bmp.setPixels(px, 0, ww, x0, y0, ww, hh)
+                        // 只贴回这一小块的原像素：不删除标记框、不越界、
+                        // 也不把旁边该打码的数字一起恢复。
+                        EraserRestore.apply(bmp, backup, r, w / pw, h / ph)
                     }
                     backup.recycle()
                 }

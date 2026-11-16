@@ -50,14 +50,6 @@ object OcrEngine {
     const val RENDER_DPI = 180
     const val PAD_RATIO = 0.85f
 
-    /**
-     * 检测框是整行外接框（含行距 / padding / 倾斜余量），实测约为真实字高的 2 倍。
-     * 直接拿它当单字矩形会把打码块伸进上下两行——相邻行的灰条连成一片，
-     * 还会把上一行打码框下面的正常文字一起糊掉。单字矩形按此比例居中收窄。
-     * 与 Python 端 pdfmask_ocr.GLYPH_HEIGHT_RATIO 保持一致。
-     */
-    const val GLYPH_HEIGHT_RATIO = 0.58f
-
     private val MEAN = floatArrayOf(0.485f, 0.456f, 0.406f)
     private val STD = floatArrayOf(0.229f, 0.224f, 0.225f)
 
@@ -274,8 +266,11 @@ object OcrEngine {
             val d = bw * bh * UNCLIP_RATIO / (2f * (bw + bh) + 1e-6f)
             val dx = d
             val dy = if (bw >= 6 * bh) min(d, bh * UNCLIP_MAX_RATIO) else d
+            // 后两个值：外扩**之前**的上下边（就是笔画本身）。外扩是给识别留余量的，
+            // 里面已经含了相邻行；字高只能取紧框，否则打码块会盖到上一行。
             boxes.add(floatArrayOf(
-                (x0 - dx) * sx, (y0 - dy) * sy, (x1 + 1 + dx) * sx, (y1 + 1 + dy) * sy
+                (x0 - dx) * sx, (y0 - dy) * sy, (x1 + 1 + dx) * sx, (y1 + 1 + dy) * sy,
+                y0 * sy, (y1 + 1) * sy
             ))
         }
         return boxes
@@ -424,8 +419,11 @@ object OcrEngine {
         val scaleX = page.width / bw              // 原图 → 页面点
         val scaleY = page.height / bh
 
+        // y0/y1 是**字形**上下边（检测紧框，稍后按行距封顶）；tol 是外扩框高度，
+        // 只用于「同一行」的聚类容差——两者必须分开，否则字框收紧后会把一行拆成两行。
         class Item(val text: String, val spans: List<FloatArray>,
-                   val x0: Float, val y0: Float, val x1: Float, val y1: Float)
+                   val x0: Float, var y0: Float, val x1: Float, var y1: Float,
+                   val tol: Float)
 
         val items = ArrayList<Item>()
         for (b in boxes) {
@@ -461,13 +459,41 @@ object OcrEngine {
                 crop.recycle()
             }
             if (rec.text.isBlank()) continue
+            // 字形的上下边 = 检测概率图里**外扩前**的那一段（笔画本身），不再靠比例猜
+            val ry0 = (b[4] * inv).coerceIn(0f, bh.toFloat())
+            val ry1 = (b[5] * inv).coerceIn(ry0 + 1f, bh.toFloat())
             items.add(Item(
                 rec.text, rec.spans,
-                (X0 - padX) * scaleX, (Y0 - padY) * scaleY,
-                (X1 + padX) * scaleX, (Y1 + padY) * scaleY
+                (X0 - padX) * scaleX, ry0 * scaleY,
+                (X1 + padX) * scaleX, ry1 * scaleY,
+                (cy1 - cy0).toFloat() * scaleY
             ))
         }
         if (items.isEmpty()) return emptyList()
+
+        // 检测紧框在低对比度拍照件上仍可能含一点出血（能到一个行距），
+        // 直接用会把打码块蹭到上一行。按本页行距封顶：字高不超过行距的 0.68，
+        // 中心不动——这样既不盖邻行，也不会把字裁掉半个。通用做法，不针对某份文档。
+        run {
+            val cys = items.map { (it.y0 + it.y1) / 2f }.sorted()
+            val gaps = ArrayList<Float>()
+            for (k in 1 until cys.size) {
+                val g = cys[k] - cys[k - 1]
+                if (g > 1f) gaps.add(g)
+            }
+            if (gaps.isNotEmpty()) {
+                gaps.sort()
+                val pitch = gaps[gaps.size / 2]
+                val cap = pitch * 0.68f
+                for (it in items) {
+                    if (it.y1 - it.y0 > cap) {
+                        val c = (it.y0 + it.y1) / 2f
+                        it.y0 = c - cap / 2f
+                        it.y1 = c + cap / 2f
+                    }
+                }
+            }
+        }
 
         // 按纵向中心分行，与文字层路径的口径一致
         items.sortWith(compareBy({ (it.y0 + it.y1) / 2f }, { it.x0 }))
@@ -476,7 +502,7 @@ object OcrEngine {
         val heights = ArrayList<Float>()
         for (it in items) {
             val cy = (it.y0 + it.y1) / 2f
-            val hh = it.y1 - it.y0
+            val hh = it.tol
             var hit = -1
             for (g in groups.indices) {
                 if (abs(centers[g] - cy) <= max(2f, max(heights[g], hh) * 0.30f)) { hit = g; break }
@@ -504,11 +530,11 @@ object OcrEngine {
                     boxesOut.add(null)
                 }
                 val width = it.x1 - it.x0
-                // 行框含行距，先收成真实字高，再据此定单字框的上下边与宽度下限
-                val glyphH = hgt * GLYPH_HEIGHT_RATIO
-                val cy = (it.y0 + it.y1) / 2f
-                val gy0 = cy - glyphH / 2f
-                val gy1 = cy + glyphH / 2f
+                // 纵向已经由 inkBand 定到真实字高（或退回 0.58 估计），这里直接沿用，
+                // 不再二次收窄——再乘一次比例就会把框压到字的上半截。
+                val glyphH = it.y1 - it.y0
+                val gy0 = it.y0
+                val gy1 = it.y1
                 // 同一框内的字矩形首尾相接：CTC 区间是估计值，留缝会露白
                 val n = it.spans.size
                 // 单个字的区间容易偏窄，给一个按字高算的下限

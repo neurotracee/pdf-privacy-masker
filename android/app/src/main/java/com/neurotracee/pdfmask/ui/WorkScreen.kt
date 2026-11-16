@@ -127,7 +127,7 @@ fun WorkScreen(
     Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
             DocHeader(vm, onPickAnother)
-            WorkHintBar()
+            WorkHintBar(editMode)
             Row(
                 Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 2.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -214,7 +214,11 @@ fun WorkScreen(
         }
 
         if (fullPreview) {
-            FullPreviewDialog(vm) { fullPreview = false }
+            FullPreviewDialog(
+                vm = vm,
+                editMode = editMode,
+                onEditMode = { editMode = it }
+            ) { fullPreview = false }
         }
     }
 }
@@ -266,7 +270,7 @@ private fun DocHeader(vm: AppViewModel, onPickAnother: () -> Unit) {
 
 /** 顶部精简提示：告诉用户能拖、能双击取消，省得自己摸索 */
 @Composable
-private fun WorkHintBar() {
+private fun WorkHintBar(editMode: Int = 0) {
     Row(
         Modifier
             .fillMaxWidth()
@@ -285,7 +289,13 @@ private fun WorkHintBar() {
         )
         Spacer(Modifier.width(6.dp))
         Text(
-            T(
+            if (editMode == 2) T(
+                "橡皮擦：长按拖过要恢复的那一小块 · 只恢复划过的范围 · 轻点撤销上一笔",
+                "Eraser: long-press and drag over the area to restore · only that patch comes back · tap to undo"
+            ) else if (editMode == 1) T(
+                "手动框选：长按拖动画框 · 双指缩放移动 · 双击取消这处打码",
+                "Box: long-press to draw · pinch to zoom/move · double-tap to toggle a mask"
+            ) else T(
                 "双指缩放/移动 · 长按拖动画框 · 双击取消",
                 "Pinch to zoom/move · long-press to box · double-tap to toggle"
             ),
@@ -604,6 +614,7 @@ private fun PreviewPane(
             // 提示文案在组合期取好，双击回调里不能调 @Composable
             val msgMaskOff = T("已取消这处打码", "Mask removed")
             val msgMaskOn = T("已恢复这处打码", "Mask restored")
+            val msgUndo = T("已撤销最后一笔擦除", "Last erase undone")
             val hitTest: (Offset) -> Finding? = { pos ->
                 val x = pos.x / scaleX
                 val y = pos.y / scaleY
@@ -633,14 +644,13 @@ private fun PreviewPane(
                         //   · 单指直接拖也能画框（1 倍时的老习惯不变）
                         //   · 轻点 = 放大查看，双击方框 = 取消/恢复该处打码
                         .pointerInput(page, scaleX, scaleY, boxWpx, boxHpx) {
-                            val maxZoom = 6f
                             val slop = 10f
                             fun toContent(p: Offset) =
                                 Offset((p.x - pan.x) / zoom, (p.y - pan.y) / zoom)
                             fun clampPan() {
-                                val maxX = (zoom - 1f) * boxWpx
-                                val maxY = (zoom - 1f) * boxHpx
-                                pan = Offset(pan.x.coerceIn(-maxX, 0f), pan.y.coerceIn(-maxY, 0f))
+                                val c = com.neurotracee.pdfmask.core.PageZoom
+                                    .clampPan(zoom, pan.x, pan.y, boxWpx, boxHpx)
+                                pan = Offset(c[0], c[1])
                             }
                             awaitEachGesture {
                                 val down = awaitFirstDown(requireUnconsumed = false)
@@ -652,6 +662,9 @@ private fun PreviewPane(
                                 var lastCentroid = Offset.Zero
                                 var isTap = true
                                 var multi = false
+                                // 双指抬起一根后，剩下的那根手指不能拿「捏合前」的旧坐标
+                                // 做差，否则会突然平移一大截（用户说的「抽一下」）。
+                                var needResync = false
 
                                 while (true) {
                                     val ev = awaitPointerEvent()
@@ -661,28 +674,29 @@ private fun PreviewPane(
                                     if (pressed.size >= 2) {
                                         multi = true
                                         isTap = false
-                                        if (mode != 1) {
-                                            mode = 1
-                                            lastDist = 0f
-                                            lastCentroid = Offset.Zero
-                                            dragFrom = null
-                                            dragTo = null
-                                        }
+                                        needResync = true
                                         val cx = pressed.map { it.position.x }.average().toFloat()
                                         val cy = pressed.map { it.position.y }.average().toFloat()
                                         val c = Offset(cx, cy)
                                         val d = (pressed[0].position - pressed[1].position).getDistance()
-                                        if (lastDist > 1f && d > 1f) {
-                                            val nz = (zoom * (d / lastDist)).coerceIn(1f, maxZoom)
-                                            val k = nz / zoom
-                                            // 以两指中心为锚点缩放：指下的字不会跑掉
-                                            var np = Offset(c.x - (c.x - pan.x) * k, c.y - (c.y - pan.y) * k)
-                                            // 两指整体移动就是平移：放大后靠这个看前后左右
-                                            np += c - lastCentroid
-                                            pan = np
-                                            zoom = nz
-                                            clampPan()
+                                        if (mode != 1) {
+                                            // 进入缩放：以本帧中心为基准，避免首帧把 pan 拽到 (0,0)
+                                            mode = 1
+                                            lastDist = d
+                                            lastCentroid = c
+                                            dragFrom = null
+                                            dragTo = null
+                                            ev.changes.forEach { it.consume() }
+                                            continue
                                         }
+                                        // 锚点缩放 + 跟随平移：一次算完，避免重复累加导致画面漂移
+                                        val r = com.neurotracee.pdfmask.core.PageZoom.pinch(
+                                            zoom, pan.x, pan.y,
+                                            lastCentroid.x, lastCentroid.y, c.x, c.y,
+                                            lastDist, d, boxWpx, boxHpx
+                                        )
+                                        zoom = r[0]
+                                        pan = Offset(r[1], r[2])
                                         lastDist = d
                                         lastCentroid = c
                                         ev.changes.forEach { it.consume() }
@@ -709,11 +723,17 @@ private fun PreviewPane(
                                     }
                                     when (mode) {
                                         1 -> {
-                                            pan = Offset(
-                                                pan.x + (pos.x - prevPos.x),
-                                                pan.y + (pos.y - prevPos.y)
-                                            )
-                                            clampPan()
+                                            if (needResync) {
+                                                // 刚少了一根手指：本帧只对齐基准、不平移，
+                                                // prevPos 由循环末尾统一更新成当前点
+                                                needResync = false
+                                            } else {
+                                                pan = Offset(
+                                                    pan.x + (pos.x - prevPos.x),
+                                                    pan.y + (pos.y - prevPos.y)
+                                                )
+                                                clampPan()
+                                            }
                                             ev.changes.forEach { it.consume() }
                                         }
                                         2 -> {
@@ -748,32 +768,37 @@ private fun PreviewPane(
                                 }
 
                                 if (isTap && !multi) {
-                                    if (editMode == 2 && (vm.erasers[page]?.size ?: 0) > 0) {
-                                        vm.undoEraser(page)
-                                        vm.toast(if (com.neurotracee.pdfmask.AppPrefs.isEn) "Last erase undone" else "已撤销最后一笔擦除")
-                                        isTap = false
-                                    }
-                                    val now = System.currentTimeMillis()
-                                    val near = (down.position - lastTapPos).getDistance() < 90f
-                                    if (now - lastTapAt < 340L && near) {
-                                        // 双击：取消/恢复这一处打码
-                                        lastTapAt = 0L
-                                        pendingTap?.cancel()
-                                        pendingTap = null
-                                        val hit = hitTest(toContent(down.position))
-                                        if (hit != null) {
-                                            val wasOn = hit.id in vm.selected
-                                            vm.toggle(hit.id)
-                                            vm.toast(if (wasOn) msgMaskOff else msgMaskOn)
+                                    if (editMode == 2) {
+                                        // 橡皮擦模式下轻点 = 撤销上一笔擦除；
+                                        // 以前这里没有分支隔开，撤销完还会继续走「打开放大视图」，
+                                        // 一次点击同时干了两件事。
+                                        if ((vm.erasers[page]?.size ?: 0) > 0) {
+                                            vm.undoEraser(page)
+                                            vm.toast(msgUndo)
                                         }
                                     } else {
-                                        lastTapAt = now
-                                        lastTapPos = down.position
-                                        pendingTap?.cancel()
-                                        // 延迟 340ms 再进放大视图，给双击留出判定时间
-                                        pendingTap = gestureScope.launch {
-                                            delay(340)
-                                            onExpand()
+                                        val now = System.currentTimeMillis()
+                                        val near = (down.position - lastTapPos).getDistance() < 90f
+                                        if (now - lastTapAt < 340L && near) {
+                                            // 双击：取消/恢复这一处打码
+                                            lastTapAt = 0L
+                                            pendingTap?.cancel()
+                                            pendingTap = null
+                                            val hit = hitTest(toContent(down.position))
+                                            if (hit != null) {
+                                                val wasOn = hit.id in vm.selected
+                                                vm.toggle(hit.id)
+                                                vm.toast(if (wasOn) msgMaskOff else msgMaskOn)
+                                            }
+                                        } else {
+                                            lastTapAt = now
+                                            lastTapPos = down.position
+                                            pendingTap?.cancel()
+                                            // 延迟 340ms 再进放大视图，给双击留出判定时间
+                                            pendingTap = gestureScope.launch {
+                                                delay(340)
+                                                onExpand()
+                                            }
                                         }
                                     }
                                 }
@@ -844,6 +869,42 @@ private fun PreviewPane(
                                     }
                                 }
                             }
+                            // 橡皮擦：把划过的小块还原成**原图像素**，给出即时反馈。
+                            // 只在这一小块内生效，不删除任何标记框，也不碰旁边的打码区，
+                            // 与导出时的处理完全一致（导出同样只贴回这块的原像素）。
+                            val ers = vm.erasers[page].orEmpty()
+                            for (r in ers) {
+                                if (r.width <= 0f || r.height <= 0f) continue
+                                val dx0 = r.x0 * sx
+                                val dy0 = r.y0 * sy
+                                val dw = (r.width * sx).coerceAtLeast(1f)
+                                val dh = (r.height * sy).coerceAtLeast(1f)
+                                val ix0 = (r.x0 / pageText.width * pageBmp.width).toInt()
+                                    .coerceIn(0, pageBmp.width - 1)
+                                val iy0 = (r.y0 / pageText.height * pageBmp.height).toInt()
+                                    .coerceIn(0, pageBmp.height - 1)
+                                val iw = (r.width / pageText.width * pageBmp.width).toInt()
+                                    .coerceIn(1, pageBmp.width - ix0)
+                                val ih = (r.height / pageText.height * pageBmp.height).toInt()
+                                    .coerceIn(1, pageBmp.height - iy0)
+                                drawImage(
+                                    image = pageBmp,
+                                    srcOffset = IntOffset(ix0, iy0),
+                                    srcSize = IntSize(iw, ih),
+                                    dstOffset = IntOffset(dx0.roundToInt(), dy0.roundToInt()),
+                                    dstSize = IntSize(
+                                        dw.roundToInt().coerceAtLeast(1),
+                                        dh.roundToInt().coerceAtLeast(1)
+                                    )
+                                )
+                                // 淡绿虚线：告诉用户这块已经恢复，又不至于挡住字
+                                drawRect(
+                                    color = Color(0xCC2FA84F),
+                                    topLeft = Offset(dx0, dy0),
+                                    size = Size(dw, dh),
+                                    style = Stroke(width = 1.dp.toPx(), pathEffect = dash)
+                                )
+                            }
                             // 正在拖拽的虚线预览框
                             val a = dragFrom
                             val b = dragTo
@@ -883,7 +944,8 @@ private fun PreviewPane(
                                     min(a0.x, finger.x), min(a0.y, finger.y),
                                     max(a0.x, finger.x), max(a0.y, finger.y)
                                 )
-                            } else null
+                            } else null,
+                            erase = editMode == 2
                         )
                     }
                 }
@@ -924,7 +986,8 @@ private fun LoupeOverlay(
     finger: Offset,
     viewW: Float,
     viewH: Float,
-    band: Rect? = null
+    band: Rect? = null,
+    erase: Boolean = false
 ) {
     val density = LocalDensity.current
     val zoom = 2.8f
@@ -971,12 +1034,12 @@ private fun LoupeOverlay(
                 val rr = mx(band.x1)
                 val bb = my(band.y1)
                 drawRect(
-                    color = Color(0x332563EB),
+                    color = if (erase) Color(0x332FA84F) else Color(0x332563EB),
                     topLeft = Offset(l, t),
                     size = Size(rr - l, bb - t)
                 )
                 drawRect(
-                    color = Color(0xFF2563EB),
+                    color = if (erase) Color(0xFF2FA84F) else Color(0xFF2563EB),
                     topLeft = Offset(l, t),
                     size = Size(rr - l, bb - t),
                     style = Stroke(
@@ -1019,7 +1082,12 @@ private fun cropLoupe(
 }
 
 @Composable
-private fun FullPreviewDialog(vm: AppViewModel, onClose: () -> Unit) {
+private fun FullPreviewDialog(
+    vm: AppViewModel,
+    editMode: Int,
+    onEditMode: (Int) -> Unit,
+    onClose: () -> Unit
+) {
     Dialog(
         onDismissRequest = onClose,
         properties = DialogProperties(usePlatformDefaultWidth = false)
@@ -1031,7 +1099,24 @@ private fun FullPreviewDialog(vm: AppViewModel, onClose: () -> Unit) {
             color = Color(0xFF0B0F14)
         ) {
             Box(Modifier.fillMaxSize()) {
-                PreviewPane(vm, Modifier.fillMaxSize(), 0, onExpand = {})
+                // 放大视图里同样能画框 / 擦除：以前这里写死 0，用户在这里拉框永远
+                // 只会加手动框，橡皮擦看起来像完全没做——就是那个「点了橡皮擦还在框选」。
+                PreviewPane(vm, Modifier.fillMaxSize(), editMode, onExpand = {})
+                Row(
+                    Modifier
+                        .align(Alignment.TopStart)
+                        .padding(10.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    ModeChip(
+                        on = editMode == 1,
+                        label = if (editMode == 1) T("✓ 手动框选", "✓ Box") else T("手动框选", "Box")
+                    ) { onEditMode(if (editMode == 1) 0 else 1) }
+                    ModeChip(
+                        on = editMode == 2,
+                        label = if (editMode == 2) T("✓ 橡皮擦", "✓ Erase") else T("橡皮擦", "Erase")
+                    ) { onEditMode(if (editMode == 2) 0 else 2) }
+                }
                 IconButton(
                     onClick = onClose,
                     modifier = Modifier
@@ -1045,6 +1130,20 @@ private fun FullPreviewDialog(vm: AppViewModel, onClose: () -> Unit) {
                 }
             }
         }
+    }
+}
+
+/** 放大视图顶部的小模式按钮：深色背景上保证看得清 */
+@Composable
+private fun ModeChip(on: Boolean, label: String, onClick: () -> Unit) {
+    TextButton(
+        onClick = onClick,
+        modifier = Modifier
+            .clip(RoundedCornerShape(10.dp))
+            .background(if (on) Color(0xFF2563EB) else Color(0x66000000)),
+        colors = ButtonDefaults.textButtonColors(contentColor = Color.White)
+    ) {
+        Text(label, fontSize = 12.sp)
     }
 }
 

@@ -74,7 +74,6 @@ SKEW_MAX = 3.0           # 倾斜校正的搜索范围（度）
 SKEW_MIN = 0.20          # 小于这个角度不动，免得白转一次、掉精度
 # 检测框是整行外接框（含行距 / padding / 倾斜余量），实测约为真实字高的 2 倍。
 # 单个字的打码矩形按这个比例从行框中心收窄，避免打码块侵入上下行。
-GLYPH_HEIGHT_RATIO = 0.58
 
 # 低对比度页面的对比度归一化（见 normalize_contrast）
 CONTRAST_MIN_RANGE = 120  # 灰度 p99-p1 低于此值才动手；正常扫描件远大于它
@@ -290,6 +289,7 @@ def _unrotate_box(x0, y0, x1, y1, cx, cy, deg):
     return min(xs), min(ys), max(xs), max(ys)
 
 
+
 def _pick_zoom(page, base=None):
     """按页面里图片的原始分辨率挑渲染倍率
 
@@ -487,8 +487,11 @@ class OcrEngine(object):
             # 纵向只对「细长行」收紧；短框（姓名、日期这类）仍然各向同性地扩，
             # 收紧它们会把字的上下沿切掉，OCR 会把「出生日期」读成「出生期」。
             dy = min(d, bh * UNCLIP_MAX_RATIO_Y) if bw >= 6 * bh else d
+            # 第 6/7 个值：外扩**之前**的原始上下边。外扩是给识别留余量的，
+            # 里面已经含了相邻行；字形高度只能取原始紧框，否则打码块会盖到上下行。
             out.append(((x0 - dx) * sx, (y0 - dy) * sy,
-                        (x1 + dx) * sx, (y1 + dy) * sy, score))
+                        (x1 + dx) * sx, (y1 + dy) * sy, score,
+                        y0 * sy, (y1 + 1) * sy))
         return out
 
     # -- 识别 ---------------------------------------------------------------
@@ -609,7 +612,7 @@ class OcrEngine(object):
         # 裁到全分辨率图上做识别：检测只要位置，识别要好像素
         inv = 1.0 / scale
         crops, rects = [], []
-        for x0, y0, x1, y1, sc in boxes:
+        for x0, y0, x1, y1, sc, raw_y0, raw_y1 in boxes:
             X0 = max(0, int(x0 * inv))
             Y0 = max(0, int(y0 * inv))
             X1 = min(w, int(x1 * inv) + 1)
@@ -623,7 +626,10 @@ class OcrEngine(object):
             pad_y = max(2, int(round(bh * 0.20)))
             crops.append((max(0, Y0 - pad_y), min(h, Y1 + pad_y),
                           max(0, X0 - pad_x), min(w, X1 + pad_x)))
-            rects.append((X0, Y0, X1, Y1))
+            # 原始紧框的上下边（页面像素）：识别用外扩后的裁剪，定字高用这个
+            ry0 = max(0, int(round(raw_y0 * inv)))
+            ry1 = min(h, int(round(raw_y1 * inv)) + 1)
+            rects.append((X0, Y0, X1, Y1, ry0, ry1))
 
         if not crops:
             return []
@@ -634,23 +640,47 @@ class OcrEngine(object):
             recs.extend(self._rec_batch(patches[i:i + REC_BATCH]))
 
         items = []
-        for (X0, Y0, X1, Y1), (text, chars) in zip(rects, recs):
+        for (X0, Y0, X1, Y1, ry0, ry1), (text, chars) in zip(rects, recs):
             if not text.strip():
                 continue
             if min_conf > 0 and chars and (sum(c[3] for c in chars) / len(chars)) < min_conf:
                 continue
             bh = Y1 - Y0
             pad_x = bh * PAD_RATIO
-            pad_y = bh * 0.20
-            bx0, by0, bx1, by1 = _unrotate_box(X0 - pad_x, Y0 - pad_y,
-                                               X1 + pad_x, Y1 + pad_y,
+            # 外扩框只用来算「同一行」的聚类容差
+            pbx0, pby0, pbx1, pby1 = _unrotate_box(X0 - pad_x, Y0 - bh * 0.20,
+                                                   X1 + pad_x, Y1 + bh * 0.20,
+                                                   rc_x, rc_y, rot)
+            # 字形的上下边 = 检测概率图里**没外扩**的那一段（就是笔画本身）
+            cy0, cy1 = ry0, ry1
+            bx0, by0, bx1, by1 = _unrotate_box(X0 - pad_x, cy0,
+                                               X1 + pad_x, cy1,
                                                rc_x, rc_y, rot)
             items.append({
                 "text": text,
                 "chars": chars,
                 "x0": bx0 / z, "y0": by0 / z,
                 "x1": bx1 / z, "y1": by1 / z,
+                "tight": True,
+                "tol": max(1.0, (pby1 - pby0) / z),
             })
+
+        # 检测概率图的紧框仍会含一点出血（低对比度拍照件能到 1 个行距），
+        # 直接用会把打码块蹭到上一行。按本页行距封顶：字高不超过行距的 0.68，
+        # 居中位置不动——这样既不盖到邻行，也不会把字裁掉半个。
+        if items:
+            cys = sorted((it["y0"] + it["y1"]) / 2.0 for it in items)
+            gaps = [b - a for a, b in zip(cys, cys[1:]) if b - a > 1.0]
+            if gaps:
+                gaps.sort()
+                pitch = gaps[len(gaps) // 2]
+                cap = pitch * 0.68
+                for it in items:
+                    h = it["y1"] - it["y0"]
+                    if h > cap:
+                        c = (it["y0"] + it["y1"]) / 2.0
+                        it["y0"] = c - cap / 2.0
+                        it["y1"] = c + cap / 2.0
 
         return _group_lines(items)
 
@@ -669,7 +699,8 @@ def _group_lines(items):
     groups = []
     for it in items:
         cy = (it["y0"] + it["y1"]) / 2.0
-        hh = it["y1"] - it["y0"]
+        # 用原检测框高度做聚类容差；字框收紧不影响「同一行」的判断
+        hh = it.get("tol") or (it["y1"] - it["y0"])
         hit = None
         for g in groups:
             if abs(g["cy"] - cy) <= max(2.0, max(g["h"], hh) * 0.42):
@@ -711,9 +742,9 @@ def _group_lines(items):
             # 还会把上一行打码框下面那几个字一起糊掉。
             # 这里按行高估一个真实字高，居中收窄；宁可留一点点笔画边缘，
             # 也不能再牺牲正常文字——缩得不够就还是「连成一片」。
-            glyph_h = box_h * GLYPH_HEIGHT_RATIO
-            gy = (it["y0"] + it["y1"]) / 2.0
-            gy0, gy1 = gy - glyph_h / 2.0, gy + glyph_h / 2.0
+            # 纵向已经是「检测紧框 + 行距封顶」，不再二次收窄
+            gy0, gy1 = it["y0"], it["y1"]
+            glyph_h = gy1 - gy0
             # 单个字的 CTC 区间容易偏窄（模型把字挤在中间几步里），框会小得盖不住字形。
             # 给一个按字高算的下限：汉字宽约等于字高，宁可多盖一点，也不能露半个字。
             min_w = min(glyph_h * 0.9, width * 0.6)

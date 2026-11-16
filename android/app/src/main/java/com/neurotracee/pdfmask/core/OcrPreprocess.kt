@@ -276,8 +276,7 @@ object OcrPreprocess {
         return out
     }
 
-    /** 把摆正图里的检测框换回原图坐标：四角各转一次，取外接矩形 */
-    fun unrotateBox(box: RectF, cx: Float, cy: Float, deg: Float): RectF {
+    /** 把摆正图里的检测框换回原图坐标：四角各转一次，取外接矩形 */    fun unrotateBox(box: RectF, cx: Float, cy: Float, deg: Float): RectF {
         if (deg == 0f) return box
         val rad = Math.toRadians(deg.toDouble())
         val ca = cos(rad).toFloat()
@@ -296,4 +295,5 @@ object OcrPreprocess {
         }
         return RectF(x0, y0, x1, y1)
     }
+
 }

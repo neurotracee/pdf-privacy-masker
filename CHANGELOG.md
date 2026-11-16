@@ -1,3 +1,46 @@
+# 1.4.7.4（2026-11-16）
+
+**中文** | [English](#1474)
+
+更新级别：强烈建议（安卓端框选与橡皮擦问题）
+
+> **一句话**：打码框改由「检测紧框 + 本页行距」定位，不再整行偏上、不再只盖住字的上半截；橡皮擦在放大视图里终于可用，缩放后画面也不再往右下漂。
+
+**开发模型**：常用、惯用、主要是 **DeepSeek-V4.1-Flash**——大多数场景和功能维护升级都以它为核心骨架；偶尔也会用其他模型，如 GLM 5.3 Flash、Hy4 Flash。本次修复由 DeepSeek-V4.1-Flash 接手完成。
+
+## 问题现象（用户反馈，影响 1.4.7.3 及更早）
+
+- 第 8 页「名下车牌车辆」的车牌号只盖住文字上半部分；
+- 「执行员」「书记员」的框整体偏上一行，甚至碰不到名字；
+- 「被执行人电子邮箱」同类偏上；
+- 点「橡皮擦」后拉框仍然生成手动框选，且预览里看不到任何擦除效果；
+- 双指放大到一定倍数后，视图不留在手指下的位置，而是向下方、右方偏移，越放大越明显。
+
+## 根因
+
+1. **字框纵向来源不对**：检测网络给的是「外扩后的行框」（含行距与相邻行），旧代码再乘 0.58 估字高。拍照件对比度低时外扩框可达一个行距，框就压在行间或上一行上。
+2. **橡皮擦只接了按钮**：全屏放大视图里 `editMode` 被写死为 0，在那里拉框永远走手动；预览画布也没有绘制橡皮擦区域，看起来像没生效。
+3. **缩放锚点算法把位移算了两次**：锚点缩放后再叠加两指中心位移，每帧多出 `(Δc)(1-k)` 的误差，倍数越大漂得越远；另外双指抬起一根后，单指平移会用「捏合前」的旧坐标做差，造成一次突跳。
+
+## 修复范围（两端同构）
+
+- 字形上下边改用**检测概率图的紧框**（外扩之前那一段，就是笔画本身），不再依赖比例猜测；再按**本页行距**封顶（不超过行距 0.68，居中不动），避免蹭到邻行。属于通用机制，不对任何具体文档调参。
+- 橡皮擦：放大视图里可直接切换「手动框选 / 橡皮擦」；预览里把划过的小块**贴回原图像素**并描淡绿虚线；只恢复这一小块、不删除标记框、不连带后方号码；轻点撤销上一笔（不再同时触发放大）。
+- 缩放：锚点缩放与跟随平移一步算完（`PageZoom.pinch`），双指同时缩放+平移也不漂；双指抬起一根时重置基准，不再突跳。
+
+## 验证
+
+- 安卓单测全过：`PageZoomTest`（含 200 帧随机叠加手势不漂移）、`EraserRestoreTest`（只恢复框内像素、越界自动收紧、尺寸不符不乱贴）、`UpdateApkCacheTest` 等。
+- 刁难文档（8 页拍照件）逐页复核：第 8 页标签（申请执行人／被执行人／公民身份号码／联系电话／电子邮箱）保持可见，姓名、身份证号、电话、邮箱、地址、车牌均落在文字行上；此前整行偏上的情况消失。
+
+## English
+
+**Fix.** Glyph boxes now come from the detector's *un-expanded* tight box (the strokes themselves) and are capped by the page's line pitch (<= 0.68 pitch, centred), so masks no longer sit a line high or cover only the top half of a glyph. The eraser now works in the full-screen preview (previously `editMode` was hardcoded to 0 there) and restores only the drawn patch, with a visible green dashed outline; tapping undoes the last erase. Pinch zoom uses a single anchored formula (`PageZoom.pinch`), removing the `(Δc)(1-k)` drift, and re-syncs when one finger lifts.
+
+Tested on the 8-page photo document: labels stay readable, names/ID/phone/email/address/plate all mask on their own line.
+
+---
+
 # 1.4.7.3（2026-11-16）
 
 **中文** | [English](#1473)
