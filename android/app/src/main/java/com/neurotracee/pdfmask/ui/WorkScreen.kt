@@ -119,7 +119,8 @@ fun WorkScreen(
 ) {
     var fullPreview by remember { mutableStateOf(false) }
     // 0 = 只看（轻点放大 / 双击取消）；1 = 手动框选；2 = 橡皮擦（局部恢复）
-    var editMode by remember { mutableStateOf(0) }
+    // 用文档身份做 key：换了文件一定回到「只看」，不会把上一份的模式带过来
+    var editMode by remember(vm.docKey) { mutableStateOf(0) }
     // 识别结果面板：默认收起，把屏幕让给预览，需要勾选时再展开
     var listOpen by remember { mutableStateOf(initialListOpen) }
     val hinge = if (fold.separating && fold.vertical) fold.hingeWidthDp.dp else 0.dp
@@ -130,7 +131,7 @@ fun WorkScreen(
             WorkHintBar(editMode)
             Row(
                 Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 2.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 TextButton(
                     onClick = { editMode = if (editMode == 1) 0 else 1 },
@@ -149,6 +150,20 @@ fun WorkScreen(
                         if (editMode == 2) T("✓ 橡皮擦", "✓ Erase") else T("橡皮擦", "Erase"),
                         fontSize = 12.5.sp
                     )
+                }
+                // 一键回到刚识别完的样子：擦除、手动框、取消过的勾选全部复位。
+                // 换文件时本来就默认回到这个状态，这个按钮是给「改乱了想重来」用的。
+                val msgReset = T("已恢复到初始状态", "Back to the initial state")
+                val msgAlready = T("当前就是初始状态", "Already at the initial state")
+                TextButton(
+                    onClick = {
+                        val changed = vm.restoreDefaults()
+                        editMode = 0
+                        vm.toast(if (changed) msgReset else msgAlready)
+                    },
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text(T("恢复默认", "Reset"), fontSize = 12.5.sp)
                 }
             }
             Divider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
@@ -829,75 +844,64 @@ private fun PreviewPane(
                         Canvas(Modifier.fillMaxSize()) {
                             val sx = size.width / pageText.width
                             val sy = size.height / pageText.height
+                            // 橡皮擦与导出共用同一套「打码区域减法」：被擦掉的小块直接从
+                            // 打码范围里挖掉，所以预览里看到的就是原图像素本身。
+                            // 以前这里是从原图裁一块贴上来，叠划几次就会贴出错位副本，
+                            // 看起来像「框选后又复制了一层内容」——现在不可能再出现。
+                            val ers = vm.erasers[page].orEmpty()
                             for (f in vm.findings) {
                                 if (f.page != page) continue
                                 val on = f.id in vm.selected
-                                val tl = Offset(f.rect.x0 * sx, f.rect.y0 * sy)
-                                val sz = Size(
-                                    (f.rect.width * sx).coerceAtLeast(1f),
-                                    (f.rect.height * sy).coerceAtLeast(1f)
-                                )
-                                if (f.type == Kind.MANUAL) {
-                                    // 手动框选：蓝色虚线，一眼看得出是手画的
-                                    drawRect(
-                                        color = if (on) Color(0x262563EB) else Color(0x1494A3B8),
-                                        topLeft = tl, size = sz
+                                val parts =
+                                    if (ers.isEmpty()) listOf(f.rect)
+                                    else com.neurotracee.pdfmask.core.MaskRegion.subtract(f.rect, ers)
+                                for (r in parts) {
+                                    val tl = Offset(r.x0 * sx, r.y0 * sy)
+                                    val sz = Size(
+                                        (r.width * sx).coerceAtLeast(1f),
+                                        (r.height * sy).coerceAtLeast(1f)
                                     )
-                                    drawRect(
-                                        color = if (on) Color(0xFF2563EB) else Color(0xFF94A3B8),
-                                        topLeft = tl, size = sz,
-                                        style = Stroke(width = 1.8.dp.toPx(), pathEffect = dash)
-                                    )
-                                } else {
-                                    val fill = when {
-                                        f.suspect -> Color(0x55F59E0B)
-                                        on -> Color(0x66E5484D)
-                                        else -> Color(0x3394A3B8)
-                                    }
-                                    val stroke = when {
-                                        f.suspect -> Color(0xFFB45309)
-                                        on -> Color(0xFFE5484D)
-                                        else -> Color(0xFF94A3B8)
-                                    }
-                                    drawRect(color = fill, topLeft = tl, size = sz)
-                                    if (on) {
+                                    if (f.type == Kind.MANUAL) {
+                                        // 手动框选：蓝色虚线，一眼看得出是手画的
                                         drawRect(
-                                            color = stroke,
-                                            topLeft = tl, size = sz,
-                                            style = Stroke(width = 0.8f)
+                                            color = if (on) Color(0x262563EB) else Color(0x1494A3B8),
+                                            topLeft = tl, size = sz
                                         )
+                                        drawRect(
+                                            color = if (on) Color(0xFF2563EB) else Color(0xFF94A3B8),
+                                            topLeft = tl, size = sz,
+                                            style = Stroke(width = 1.8.dp.toPx(), pathEffect = dash)
+                                        )
+                                    } else {
+                                        val fill = when {
+                                            f.suspect -> Color(0x55F59E0B)
+                                            on -> Color(0x66E5484D)
+                                            else -> Color(0x3394A3B8)
+                                        }
+                                        val stroke = when {
+                                            f.suspect -> Color(0xFFB45309)
+                                            on -> Color(0xFFE5484D)
+                                            else -> Color(0xFF94A3B8)
+                                        }
+                                        drawRect(color = fill, topLeft = tl, size = sz)
+                                        if (on) {
+                                            drawRect(
+                                                color = stroke,
+                                                topLeft = tl, size = sz,
+                                                style = Stroke(width = 0.8f)
+                                            )
+                                        }
                                     }
                                 }
                             }
-                            // 橡皮擦：把划过的小块还原成**原图像素**，给出即时反馈。
-                            // 只在这一小块内生效，不删除任何标记框，也不碰旁边的打码区，
-                            // 与导出时的处理完全一致（导出同样只贴回这块的原像素）。
-                            val ers = vm.erasers[page].orEmpty()
+                            // 橡皮擦只画一圈淡绿虚线：区域里的内容是页面位图本身，
+                            // 不需要（也不允许）再从别处复制像素过来
                             for (r in ers) {
                                 if (r.width <= 0f || r.height <= 0f) continue
                                 val dx0 = r.x0 * sx
                                 val dy0 = r.y0 * sy
                                 val dw = (r.width * sx).coerceAtLeast(1f)
                                 val dh = (r.height * sy).coerceAtLeast(1f)
-                                val ix0 = (r.x0 / pageText.width * pageBmp.width).toInt()
-                                    .coerceIn(0, pageBmp.width - 1)
-                                val iy0 = (r.y0 / pageText.height * pageBmp.height).toInt()
-                                    .coerceIn(0, pageBmp.height - 1)
-                                val iw = (r.width / pageText.width * pageBmp.width).toInt()
-                                    .coerceIn(1, pageBmp.width - ix0)
-                                val ih = (r.height / pageText.height * pageBmp.height).toInt()
-                                    .coerceIn(1, pageBmp.height - iy0)
-                                drawImage(
-                                    image = pageBmp,
-                                    srcOffset = IntOffset(ix0, iy0),
-                                    srcSize = IntSize(iw, ih),
-                                    dstOffset = IntOffset(dx0.roundToInt(), dy0.roundToInt()),
-                                    dstSize = IntSize(
-                                        dw.roundToInt().coerceAtLeast(1),
-                                        dh.roundToInt().coerceAtLeast(1)
-                                    )
-                                )
-                                // 淡绿虚线：告诉用户这块已经恢复，又不至于挡住字
                                 drawRect(
                                     color = Color(0xCC2FA84F),
                                     topLeft = Offset(dx0, dy0),

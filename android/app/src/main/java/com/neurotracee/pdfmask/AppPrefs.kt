@@ -47,6 +47,15 @@ object AppPrefs {
         private set
 
     /**
+     * 同一份文档再次导入时，是否保留上次的编辑与橡皮擦。
+     *
+     * 默认**关**：处理完导出后再导入同一份文件，应该从「刚识别完」的干净状态开始。
+     * 以前是隐式保留（且连换了文件都会套用旧的擦除框），用户会以为是 bug。
+     */
+    var keepLastEdit by mutableStateOf(false)
+        private set
+
+    /**
      * 「这台机器默认该走 Gitee 吗」——启动时算一次就固定，之后不再变。
      *
      * 为什么要在启动时算一次：之前每次调用都现读 [java.util.Locale.getDefault()]，
@@ -78,6 +87,7 @@ object AppPrefs {
         noAsk = p.getBoolean("noAsk", false)
         askedSaveOnce = p.getBoolean("askedSaveOnce", false)
         autoCheck = p.getBoolean("autoCheck", true)
+        keepLastEdit = p.getBoolean("keepLastEdit", false)
         updateSource = p.getString("updateSource", "auto")
             ?.takeIf { it == "gitee" || it == "github" || it == "auto" } ?: "auto"
     }
@@ -110,6 +120,11 @@ object AppPrefs {
     fun updateAutoCheck(v: Boolean) {
         autoCheck = v
         sp?.edit()?.putBoolean("autoCheck", v)?.apply()
+    }
+
+    fun updateKeepLastEdit(v: Boolean) {
+        keepLastEdit = v
+        sp?.edit()?.putBoolean("keepLastEdit", v)?.apply()
     }
 
     /** "auto" 表示跟随环境，界面高亮时用 [resolvedUpdateSource] */

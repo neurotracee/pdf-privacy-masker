@@ -1,3 +1,47 @@
+# 1.4.7.5（2026-11-16）
+
+**中文** | [English](#1475)
+
+更新级别：强烈建议（安卓端坐标、橡皮擦、编辑状态三项）
+
+> **一句话**：再次导入同一份文件不再自动套用上次的橡皮擦和手动框；橡皮擦变成纯减法，怎么叠划都不会复制出重复内容；字框改成按墨迹逐字实测，倾斜页也不再朝右上漂、末字不再露边。
+
+**开发模型**：常用、惯用、主要是 **DeepSeek-V4.1-Flash**——大多数场景和功能维护升级都以它为核心骨架；偶尔也会用其他模型，如 GLM 5.3 Flash、Hy4 Flash。本次修复由 DeepSeek-V4.1-Flash 接手完成。
+
+## 问题现象（用户反馈，影响 1.4.7.4 及更早）
+
+- 应用不关，处理完一份文档导出后再导入同一份（或换一份），上次的橡皮擦框、手动框仍然留在页面上，坐标还按旧文件算；
+- 在橡皮擦区域反复框选、叠好几层，局部会冒出「被复制粘贴」的重复内容，像多了一层；
+- 打码覆盖不准：第 4 页「乙方签字 刘某东」的「东」右半部分裸露，「甲方签字 郑某某」后两个字底部残留；第 5 页家庭住址的打码随文字从左向右上偏移、下方内容漏打；「担保人 何某某」的「何」偏左下。
+
+## 根因
+
+1. **编辑状态从来没被清过**：`reset()` 与 `load()` 都只重置页码与勾选，`erasers` 与 `nextManualId` 原样留着，等于把上一份文件的擦除坐标直接套到新文件上。
+2. **橡皮擦的实现方向反了**：旧做法是「先整片打码，再用备份位图把擦除区域的原像素贴回去」。贴回要经过缩放取整，叠加多层时取整误差累积，同一块像素被贴了两次，看起来就是内容被复制。
+3. **倾斜反算用了正向矩阵**：`unrotateBox` 本该用逆矩阵 `[cos, sin; -sin, cos]`，实际写成了正向，位移被放大成 2θ，字框顺着倾斜方向越飘越远。
+4. **字框只靠比例猜**：拿 det 紧框宽度 × CTC 比例切字，末字经常短一截，内部字也没有对齐到列墨迹的谷值。
+
+## 修复范围（安卓端）
+
+- **编辑状态**：`reset()` 退出前先记快照，`load()` 开头无条件清空擦除与手动框；新增 `docKey`（`文件名|文件大小`）把状态绑到具体文件，默认**不**恢复。设置页新增「同一份文档再次导入时，保留上次的编辑与橡皮擦状态」勾选（默认关闭），模式栏新增「恢复默认」按钮，随时一键回到初始状态。
+- **橡皮擦**：改为**减法语义**（`MaskRegion.subtract`，一个矩形最多切成 4 块）。被擦的位置根本不会被写入像素，结构上不可能产生副本。预览与导出共用同一份减法实现，看到什么就导出什么。
+- **坐标换算**：`unrotateBox` 改用逆矩阵；新增 `AlignMap` 统一「检测图 → 摆正图 → 页面点」的三层换算，裁剪一律在摆正图上取，倾斜页不再差半行。
+- **逐字切分**（`CharLayout`）：行带用墨迹实测（限紧框 ±0.55 字高窗口，取与紧框重叠最多的连续有墨行段）；横向等宽 CJK 按墨迹等分、非等宽走 CTC 比例；边界吸附到列墨迹投影的谷值；最后强制严格单调并留最小间距。Otsu 阈值按裁图直方图自适应（夹在 60~200），灰底、黄底都能切准。全部是通用机制，没有针对任何文档调参。
+
+## 验证
+
+- 安卓单测 **109 个全过**（0 失败 / 0 跳过）：新增 `MaskRegionTest`（含 40 个重叠框的并集面积精确等于「原区域 − 擦除区」）、`CharLayoutTest`（末字贴墨迹右端、内部边界吸附谷值、数字保留 CTC 间距）、`SkewGeometryTest`（5 个角度 × 4 点往返误差 < 0.02px）、`RealScanGeometryTest`（真人扫描夹具回放）。
+- 夹具回放目检：`hard4_p4`（skew −1.10°）、`hard4_p5`（0°）、`hard4_p5_skew`（+1.2°）、`waybill_p1` 四组，逐字框贴合、倾斜页跟字走、末字不露边；同组旧算法框对照可见明显偏移。
+- 真机（8 页拍照件）：识别 115 处 / 已选 114，姓名、身份证号、手机号、地址、车牌均落在文字行上。
+
+## English
+
+<a id="1475"></a>
+
+**Fix (Android).** (1) Editing state is now reset on every load: `reset()` snapshots first, `load()` clears erasers and manual boxes unconditionally, and a new `docKey` (`name|size`) binds state to a file — nothing is restored by default. A new Settings toggle ("keep last edit/eraser state for the same document", off by default) plus a "restore defaults" button in the mode bar give explicit opt-in. (2) The eraser is now pure subtraction (`MaskRegion.subtract`): erased pixels are never written at all, so stacking selections can no longer duplicate content; preview and export share the same code path. (3) Coordinate mapping was wrong: `unrotateBox` used the forward rotation matrix instead of the inverse, doubling the offset to 2θ; a new `AlignMap` makes the detect-bitmap → aligned-bitmap → page-point conversion explicit, and crops are taken on the aligned bitmap. (4) Glyph boxes are now measured from real ink (`CharLayout`): the row band is found by ink overlap within ±0.55 em of the tight box, wide CJK is split by ink extent, others keep CTC ratios, boundaries snap to ink-projection valleys, and monotonic ordering plus a minimum step is enforced. Otsu threshold per crop (clamped 60–200) adapts to grey/yellow backgrounds.
+
+Verified by 109 unit tests (0 failures) including a 40-overlapping-cuts area check, plus replay of four real scan fixtures at 0°, −1.10° and +1.2° skew.
+
 # 1.4.7.4（2026-11-16）
 
 **中文** | [English](#1474)

@@ -52,3 +52,6 @@ test/h30/
 test/*_已打码.pdf
 test/hard4/
 gh_rel.json
+
+# ---- OCR 夹具与回放图（可用 dev/dump_ocr_fixture.py 重新生成，体积大不入库）----
+dev/fixtures/

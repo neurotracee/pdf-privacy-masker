@@ -196,6 +196,32 @@ fun SettingsPanel(
 
         Spacer(Modifier.height(18.dp))
 
+        // ---- 编辑状态 ----
+        SectionLabel(T("编辑状态", "Editing state"))
+        Spacer(Modifier.height(8.dp))
+        CheckRow(
+            checked = AppPrefs.keepLastEdit,
+            label = T(
+                "同一份文档再次导入时，保留上次的编辑与橡皮擦状态",
+                "Keep my last edits and erasures when reopening the same file"
+            ),
+            onCheck = { AppPrefs.updateKeepLastEdit(it) }
+        )
+        Text(
+            T(
+                "默认不勾选：再次导入会从「刚识别完」的干净状态开始。" +
+                    "工作界面右上角的「恢复默认」可以随时把擦除、手动框和取消掉的勾选全部复位。",
+                "Off by default: reopening starts from a clean, freshly-detected state. " +
+                    "Use Reset in the workspace to clear erasures, manual boxes and unchecked items at any time."
+            ),
+            fontSize = 11.sp,
+            lineHeight = 16.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(start = 2.dp)
+        )
+
+        Spacer(Modifier.height(18.dp))
+
         // ---- 版本与更新 ----
         UpdateSection()
 

@@ -31,6 +31,15 @@ import java.io.FileOutputStream
 
 enum class Stage { HOME, LOADING, READY, MASKING, DONE }
 
+/** 一次成功的打开：名字、缓存文件、页面文字、命中列表、文档身份 */
+private data class Loaded(
+    val name: String,
+    val file: File,
+    val pages: List<PageText>,
+    val findings: List<Finding>,
+    val key: String
+)
+
 class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     var stage by mutableStateOf(Stage.HOME)
@@ -83,12 +92,56 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /**
-     * 橡皮擦：只记「页面 pt 坐标的小矩形」，打码时把这些小块恢复成原图像素。
+     * 橡皮擦：只记「页面 pt 坐标的小矩形」，打码时把这些小块从打码范围里**减掉**。
      * 不删除任何标记框，也不会越过矩形边界——例如只恢复「公民身份证号：」
      * 这几个字，后面的号码仍保持打码。
      */
     var erasers by mutableStateOf<Map<Int, List<Rect>>>(emptyMap())
         private set
+
+    /**
+     * 当前文档身份（文件名 + 字节数）。换文件时 [load] 会换掉它，
+     * 界面据此把「编辑模式」等临时状态归零，不会把上一份的模式带过来。
+     */
+    var docKey by mutableStateOf("")
+        private set
+
+    /** 上一份文档的编辑快照：只有勾了「保留上次编辑/橡皮擦状态」才会回填 */
+    private var lastKey: String = ""
+    private var lastErasers: Map<Int, List<Rect>> = emptyMap()
+    private var lastManuals: List<Pair<Int, Rect>> = emptyList()
+    private var lastDeselected: Set<String> = emptySet()
+
+    /** 自动识别项的身份：同一份文档重新识别后 id 会重排，用内容 + 位置更稳 */
+    private fun findingKey(f: Finding): String =
+        "${f.page}|${f.type}|${f.text}|${f.rect.x0.toInt()}|${f.rect.y0.toInt()}"
+
+    /** 离开/换文件前把这次的编辑留下来（不落盘，只活在本次进程里） */
+    private fun snapshot() {
+        if (findings.isEmpty() && erasers.isEmpty()) return
+        lastKey = docKey
+        lastErasers = erasers
+        lastManuals = findings.filter { it.type == Kind.MANUAL }.map { it.page to it.rect }
+        lastDeselected = findings
+            .filter { it.type != Kind.MANUAL && it.id !in selected }
+            .map { findingKey(it) }
+            .toSet()
+    }
+
+    /**
+     * 恢复到「刚识别完」的初始状态：擦除、手动框、取消掉的勾选全部复位。
+     * @return 是否真的改动过（用于提示文案，没改就不说「已恢复」）
+     */
+    fun restoreDefaults(): Boolean {
+        val hadEraser = erasers.isNotEmpty()
+        val hadManual = findings.any { it.type == Kind.MANUAL }
+        val hadOff = findings.any { it.type != Kind.MANUAL && it.id !in selected }
+        if (!hadEraser && !hadManual && !hadOff) return false
+        erasers = emptyMap()
+        findings = findings.filter { it.type != Kind.MANUAL }
+        selected = findings.filter { !it.suspect }.map { it.id }.toSet()
+        return true
+    }
 
     fun addEraser(page: Int, rect: Rect) {
         erasers = erasers + (page to (erasers[page].orEmpty() + rect))
@@ -154,6 +207,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         stage = Stage.LOADING
         progress = 0f
         thumbs.clear()
+        // 换文档先归零：以前这里不清 erasers，上一份划过的擦除框会原地
+        // 套到新文档的同一坐标上，看起来像「默认继承了上次的编辑」。
+        erasers = emptyMap()
+        nextManualId = -1
         viewModelScope.launch {
             runCatching {
                 withContext(Dispatchers.IO) {
@@ -172,22 +229,35 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                         rawText[it].lines.isEmpty() && pageText[it].lines.isNotEmpty()
                     }
                     val found = Detector.detect(pageText)
-                    Triple(name, tmp, pageText to found)
+                    Loaded(name, tmp, pageText, found, "$name|${tmp.length()}")
                 }
-            }.onSuccess { (name, tmp, pair) ->
-                docName = name
-                docFile = tmp
-                pages = pair.first
-                findings = pair.second
-                selected = pair.second.filter { !it.suspect }.map { it.id }.toSet()
+            }.onSuccess { r ->
+                val key = r.key
+                docName = r.name
+                docFile = r.file
+                pages = r.pages
+                findings = r.findings
+                selected = r.findings.filter { !it.suspect }.map { it.id }.toSet()
                 summary = null
                 savedName = ""
                 current = 0
+                docKey = key
+                // 默认永远是「刚识别完」的干净状态；只有用户显式勾了
+                // 「保留上次编辑/橡皮擦状态」、且确实是同一份文档，才把上次的编辑接回来。
+                if (AppPrefs.keepLastEdit && lastKey == key) {
+                    erasers = lastErasers.filterKeys { it in pages.indices }
+                    for ((p, rect) in lastManuals) if (p in pages.indices) addManual(p, rect)
+                    if (lastDeselected.isNotEmpty()) {
+                        val off = findings.filter { findingKey(it) in lastDeselected }.map { it.id }
+                        selected = selected - off.toSet()
+                    }
+                    toast(tr("已恢复上次的编辑与擦除", "Restored your last edits"))
+                }
                 stage = Stage.READY
                 ocrStats = OcrEngine.lastStats.let {
                     if (it == "无需 OCR" || it == "模型未就绪") "" else it
                 }
-                if (pair.second.isEmpty()) {
+                if (r.findings.isEmpty()) {
                     val ocrErr = OcrEngine.lastError
                     val stats = OcrEngine.lastStats
                     toast(
@@ -219,6 +289,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                     )
                 }
             }.onFailure {
+                docKey = ""
+                erasers = emptyMap()
                 stage = Stage.HOME
                 toast(tr("打开失败：", "Open failed: ") + (it.message ?: tr("未知错误", "unknown error")))
             }
@@ -238,13 +310,18 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun reset() {
+        // 先把这次的编辑记下来（勾了「保留上次编辑」的话，下次导入同一份还能接回来）
+        snapshot()
         docFile?.let { runCatching { it.delete() } }
         stage = Stage.HOME
         docName = ""
+        docKey = ""
         docFile = null
         pages = emptyList()
         findings = emptyList()
         selected = emptySet()
+        erasers = emptyMap()
+        nextManualId = -1
         thumbs.clear()
         summary = null
         current = 0
@@ -409,6 +486,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         thumbBitmaps: Map<Int, Bitmap> = emptyMap()
     ) {
         docName = name
+        docKey = name
         pages = pageTexts
         findings = found
         selected = sel

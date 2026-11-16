@@ -276,22 +276,34 @@ object OcrPreprocess {
         return out
     }
 
-    /** 把摆正图里的检测框换回原图坐标：四角各转一次，取外接矩形 */    fun unrotateBox(box: RectF, cx: Float, cy: Float, deg: Float): RectF {
-        if (deg == 0f) return box
+    /**
+     * 把「摆正图」里的坐标换回「原图」坐标。
+     *
+     * [rotate] 用的是 `Matrix.postRotate(deg)`（顺时针为正），所以反算必须用**逆矩阵**
+     * `[cos, sin; -sin, cos]`。这里以前抄成了正向矩阵，等于把位移放大成 2θ：
+     * 页面上越靠右的框偏得越多，看起来就是「打码块随文字从左向右上飘」，
+     * 框的下缘压不住字，下面几行也一并漏打。
+     */
+    fun mapToSource(x: Float, y: Float, cx: Float, cy: Float, deg: Float): FloatArray {
+        if (deg == 0f) return floatArrayOf(x, y)
         val rad = Math.toRadians(deg.toDouble())
         val ca = cos(rad).toFloat()
         val sa = sin(rad).toFloat()
+        val dx = x - cx
+        val dy = y - cy
+        return floatArrayOf(ca * dx + sa * dy + cx, -sa * dx + ca * dy + cy)
+    }
+
+    /** 把摆正图里的检测框换回原图坐标：四角各转一次，取外接矩形 */    fun unrotateBox(box: RectF, cx: Float, cy: Float, deg: Float): RectF {
+        if (deg == 0f) return box
         var x0 = Float.MAX_VALUE
         var y0 = Float.MAX_VALUE
         var x1 = -Float.MAX_VALUE
         var y1 = -Float.MAX_VALUE
         for (p in arrayOf(box.left to box.top, box.right to box.top,
                           box.right to box.bottom, box.left to box.bottom)) {
-            val dx = p.first - cx
-            val dy = p.second - cy
-            val x = ca * dx - sa * dy + cx
-            val y = sa * dx + ca * dy + cy
-            x0 = min(x0, x); y0 = min(y0, y); x1 = max(x1, x); y1 = max(y1, y)
+            val q = mapToSource(p.first, p.second, cx, cy, deg)
+            x0 = min(x0, q[0]); y0 = min(y0, q[1]); x1 = max(x1, q[0]); y1 = max(y1, q[1])
         }
         return RectF(x0, y0, x1, y1)
     }

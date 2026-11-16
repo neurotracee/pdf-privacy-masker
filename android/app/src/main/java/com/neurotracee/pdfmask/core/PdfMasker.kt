@@ -72,10 +72,10 @@ object PdfMasker {
                 page.render(bmp, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
                 page.close()
 
-                // 橡皮擦：先留一份打码前的原页像素，打码完成后只把用户划过的
-                // 小矩形贴回去。不动标记框，也不越过矩形边界。
+                // 橡皮擦：从「要打码的区域」里减掉用户划过的小块。
+                // 减法的好处是那些像素**从来没被写过**，显示的就是原图，
+                // 反复叠划也不会出现错位副本（以前从备份回贴会有重影）。
                 val eraserRects = erasers[i].orEmpty()
-                val backup = if (eraserRects.isEmpty()) null else Bitmap.createBitmap(bmp)
 
                 val items = findings.filter { it.page == i && !it.suspect }
                 if (items.isNotEmpty()) {
@@ -86,7 +86,7 @@ object PdfMasker {
                         else Kind.label(f.type)
                         stats[lab] = (stats[lab] ?: 0) + 1
                     }
-                    Mosaic.apply(bmp, items, w / pw, h / ph)
+                    Mosaic.apply(bmp, items, w / pw, h / ph, eraserRects)
                 }
 
                 val annotRects = annotationRects(srcDoc, i)
@@ -98,17 +98,8 @@ object PdfMasker {
                     stats[lab] = (stats[lab] ?: 0) + annotRects.size
                     Mosaic.apply(
                         bmp, annotRects.map { Finding(i, Kind.ANNOT, "", it) },
-                        w / pw, h / ph
+                        w / pw, h / ph, eraserRects
                     )
-                }
-
-                if (backup != null) {
-                    for (r in eraserRects) {
-                        // 只贴回这一小块的原像素：不删除标记框、不越界、
-                        // 也不把旁边该打码的数字一起恢复。
-                        EraserRestore.apply(bmp, backup, r, w / pw, h / ph)
-                    }
-                    backup.recycle()
                 }
 
                 val bos = ByteArrayOutputStream()
@@ -218,21 +209,33 @@ object Mosaic {
     private const val FLATTEN = 0.30f
     private const val DARKEN = 0.62f
 
-    fun apply(bmp: Bitmap, items: List<Finding>, sx: Float, sy: Float) {
+    fun apply(
+        bmp: Bitmap,
+        items: List<Finding>,
+        sx: Float,
+        sy: Float,
+        erasers: List<Rect> = emptyList()
+    ) {
         val W = bmp.width
         val H = bmp.height
         for (f in items) {
-            val x0 = (f.rect.x0 * sx - 1.5f).toInt().coerceIn(0, W - 1)
-            val y0 = (f.rect.y0 * sy - 1.5f).toInt().coerceIn(0, H - 1)
-            val x1 = (f.rect.x1 * sx + 1.5f).toInt().coerceIn(x0 + 1, W)
-            val y1 = (f.rect.y1 * sy + 1.5f).toInt().coerceIn(y0 + 1, H)
-            val w = x1 - x0
-            val h = y1 - y0
-            if (w < 3 || h < 3) continue
-            val px = IntArray(w * h)
-            bmp.getPixels(px, 0, w, x0, y0, w, h)
-            pixelate(px, w, h, x0, y0)
-            bmp.setPixels(px, 0, w, x0, y0, w, h)
+            // 先减掉被擦掉的小块，再对剩下的每一块做马赛克。
+            // 擦干净的地方不会被写入，原文原样保留，不存在「贴回一份副本」。
+            val parts = if (erasers.isEmpty()) listOf(f.rect)
+                        else MaskRegion.subtract(f.rect, erasers)
+            for (r in parts) {
+                val x0 = (r.x0 * sx - 1.5f).toInt().coerceIn(0, W - 1)
+                val y0 = (r.y0 * sy - 1.5f).toInt().coerceIn(0, H - 1)
+                val x1 = (r.x1 * sx + 1.5f).toInt().coerceIn(x0 + 1, W)
+                val y1 = (r.y1 * sy + 1.5f).toInt().coerceIn(y0 + 1, H)
+                val w = x1 - x0
+                val h = y1 - y0
+                if (w < 3 || h < 3) continue
+                val px = IntArray(w * h)
+                bmp.getPixels(px, 0, w, x0, y0, w, h)
+                pixelate(px, w, h, x0, y0)
+                bmp.setPixels(px, 0, w, x0, y0, w, h)
+            }
         }
     }
 

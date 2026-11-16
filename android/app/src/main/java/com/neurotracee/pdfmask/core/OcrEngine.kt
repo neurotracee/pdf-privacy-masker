@@ -4,7 +4,6 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
-import android.graphics.RectF
 import android.graphics.pdf.PdfRenderer
 import android.os.ParcelFileDescriptor
 import ai.onnxruntime.OnnxTensor
@@ -395,6 +394,17 @@ object OcrEngine {
         return lines
     }
 
+    /**
+     * 一页的检测 + 识别，产出与文字层路径完全同构的 [Line]。
+     *
+     * 坐标有三层，必须分清（以前混在一起，倾斜页上的框就是从这里开始偏的）：
+     *  - 检测图坐标：缩小图上的像素，box 里还带 det 的紧框上下边；
+     *  - 摆正图坐标（aligned）：`bitmap` 本身，裁剪、识别、量墨迹都在这一层；
+     *  - 原图/页面坐标：按 [skew] 逆变换回去，再乘页面缩放，才是真正要打码的位置。
+     *
+     * 裁剪一定要在**摆正图**上按**摆正图坐标**取；一旦先转成原图坐标再去裁，
+     * 歪 1 度、离页心 500px 就差出十几像素——正好差半行，识别会读到邻行去。
+     */
     private fun readPageInner(page: PageText, bitmap: Bitmap, bw: Int, bh: Int,
                               skew: Float = 0f): List<Line> {
         // 检测在缩小图上跑（快），识别回到原图裁（准）
@@ -415,33 +425,27 @@ object OcrEngine {
         statBoxes += boxes.size
         if (boxes.isEmpty()) return emptyList()
 
-        val inv = 1f / scale                      // 检测图 → 原图
-        val scaleX = page.width / bw              // 原图 → 页面点
+        val inv = 1f / scale                      // 检测图 → 摆正图
+        val scaleX = page.width / bw              // 摆正图 → 页面点
         val scaleY = page.height / bh
+        val map = AlignMap(bw, bh, skew, page.width, page.height)
+        fun toPage(r: Rect): Rect = map.toPage(r)
 
-        // y0/y1 是**字形**上下边（检测紧框，稍后按行距封顶）；tol 是外扩框高度，
-        // 只用于「同一行」的聚类容差——两者必须分开，否则字框收紧后会把一行拆成两行。
-        class Item(val text: String, val spans: List<FloatArray>,
-                   val x0: Float, var y0: Float, val x1: Float, var y1: Float,
-                   val tol: Float)
+        // chars 是**页面坐标**下的逐字矩形；tol 是外扩框高度，只用于「同一行」的聚类容差
+        class Item(val text: String, val chars: List<Rect>, val tol: Float) {
+            fun band(): Rect {
+                var r = chars[0]
+                for (k in 1 until chars.size) r = r.union(chars[k])
+                return r
+            }
+        }
 
         val items = ArrayList<Item>()
         for (b in boxes) {
-            var X0 = (b[0] * inv).toInt()
-            var Y0 = (b[1] * inv).toInt()
-            var X1 = (b[2] * inv).toInt() + 1
-            var Y1 = (b[3] * inv).toInt() + 1
-            // 检测是在摆正后的图上跑的，把框按同一个角度转回原图坐标，
-            // 否则打码块会沿倾斜方向整体偏移，正好压到上一行/下一行。
-            if (skew != 0f) {
-                val back = OcrPreprocess.unrotateBox(
-                    RectF(X0.toFloat(), Y0.toFloat(), X1.toFloat(), Y1.toFloat()),
-                    bw / 2f, bh / 2f, skew)
-                X0 = back.left.roundToInt()
-                Y0 = back.top.roundToInt()
-                X1 = back.right.roundToInt() + 1
-                Y1 = back.bottom.roundToInt() + 1
-            }
+            val X0 = (b[0] * inv).toInt().coerceIn(0, bw - 1)
+            val Y0 = (b[1] * inv).toInt().coerceIn(0, bh - 1)
+            val X1 = ((b[2] * inv).toInt() + 1).coerceIn(X0 + 1, bw)
+            val Y1 = ((b[3] * inv).toInt() + 1).coerceIn(Y0 + 1, bh)
             // 检测框常常比字形窄一点，按字高比例补边：识别看得全，打码也盖得住
             val h = (Y1 - Y0).coerceAtLeast(1)
             // 0.45 时末位数字常被切掉半个，放宽到 0.85（与 Windows 端 PAD_RATIO 对齐）
@@ -451,31 +455,51 @@ object OcrEngine {
             val cy0 = (Y0 - padY).coerceAtLeast(0)
             val cx1 = (X1 + padX).coerceAtMost(bw)
             val cy1 = (Y1 + padY).coerceAtMost(bh)
-            if (cx1 - cx0 < 4 || cy1 - cy0 < 4) continue
-            val crop = Bitmap.createBitmap(bitmap, cx0, cy0, cx1 - cx0, cy1 - cy0)
-            val rec = try {
-                recognize(crop)
+            val cw = cx1 - cx0
+            val chh = cy1 - cy0
+            if (cw < 6 || chh < 6) continue
+
+            val crop = Bitmap.createBitmap(bitmap, cx0, cy0, cw, chh)
+            val lum = IntArray(cw * chh)
+            val rec: Rec
+            try {
+                crop.getPixels(lum, 0, cw, 0, 0, cw, chh)
+                for (i in lum.indices) {
+                    val c = lum[i]
+                    lum[i] = ((((c shr 16) and 0xFF) * 299 +
+                        ((c shr 8) and 0xFF) * 587 +
+                        (c and 0xFF) * 114) / 1000)
+                }
+                rec = recognize(crop)
             } finally {
                 crop.recycle()
             }
-            if (rec.text.isBlank()) continue
-            // 字形的上下边 = 检测概率图里**外扩前**的那一段（笔画本身），不再靠比例猜
-            val ry0 = (b[4] * inv).coerceIn(0f, bh.toFloat())
-            val ry1 = (b[5] * inv).coerceIn(ry0 + 1f, bh.toFloat())
-            items.add(Item(
-                rec.text, rec.spans,
-                (X0 - padX) * scaleX, ry0 * scaleY,
-                (X1 + padX) * scaleX, ry1 * scaleY,
-                (cy1 - cy0).toFloat() * scaleY
-            ))
+            val n = min(rec.text.length, rec.spans.size)
+            if (n <= 0) continue
+
+            // 字形的上下边 = 概率图里外扩前那一段（笔画本身）；再按墨迹实测校正，
+            // 灰字/细笔画上概率图会偏矮，汉字的底下一横最容易漏。
+            val hintTop = (b[4] * inv - cy0)
+            val hintBottom = max(hintTop + 1f, (b[5] * inv - cy0))
+            val split = CharLayout.split(
+                lum, cw, chh, rec.text.substring(0, n), rec.spans.subList(0, n),
+                hintTop, hintBottom,
+                (X0 - cx0).toFloat(), (X1 - cx0).toFloat()
+            )
+            val top = (cy0 + split.top).toFloat()
+            val bot = (cy0 + split.bottom).toFloat()
+            val chars = ArrayList<Rect>(n)
+            for (k in 0 until n) {
+                chars.add(toPage(Rect(cx0 + split.xs[k], top, cx0 + split.xs[k + 1], bot)))
+            }
+            items.add(Item(rec.text.substring(0, n), chars, chh * scaleY))
         }
         if (items.isEmpty()) return emptyList()
 
-        // 检测紧框在低对比度拍照件上仍可能含一点出血（能到一个行距），
-        // 直接用会把打码块蹭到上一行。按本页行距封顶：字高不超过行距的 0.68，
-        // 中心不动——这样既不盖邻行，也不会把字裁掉半个。通用做法，不针对某份文档。
+        // 按本页行距封顶：墨迹实测后一般不会超标，这里只兜「两条线粘成一段」这类极端情况。
+        // 90% 行距几乎不会切到字，却能把误吞的邻行挡在外面。
         run {
-            val cys = items.map { (it.y0 + it.y1) / 2f }.sorted()
+            val cys = items.map { val r = it.band(); (r.y0 + r.y1) / 2f }.sorted()
             val gaps = ArrayList<Float>()
             for (k in 1 until cys.size) {
                 val g = cys[k] - cys[k - 1]
@@ -484,79 +508,92 @@ object OcrEngine {
             if (gaps.isNotEmpty()) {
                 gaps.sort()
                 val pitch = gaps[gaps.size / 2]
-                val cap = pitch * 0.68f
-                for (it in items) {
-                    if (it.y1 - it.y0 > cap) {
-                        val c = (it.y0 + it.y1) / 2f
-                        it.y0 = c - cap / 2f
-                        it.y1 = c + cap / 2f
+                val cap = pitch * 0.92f
+                for (idx in items.indices) {
+                    val band = items[idx].band()
+                    if (band.height > cap) {
+                        val c = (band.y0 + band.y1) / 2f
+                        items[idx] = Item(
+                            items[idx].text,
+                            items[idx].chars.map { Rect(it.x0, c - cap / 2f, it.x1, c + cap / 2f) },
+                            items[idx].tol
+                        )
                     }
                 }
             }
         }
 
         // 按纵向中心分行，与文字层路径的口径一致
-        items.sortWith(compareBy({ (it.y0 + it.y1) / 2f }, { it.x0 }))
+        items.sortWith(compareBy({ val r = it.band(); (r.y0 + r.y1) / 2f }, { it.band().x0 }))
         val groups = ArrayList<MutableList<Item>>()
         val centers = ArrayList<Float>()
         val heights = ArrayList<Float>()
         for (it in items) {
-            val cy = (it.y0 + it.y1) / 2f
-            val hh = it.tol
+            val r = it.band()
+            val cy = (r.y0 + r.y1) / 2f
             var hit = -1
             for (g in groups.indices) {
-                if (abs(centers[g] - cy) <= max(2f, max(heights[g], hh) * 0.30f)) { hit = g; break }
+                if (abs(centers[g] - cy) <= max(2f, max(heights[g], it.tol) * 0.30f)) { hit = g; break }
             }
             if (hit < 0) {
                 groups.add(mutableListOf(it))
                 centers.add(cy)
-                heights.add(hh)
+                heights.add(it.tol)
             } else {
                 groups[hit].add(it)
-                heights[hit] = max(heights[hit], hh)
+                heights[hit] = max(heights[hit], it.tol)
             }
         }
 
+        // 行带的上下各留一点抗锯齿余量，但绝不超过与邻行之间空隙的 45%，
+        // 这样既不会留下一条灰边，也不会把上一行/下一行的字一起糊掉。
+        fun bandOf(g: List<Item>): Rect {
+            var r = g[0].band()
+            for (k in 1 until g.size) r = r.union(g[k].band())
+            return r
+        }
+        val order = groups.indices.sortedBy { centers[it] }
+        val bands = groups.map { bandOf(it) }
+        val padTop = FloatArray(groups.size)
+        val padBot = FloatArray(groups.size)
+        for ((oi, gi) in order.withIndex()) {
+            val bnd = bands[gi]
+            val bh2 = max(1f, bnd.height)
+            val prev = if (oi > 0) bands[order[oi - 1]] else null
+            val next = if (oi + 1 < order.size) bands[order[oi + 1]] else null
+            val gapT = if (prev != null) max(0f, bnd.y0 - prev.y1) else bh2
+            val gapB = if (next != null) max(0f, next.y0 - bnd.y1) else bh2
+            padTop[gi] = max(0.6f, min(bh2 * 0.12f, gapT * 0.45f))
+            padBot[gi] = max(0.6f, min(bh2 * 0.12f, gapB * 0.45f))
+        }
+
         val out = ArrayList<Line>()
-        for (g in groups) {
-            g.sortBy { it.x0 }
+        for ((gi, g) in groups.withIndex()) {
+            g.sortBy { it.band().x0 }
             val sb = StringBuilder()
             val boxesOut = ArrayList<CharBox?>()
             var prevX1 = Float.NaN
+            var prevH = bands[gi].height
             for (it in g) {
-                val hgt = it.y1 - it.y0
-                if (!prevX1.isNaN() && it.x0 - prevX1 > max(0.9f, hgt * 0.42f)) {
+                val band = it.band()
+                val hgt = max(1f, band.height)
+                // 两段之间空出半个字宽以上，才算一个空格（表格式排版常见）
+                if (!prevX1.isNaN() && band.x0 - prevX1 > max(0.9f, min(prevH, hgt) * 0.42f)) {
                     sb.append(' ')
                     boxesOut.add(null)
                 }
-                val width = it.x1 - it.x0
-                // 纵向已经由 inkBand 定到真实字高（或退回 0.58 估计），这里直接沿用，
-                // 不再二次收窄——再乘一次比例就会把框压到字的上半截。
-                val glyphH = it.y1 - it.y0
-                val gy0 = it.y0
-                val gy1 = it.y1
-                // 同一框内的字矩形首尾相接：CTC 区间是估计值，留缝会露白
-                val n = it.spans.size
-                // 单个字的区间容易偏窄，给一个按字高算的下限
-                val minW = min(glyphH * 0.9f, width * 0.6f)
-                for (k in 0 until n) {
-                    val f0 = it.spans[k][0]
-                    val f1 = it.spans[k][1]
-                    var b0 = if (k > 0) (it.spans[k - 1][1] + f0) / 2f else f0
-                    var b1 = if (k + 1 < n) (f1 + it.spans[k + 1][0]) / 2f else f1
-                    if (b1 <= b0) { b0 = f0; b1 = f1 }
-                    var cx0 = it.x0 + width * b0
-                    var cx1 = it.x0 + width * b1
-                    if (cx1 - cx0 < minW) {
-                        val mid = (cx0 + cx1) / 2f
-                        cx0 = mid - minW / 2f
-                        cx1 = mid + minW / 2f
-                    }
-                    val ch = it.text.getOrNull(k) ?: continue
+                for ((k, ch) in it.text.withIndex()) {
+                    val r = it.chars[k]
                     sb.append(ch)
-                    boxesOut.add(CharBox(ch, Rect(cx0, gy0, cx1, gy1)))
+                    boxesOut.add(
+                        CharBox(
+                            ch,
+                            Rect(r.x0, r.y0 - padTop[gi], r.x1, r.y1 + padBot[gi])
+                        )
+                    )
                 }
-                prevX1 = it.x1
+                prevX1 = band.x1
+                prevH = hgt
             }
             if (sb.isNotBlank()) out.add(Line(sb.toString(), boxesOut))
         }
