@@ -72,6 +72,9 @@ REC_BATCH = 8            # 每批送进识别模型的行数
 PAD_RATIO = 0.85         # 检测框外扩比例（按行高算）：0.45 时细笔画末位数字会被切掉
 SKEW_MAX = 3.0           # 倾斜校正的搜索范围（度）
 SKEW_MIN = 0.20          # 小于这个角度不动，免得白转一次、掉精度
+# 检测框是整行外接框（含行距 / padding / 倾斜余量），实测约为真实字高的 2 倍。
+# 单个字的打码矩形按这个比例从行框中心收窄，避免打码块侵入上下行。
+GLYPH_HEIGHT_RATIO = 0.58
 
 # 低对比度页面的对比度归一化（见 normalize_contrast）
 CONTRAST_MIN_RANGE = 120  # 灰度 p99-p1 低于此值才动手；正常扫描件远大于它
@@ -702,9 +705,18 @@ def _group_lines(items):
                 spans.append((ch, b0, b1))
             width = it["x1"] - it["x0"]
             box_h = it["y1"] - it["y0"]
+            # 检测框是「整行外接框」，里面还含行距、检测器 padding 和轻微倾斜的余量，
+            # 实测高度约为真实字高的 2 倍。以前直接拿它当每个字的矩形，
+            # 打码块就向上/下各多盖半行：相邻两行的灰条连成一片，
+            # 还会把上一行打码框下面那几个字一起糊掉。
+            # 这里按行高估一个真实字高，居中收窄；宁可留一点点笔画边缘，
+            # 也不能再牺牲正常文字——缩得不够就还是「连成一片」。
+            glyph_h = box_h * GLYPH_HEIGHT_RATIO
+            gy = (it["y0"] + it["y1"]) / 2.0
+            gy0, gy1 = gy - glyph_h / 2.0, gy + glyph_h / 2.0
             # 单个字的 CTC 区间容易偏窄（模型把字挤在中间几步里），框会小得盖不住字形。
             # 给一个按字高算的下限：汉字宽约等于字高，宁可多盖一点，也不能露半个字。
-            min_w = min(box_h * 0.42, width * 0.6)
+            min_w = min(glyph_h * 0.9, width * 0.6)
             for ch, b0, b1 in spans:
                 cx0 = it["x0"] + width * b0
                 cx1 = it["x0"] + width * b1
@@ -716,7 +728,7 @@ def _group_lines(items):
                         cx0 = mid - min_w / 2.0
                         cx1 = mid + min_w / 2.0
                 parts.append(ch)
-                entries.append((ch, pymupdf.Rect(cx0, it["y0"], cx1, it["y1"])))
+                entries.append((ch, pymupdf.Rect(cx0, gy0, cx1, gy1)))
             prev_h = hgt
             prev_x1 = it["x1"]
         out.append(("".join(parts), entries))

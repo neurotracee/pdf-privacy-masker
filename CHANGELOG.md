@@ -1,3 +1,32 @@
+# 1.4.7.1（2026-11-16）
+
+**中文** | [English](#1471)
+
+更新级别：强烈建议（两端都建议更新）
+
+> **一句话**：打码不再「整行糊掉」——字段标签和上下文保留、相邻行不连片、打码块按字符形状自适应；两端新增橡皮擦，只擦误框的一小块；安卓扫描件补上倾斜校正。
+
+## 修复：过度打码 / 误伤正常文字
+
+- **字符框高度**：OCR 检测框是整行外接框（含行距与 padding），实测高度约为真实字高的两倍；以前直接拿它当单字矩形，打码块向上、下各多盖半行，相邻两行连成一片、上一行的灰条还会压住下一行字符。现在按行高的 0.58 居中收窄，宽度下限同步改为按真实字高计算。
+- **按隐私类型分块**：姓名 / 日期 / 地址 / 电话不再混在一起合并。以前同一行隔几个字的字段被并成一条长灰带，把「申请执行人：」「被执行人：」「公民身份号码：」「电子邮件发送至」这些标签和冒号一起吃掉；现在同类、且几乎首尾相接的字符才合并，间距阈值从 1.2 倍行高收紧到 0.35 倍。
+- **自适应形状**：打码区域由同类隐私信息的实际字符位置拼成，不再是固定标准矩形；轻微倾斜的扫描页先摆正再检测，框再转回页面坐标，灰块不会沿倾斜方向偏移。
+- 地址兜底规则不再把「乙方」「甲方」当地址打掉；跨行手机号必须两段都像号码才认，不再把账号末尾两位当成手机号。
+- 安卓端补上与 Windows 端同源的倾斜估计（0.25° 粗扫 + 0.05° 细扫，投影方差判据），检测前摆正、检测后框回转；以前只有 Windows 有。
+
+## 新增：手动框选 / 橡皮擦模式切换（两端）
+
+- 界面上并排两个按钮：**手动框选**（左）与 **橡皮擦**（右）；再点一次当前按钮退出编辑模式。
+- 拖动手势与放大镜两种模式共用：框选时放大镜显示要打的区域，擦除时同一放大镜帮你对准前缀和冒号。
+- **橡皮擦只恢复像素，不删除标记框**：在打码前的原页上取对应小块贴回，严格局限在你划过的矩形内。「公民身份证号：」这几个字可以擦回来，后面的号码仍然保持马赛克；双击可撤销最后一笔擦除。
+- 安卓输出流程同步支持橡皮擦（打码前备份原页，再按矩形恢复）；Windows 端预览与最终 PDF 都应用同一份擦除数据。
+
+## 关于开发模型
+
+本版由腾讯 WorkBuddy 的 **Hy4 Flash** 模型接续开发（上一版主要由 DeepSeek-V4.1-Flash 协助）。原因是高峰期积分消耗速度过快，换用更省的模型以便把这几项修复做完；算法、识别规则与输出格式与此前一致，不影响安装包行为。
+
+---
+
 # 1.4.7.0（2026-11-15）
 
 **中文** | [English](#1470)
@@ -176,6 +205,16 @@ exe 重新打一遍再传一遍；只发了一端的版本，另一端偶尔会�
 界面、打码效果、识别规则**一点没变**。变化在「检查更新」：只提示本平台**真的有包**的版本，
 不会再出现「提示有新版本、点进去却没有对应安装包」。从这一版起两端版本号可能不一样
 （例如 Windows 停在 1.4.6、安卓到了 1.4.6.2），这是正常的。
+
+---
+
+# 1.4.7.1 (2026-11-16, English)
+
+**Mosaic no longer blanks whole lines.** Character rectangles are now sized from the real glyph height instead of the full detection-line box, so neighbouring lines keep their gap and masks no longer cover the text above or below. Findings of different kinds are masked separately, which keeps labels such as "Applicant:", "Person subject to enforcement:" and "Email:" visible while the actual values stay covered. Masks follow the character positions instead of one fixed rectangle. Address fallback no longer treats "Party B" as an address, and a two-digit line fragment is no longer treated as a phone number. On Android, skew estimation was added before detection (the Windows side already had it).
+
+**New: Box / Eraser mode toggle on both clients.** Both modes share the same drag gesture and loupe. The eraser restores only the pixels inside the small rectangle you draw — it never removes the marking box itself, so a prefix like "ID number:" can be brought back while the digits after it remain masked. Double-tap undoes the last erase.
+
+**Development model.** This release was completed with WorkBuddy's Hy4 Flash model instead of DeepSeek-V4.1-Flash: during peak hours credit consumption was too fast. No change to the algorithm, rules or output format.
 
 ---
 

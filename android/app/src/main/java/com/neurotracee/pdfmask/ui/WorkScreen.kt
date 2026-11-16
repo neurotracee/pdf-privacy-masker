@@ -118,6 +118,8 @@ fun WorkScreen(
     testDragAt: Offset? = null
 ) {
     var fullPreview by remember { mutableStateOf(false) }
+    // 0 = 只看（轻点放大 / 双击取消）；1 = 手动框选；2 = 橡皮擦（局部恢复）
+    var editMode by remember { mutableStateOf(0) }
     // 识别结果面板：默认收起，把屏幕让给预览，需要勾选时再展开
     var listOpen by remember { mutableStateOf(initialListOpen) }
     val hinge = if (fold.separating && fold.vertical) fold.hingeWidthDp.dp else 0.dp
@@ -126,6 +128,29 @@ fun WorkScreen(
         Column(Modifier.fillMaxSize()) {
             DocHeader(vm, onPickAnother)
             WorkHintBar()
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 2.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                TextButton(
+                    onClick = { editMode = if (editMode == 1) 0 else 1 },
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text(
+                        if (editMode == 1) T("✓ 手动框选", "✓ Box") else T("手动框选", "Box"),
+                        fontSize = 12.5.sp
+                    )
+                }
+                TextButton(
+                    onClick = { editMode = if (editMode == 2) 0 else 2 },
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text(
+                        if (editMode == 2) T("✓ 橡皮擦", "✓ Erase") else T("橡皮擦", "Erase"),
+                        fontSize = 12.5.sp
+                    )
+                }
+            }
             Divider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
 
             if (expanded) {
@@ -147,7 +172,7 @@ fun WorkScreen(
                         )
                     }
                     Column(Modifier.weight(0.66f).fillMaxSize()) {
-                        PreviewPane(vm, Modifier.fillMaxSize(), onExpand = { fullPreview = true }, testDragAt = testDragAt)
+                        PreviewPane(vm, Modifier.fillMaxSize(), editMode, onExpand = { fullPreview = true }, testDragAt = testDragAt)
                     }
                 }
             } else {
@@ -161,6 +186,7 @@ fun WorkScreen(
                             Modifier
                                 .fillMaxWidth()
                                 .weight(1f),
+                            editMode,
                             onExpand = { fullPreview = true },
                             testDragAt = testDragAt
                         )
@@ -509,6 +535,7 @@ private fun FindingRow(
 private fun PreviewPane(
     vm: AppViewModel,
     modifier: Modifier,
+    editMode: Int = 0,
     onExpand: () -> Unit,
     testDragAt: Offset? = null
 ) {
@@ -709,10 +736,10 @@ private fun PreviewPane(
                                         val w = kotlin.math.abs(b.x - a.x)
                                         val h = kotlin.math.abs(b.y - a.y)
                                         if (w > 12f && h > 12f && scaleX > 0f && scaleY > 0f) {
-                                            vm.addManual(
-                                                page,
-                                                Rect(l / scaleX, t / scaleY, (l + w) / scaleX, (t + h) / scaleY)
-                                            )
+                                            val pr = Rect(l / scaleX, t / scaleY,
+                                                          (l + w) / scaleX, (t + h) / scaleY)
+                                            if (editMode == 2) vm.addEraser(page, pr)
+                                            else vm.addManual(page, pr)
                                         }
                                     }
                                 } else {
@@ -721,6 +748,11 @@ private fun PreviewPane(
                                 }
 
                                 if (isTap && !multi) {
+                                    if (editMode == 2 && (vm.erasers[page]?.size ?: 0) > 0) {
+                                        vm.undoEraser(page)
+                                        vm.toast(if (com.neurotracee.pdfmask.AppPrefs.isEn) "Last erase undone" else "已撤销最后一笔擦除")
+                                        isTap = false
+                                    }
                                     val now = System.currentTimeMillis()
                                     val near = (down.position - lastTapPos).getDistance() < 90f
                                     if (now - lastTapAt < 340L && near) {
@@ -999,7 +1031,7 @@ private fun FullPreviewDialog(vm: AppViewModel, onClose: () -> Unit) {
             color = Color(0xFF0B0F14)
         ) {
             Box(Modifier.fillMaxSize()) {
-                PreviewPane(vm, Modifier.fillMaxSize(), onExpand = {})
+                PreviewPane(vm, Modifier.fillMaxSize(), 0, onExpand = {})
                 IconButton(
                     onClick = onClose,
                     modifier = Modifier

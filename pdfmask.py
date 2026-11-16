@@ -69,7 +69,7 @@ from thanks_asset import QR_PNG_B64  # 赞赏码图片（base64 内嵌，单文�
 APP_NAME = "PDF 隐私打码工具"
 # 版本号统一四段：主.次.修订.小版本（见 CONTRIBUTING.md「版本号规则」）。
 # 越靠右越细：日常修缺陷、改文案就动第四位；第三位留给成体系的新能力（大版本）。
-VERSION = "1.4.7.0"
+VERSION = "1.4.7.1"
 
 # ---- 署名信息（开源后请勿删除，AGPL-3.0 第 5 条要求保留版权声明） ----
 AUTHOR = "项目创作时为初中生"
@@ -1189,7 +1189,12 @@ def _scan_line(text, entries, pno):
         add("address", s, e, text[s:e].rstrip(" ,，;；"))
     for m in RE_ADDR_HEAD.finditer(text):
         s, e = _addr_tail(_trim_addr_prefix(text, m.start(), m.end()), m.end())
-        add("address", s, e, text[s:e].rstrip(" ,，;；"), "无门牌·等续行")
+        seg = text[s:e].rstrip(" ,，;；")
+        # 这条兜底最松，实测会把「乙方」「甲方」这类合同角色当成地址头，
+        # 一打就是一整块正常上下文。要求值里确实有行政区划 / 道路 / 门牌特征。
+        if not seg or not _ADDR_VALUE_HINT.search(seg):
+            continue
+        add("address", s, e, seg, "无门牌·等续行")
 
     # 10. 姓名：保留姓氏，只打码名字
     def add_name(s, e, cand, loose=False):
@@ -1753,7 +1758,11 @@ def detect(doc, only_pages=None, use_ocr=True):
                         f["type"] == "phone" and not (f["rect"] & ra).is_empty
                         and len(re.sub(r"[^0-9]", "", f["text"])) >= 11
                         for f in line_findings)
-                    if not covered:
+                    # 两段都得是「像手机号的一截」才认。实测把账号末两位
+                    # 「26」也当跨行手机号糊掉，属于正常上下文被误打。
+                    da = len(re.sub(r"[^0-9]", "", ta))
+                    db = len(re.sub(r"[^0-9]", "", tb))
+                    if not covered and da >= 5 and db >= 4 and da + db >= 11:
                         findings.append({
                             "type": "phone", "text": ta, "rect": ra, "page": pno,
                             "note": "跨行拼接", "src": "ocr"})
@@ -1905,7 +1914,9 @@ def _merge_rects(rects):
                 continue
             overlap = min(a.y1, b.y1) - max(a.y0, b.y0)
             gap = max(a.x0, b.x0) - min(a.x1, b.x1)
-            if overlap >= hmin * 0.6 and gap <= max(a.height, b.height) * 1.2:
+            # 收紧到 0.35 倍行高：原先 1.2 倍会把同一行里隔了十几个字的
+            # 两个字段并成一条，看起来就是「整行被糊掉」。
+            if overlap >= hmin * 0.6 and gap <= max(a.height, b.height) * 0.35:
                 out[i] = a | b
                 break
         else:
@@ -2027,27 +2038,56 @@ def _scrub_toc(doc, vals):
     return changed
 
 
-def redact(doc, findings, review_rects=None):
+def redact(doc, findings, review_rects=None, erasers=None):
     """执行打码：先按原文渲染像素 → 马赛克 → 抹除文本层 → 贴回马赛克块
 
     最后再洗一遍注释与书签（正文打码碰不到它们）。
+
+    `erasers` 是橡皮擦在页面上划出的小矩形（页坐标）。它只把那几块
+    **打码前的原始像素**贴回去，不删除任何标记框，也不会越过矩形边界——
+    例如只恢复「公民身份证号：」这几个字，后面的号码仍然是马赛克。
     """
+    eraser_patches = {}
+    for pno, rects in (erasers or {}).items():
+        try:
+            page = doc[int(pno)]
+        except Exception:
+            continue
+        for rr in rects:
+            clip = pymupdf.Rect(rr) & page.rect
+            if clip.is_empty or clip.width < 0.5 or clip.height < 0.5:
+                continue
+            try:
+                pm = page.get_pixmap(clip=clip, matrix=pymupdf.Matrix(MOSAIC_ZOOM, MOSAIC_ZOOM),
+                                     alpha=False)
+                eraser_patches.setdefault(int(pno), []).append((clip, pm))
+            except Exception:
+                continue
     vals = _scrub_values(findings)
     by_page = {}
     for f in findings:
-        by_page.setdefault(f["page"], []).append(pymupdf.Rect(f["rect"]))
-    for pno, rects in by_page.items():
+        by_page.setdefault(f["page"], []).append((f.get("type") or "", pymupdf.Rect(f["rect"])))
+    for pno, items in by_page.items():
         page = doc[pno]
         prect = page.rect
         clusters = []
-        for r in _merge_rects(rects):
-            r = pymupdf.Rect(r)
-            r.x0 = max(r.x0, prect.x0)
-            r.y0 = max(r.y0, prect.y0)
-            r.x1 = min(r.x1, prect.x1)
-            r.y1 = min(r.y1, prect.y1)
-            if r.width > 0.5 and r.height > 0.5:
-                clusters.append(r)
+        # 只合并「同一类隐私、且几乎首尾相接」的字符块：
+        # 以前把姓名 / 出生日期 / 地址 / 电话全扔进一个 _merge_rects，
+        # 同一行里隔几个字的字段会被并成一条长灰带，把「申请执行人：」
+        # 「公民身份号码：」这类标签和中间正文一起吃掉。现在不同类绝不合并，
+        # 打码形状由一类信息的实际字符位置拼出来，而不是一个标准大矩形。
+        by_kind = {}
+        for kind, r in items:
+            by_kind.setdefault(kind, []).append(r)
+        for kind_rects in by_kind.values():
+            for r in _merge_rects(kind_rects):
+                r = pymupdf.Rect(r)
+                r.x0 = max(r.x0, prect.x0)
+                r.y0 = max(r.y0, prect.y0)
+                r.x1 = min(r.x1, prect.x1)
+                r.y1 = min(r.y1, prect.y1)
+                if r.width > 0.5 and r.height > 0.5:
+                    clusters.append(r)
         patches = []
         for r in clusters:
             clip = pymupdf.Rect(r)
@@ -2094,6 +2134,10 @@ def redact(doc, findings, review_rects=None):
                                   graphics=pymupdf.PDF_REDACT_LINE_ART_NONE)
         for clip, pm in patches:
             page.insert_image(clip + (-0.4, -0.4, 0.4, 0.4), pixmap=pm, overlay=True, keep_proportion=False)
+        # 橡皮擦最后贴回：盖在马赛克之上，只恢复用户划过的那一小块原文字，
+        # 不碰标记框本身，相邻的号码仍然保持打码状态。
+        for clip, pm in eraser_patches.get(pno, []):
+            page.insert_image(clip, pixmap=pm, overlay=True, keep_proportion=False)
     # 清理可能残留隐私的元数据
     try:
         doc.set_metadata({})
@@ -2267,6 +2311,8 @@ class DocState:
         self.ocr_pages = list(LAST_OCR["pages"])
         self.ocr_secs = round(LAST_OCR["secs"], 2)
         self.manual_n = 0
+        # 橡皮擦：{页码: [Rect, ...]}，只恢复像素、不删除任何标记框
+        self.erasers = {}
 
     def payload(self):
         items = []
@@ -2642,7 +2688,7 @@ def _output_dir(src_path):
     return _default_out_dir(src_path)
 
 
-def _preview_png(state, pno, zoom, sel, show_mask, hi):
+def _preview_png(state, pno, zoom, sel, show_mask, hi, erasers=None):
     page = state.doc[pno]
     zoom = max(0.5, min(3.0, float(zoom)))
     pix = page.get_pixmap(matrix=pymupdf.Matrix(zoom, zoom), alpha=False)
@@ -2660,6 +2706,17 @@ def _preview_png(state, pno, zoom, sel, show_mask, hi):
                 crop = img.crop((x0, y0, x1, y1))
                 block = max(3, int(round(r.height * zoom * 0.42)))
                 img.paste(_pixelate(crop, block, seed=abs(hash(f["id"]))), (x0, y0))
+    # 橡皮擦：只把划过的小块恢复成打码前的样子，标记框与相邻号码都还在
+    for rr in (erasers or []):
+        clip = pymupdf.Rect(rr) & page.rect
+        if clip.is_empty or clip.width < 0.5 or clip.height < 0.5:
+            continue
+        try:
+            q = page.get_pixmap(clip=clip, matrix=pymupdf.Matrix(zoom, zoom), alpha=False)
+            img.paste(Image.frombytes("RGB", (q.width, q.height), q.samples),
+                      (int(round(clip.x0 * zoom)), int(round(clip.y0 * zoom))))
+        except Exception:
+            pass
     dr = ImageDraw.Draw(img, "RGBA")
     for f in state.findings:
         if f["page"] != pno:
@@ -2679,7 +2736,7 @@ def _preview_png(state, pno, zoom, sel, show_mask, hi):
     return buf.getvalue()
 
 
-def _build_output(state, ids, out_dir=""):
+def _build_output(state, ids, out_dir="", erasers=None):
     sel = [f for f in state.findings if f["id"] in set(ids)]
     if not sel:
         raise ValueError("没有选中任何需要打码的内容")
@@ -2692,7 +2749,7 @@ def _build_output(state, ids, out_dir=""):
         work = src
     else:
         src.close()
-    redact(work, sel)
+    redact(work, sel, erasers=erasers)
     total_pages = work.page_count
     base = os.path.splitext(state.name)[0]
     outp = _unique_path(folder, base, "_已打码")
@@ -2833,7 +2890,17 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 sel = set(x for x in (q.get("sel", [""])[0]).split(",") if x)
                 mask = q.get("mask", ["1"])[0] == "1"
                 hi = q.get("hi", [""])[0]
-                png = _preview_png(st, pno, zoom, sel, mask, hi)
+                er = []
+                for chunk in q.get("er", [""])[0].split(";"):
+                    if not chunk:
+                        continue
+                    try:
+                        vals = [float(x) for x in chunk.split(",")]
+                        if len(vals) == 4:
+                            er.append(pymupdf.Rect(*vals))
+                    except Exception:
+                        continue
+                png = _preview_png(st, pno, zoom, sel, mask, hi, er)
                 self._send(200, png, "image/png")
             except Exception as e:
                 self._err(e, 500)
@@ -2874,13 +2941,33 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     "page": int(data.get("page", 0)), "note": "手动框选",
                 })
                 return self._json({"ok": True, "id": fid})
+            if u.path in ("/api/erase", "/api/erase/undo"):
+                data = json.loads(self._body() or b"{}")
+                st = DOCS.get(data.get("doc", ""))
+                if not st:
+                    return self._err("文档已失效")
+                pno = int(data.get("page", 0))
+                if u.path.endswith("undo"):
+                    lst = st.erasers.get(pno, [])
+                    if lst:
+                        lst.pop()
+                    return self._json({"ok": True, "left": len(lst)})
+                r = [float(v) for v in data["rect"]]
+                st.erasers.setdefault(pno, []).append(pymupdf.Rect(*r))
+                return self._json({"ok": True, "count": len(st.erasers[pno])})
             if u.path == "/api/render":
                 data = json.loads(self._body() or b"{}")
                 st = DOCS.get(data.get("doc", ""))
                 if not st:
                     return self._err("文档已失效")
                 out_dir = data.get("dir") or ""
-                res = _build_output(st, data.get("ids", []), out_dir)
+                erasers = {}
+                for k, rects in (data.get("erasers") or {}).items():
+                    try:
+                        erasers[int(k)] = [pymupdf.Rect(*[float(v) for v in r]) for r in rects]
+                    except Exception:
+                        continue
+                res = _build_output(st, data.get("ids", []), out_dir, erasers)
                 # 记住用户这次的选择（勾选项只影响「下次」，不改变本次结果）
                 kw = {}
                 if data.get("remember"):

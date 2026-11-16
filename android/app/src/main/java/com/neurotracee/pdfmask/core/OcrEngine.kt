@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.RectF
 import android.graphics.pdf.PdfRenderer
 import android.os.ParcelFileDescriptor
 import ai.onnxruntime.OnnxTensor
@@ -48,6 +49,14 @@ object OcrEngine {
     /** 渲染页面用的 DPI（180 相当于 2.5 倍缩放），识别裁剪要够清晰 */
     const val RENDER_DPI = 180
     const val PAD_RATIO = 0.85f
+
+    /**
+     * 检测框是整行外接框（含行距 / padding / 倾斜余量），实测约为真实字高的 2 倍。
+     * 直接拿它当单字矩形会把打码块伸进上下两行——相邻行的灰条连成一片，
+     * 还会把上一行打码框下面的正常文字一起糊掉。单字矩形按此比例居中收窄。
+     * 与 Python 端 pdfmask_ocr.GLYPH_HEIGHT_RATIO 保持一致。
+     */
+    const val GLYPH_HEIGHT_RATIO = 0.58f
 
     private val MEAN = floatArrayOf(0.485f, 0.456f, 0.406f)
     private val STD = floatArrayOf(0.229f, 0.224f, 0.225f)
@@ -369,10 +378,15 @@ object OcrEngine {
             if (statFail.isBlank()) statFail = "preprocess " + t.javaClass.simpleName
             null
         } ?: bitmap
+        // 扫描件 / 拍照件几乎都带零点几度的歪，歪着送进检测网络会整行漏掉。
+        // 与 Windows 端一样：先摆正再检测，最后把框转回原来的页面坐标。
+        val skew = try { OcrPreprocess.estimateSkew(work) } catch (t: Throwable) { 0f }
+        val aligned = if (skew != 0f) OcrPreprocess.rotate(work, skew) else work
         var lines: List<Line>
         try {
-            lines = readPageInner(page, work, bw, bh)
+            lines = readPageInner(page, aligned, bw, bh, skew)
         } finally {
+            if (aligned !== work) aligned.recycle()
             if (work !== bitmap) work.recycle()
         }
         // 加了前处理反而一个字都没认出来 → 退回原图再跑一次。
@@ -381,12 +395,13 @@ object OcrEngine {
         // 也不能因为一道可选的增强把整页判死。
         if (lines.isEmpty() && work !== bitmap) {
             statFallback++
-            lines = readPageInner(page, bitmap, bw, bh)
+            lines = readPageInner(page, bitmap, bw, bh, 0f)
         }
         return lines
     }
 
-    private fun readPageInner(page: PageText, bitmap: Bitmap, bw: Int, bh: Int): List<Line> {
+    private fun readPageInner(page: PageText, bitmap: Bitmap, bw: Int, bh: Int,
+                              skew: Float = 0f): List<Line> {
         // 检测在缩小图上跑（快），识别回到原图裁（准）
         val scale = min(1f, DET_LIMIT / max(bw, bh).toFloat())
         val small = if (scale < 1f) {
@@ -418,6 +433,17 @@ object OcrEngine {
             var Y0 = (b[1] * inv).toInt()
             var X1 = (b[2] * inv).toInt() + 1
             var Y1 = (b[3] * inv).toInt() + 1
+            // 检测是在摆正后的图上跑的，把框按同一个角度转回原图坐标，
+            // 否则打码块会沿倾斜方向整体偏移，正好压到上一行/下一行。
+            if (skew != 0f) {
+                val back = OcrPreprocess.unrotateBox(
+                    RectF(X0.toFloat(), Y0.toFloat(), X1.toFloat(), Y1.toFloat()),
+                    bw / 2f, bh / 2f, skew)
+                X0 = back.left.roundToInt()
+                Y0 = back.top.roundToInt()
+                X1 = back.right.roundToInt() + 1
+                Y1 = back.bottom.roundToInt() + 1
+            }
             // 检测框常常比字形窄一点，按字高比例补边：识别看得全，打码也盖得住
             val h = (Y1 - Y0).coerceAtLeast(1)
             // 0.45 时末位数字常被切掉半个，放宽到 0.85（与 Windows 端 PAD_RATIO 对齐）
@@ -478,10 +504,15 @@ object OcrEngine {
                     boxesOut.add(null)
                 }
                 val width = it.x1 - it.x0
+                // 行框含行距，先收成真实字高，再据此定单字框的上下边与宽度下限
+                val glyphH = hgt * GLYPH_HEIGHT_RATIO
+                val cy = (it.y0 + it.y1) / 2f
+                val gy0 = cy - glyphH / 2f
+                val gy1 = cy + glyphH / 2f
                 // 同一框内的字矩形首尾相接：CTC 区间是估计值，留缝会露白
                 val n = it.spans.size
                 // 单个字的区间容易偏窄，给一个按字高算的下限
-                val minW = min(hgt * 0.42f, width * 0.6f)
+                val minW = min(glyphH * 0.9f, width * 0.6f)
                 for (k in 0 until n) {
                     val f0 = it.spans[k][0]
                     val f1 = it.spans[k][1]
@@ -497,7 +528,7 @@ object OcrEngine {
                     }
                     val ch = it.text.getOrNull(k) ?: continue
                     sb.append(ch)
-                    boxesOut.add(CharBox(ch, Rect(cx0, it.y0, cx1, it.y1)))
+                    boxesOut.add(CharBox(ch, Rect(cx0, gy0, cx1, gy1)))
                 }
                 prevX1 = it.x1
             }

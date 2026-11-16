@@ -82,6 +82,23 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         message = msg
     }
 
+    /**
+     * 橡皮擦：只记「页面 pt 坐标的小矩形」，打码时把这些小块恢复成原图像素。
+     * 不删除任何标记框，也不会越过矩形边界——例如只恢复「公民身份证号：」
+     * 这几个字，后面的号码仍保持打码。
+     */
+    var erasers by mutableStateOf<Map<Int, List<Rect>>>(emptyMap())
+        private set
+
+    fun addEraser(page: Int, rect: Rect) {
+        erasers = erasers + (page to (erasers[page].orEmpty() + rect))
+    }
+
+    fun undoEraser(page: Int) {
+        val list = erasers[page].orEmpty()
+        if (list.isNotEmpty()) erasers = erasers + (page to list.dropLast(1))
+    }
+
     /** 加一个手动框选区域（rect 为页面 pt 坐标） */
     fun addManual(page: Int, rect: Rect): Int {
         val id = nextManualId--
@@ -255,7 +272,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                         ?: error(tr("无法写入这个位置", "Cannot write to this location"))
                     out.use { os ->
                         PdfMasker.mask(
-                            ctx, f, findings.filter { it.id in selected }, os
+                            ctx, f, findings.filter { it.id in selected }, os,
+                            erasers = erasers
                         ) { p -> progress = p }
                     }
                     queryName(ctx, uri) ?: (tr("已打码", "masked") + ".pdf")
@@ -283,7 +301,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                     val tmp = File(ctx.cacheDir, "rerun_" + System.currentTimeMillis() + ".pdf")
                     FileOutputStream(tmp).use { os ->
                         PdfMasker.mask(
-                            ctx, f, findings.filter { it.id in selected }, os
+                            ctx, f, findings.filter { it.id in selected }, os,
+                            erasers = erasers
                         ) { p -> progress = p }
                     }
                     ctx.contentResolver.openOutputStream(uri)?.use { os ->
@@ -319,7 +338,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                     ) ?: error(tr("无法在该目录创建文件", "Cannot create file in that folder"))
                     ctx.contentResolver.openOutputStream(docUri)?.use { os ->
                         PdfMasker.mask(
-                            ctx, f, findings.filter { it.id in selected }, os
+                            ctx, f, findings.filter { it.id in selected }, os,
+                            erasers = erasers
                         ) { p -> progress = p }
                     } ?: error(tr("无法写入这个位置", "Cannot write to this location"))
                     name

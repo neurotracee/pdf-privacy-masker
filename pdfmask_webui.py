@@ -175,6 +175,11 @@ main{flex:1;min-height:0;display:flex;overflow:hidden}
 .canvas-wrap img{display:block;background:#fff;box-shadow:0 8px 30px -12px rgba(15,24,40,.28);
   border-radius:2px;user-select:none;-webkit-user-drag:none}
 .band{position:fixed;border:1.5px dashed #ff2d55;background:rgba(255,45,85,.12);pointer-events:none;z-index:99}
+.band.erase{border-color:#2f6bff;background:rgba(47,107,255,.15)}
+/* 手动框选 / 橡皮擦共用：指针旁边的放大镜，便于只擦掉前缀和冒号 */
+.loupe{position:fixed;width:120px;height:120px;border-radius:50%;border:2px solid #fff;
+  box-shadow:0 4px 18px rgba(0,0,0,.35),0 0 0 1px rgba(0,0,0,.15);
+  background-repeat:no-repeat;background-color:#fff;pointer-events:none;z-index:120}
 /* action bar */
 .actionbar{flex:0 0 66px;height:66px;background:#fff;border-top:1px solid var(--line);
   display:flex;align-items:center;gap:14px;padding:0 22px}
@@ -412,9 +417,10 @@ main{flex:1;min-height:0;display:flex;overflow:hidden}
             <span class="pgnum" id="zoomTxt" style="min-width:44px">120%</span>
             <button class="tb-btn" id="zoomIn">+</button>
           </div>
-          <button class="tb-btn" id="drawBtn" style="border:1px solid var(--line);background:#fff;border-radius:9px;padding:6px 11px">
-            框选手动打码
-          </button>
+          <div class="tb-group" style="gap:6px">
+            <button class="tb-btn" id="drawBtn" title="按住鼠标拖出一个要打码的区域">手动框选</button>
+            <button class="tb-btn" id="eraseBtn" title="按住鼠标擦掉误框的一小块，旁边该打码的内容不受影响">橡皮擦</button>
+          </div>
           <div class="spacer"></div>
           <div class="hint-chip" title="左键按住拖动 = 框出要打码的区域；Ctrl+滚轮或笔记本双指捏合 = 缩放；放大后按住右键拖动 = 看前后左右；双击页面上的方框 = 取消或恢复该处打码">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -622,7 +628,8 @@ main{flex:1;min-height:0;display:flex;overflow:hidden}
 const TOKEN = "__TOKEN__";
 const BOOT = __BOOT__;
 const S = {docId:null, name:'', pages:[], findings:[], sel:new Set(), page:0, zoom:1.2,
-           mask:true, drawing:false, hi:null, scanned:[], ocrPages:[], ocrReady:false, outDir:'', stats:null, size:0};
+           mask:true, drawing:false, mode:'pan', erasers:{}, hi:null,
+           scanned:[], ocrPages:[], ocrReady:false, outDir:'', stats:null, size:0};
 
 /* 工作区里还开着文件时，关标签页 / 刷新前先让浏览器问一句。
    浏览器只允许这一种拦截方式，文案由浏览器决定（改不了），但足以避免
@@ -735,7 +742,7 @@ const TYPE_EN = {phone:'Phone', idcard:'ID number', bankcard:'Bank card', email:
   age:'Age', manual:'Manual box'};
 const STAT_EN = {'身份证号':'ID number','银行卡号':'Bank card','手机号':'Phone','座机号':'Landline',
   '邮箱':'Email','姓名':'Name','地址':'Address','出生日期':'Birth date','性别':'Gender',
-  '年龄':'Age','手动框选':'Manual'};
+  '年龄':'Age','手动框选':'Manual','橡皮擦':'Eraser'};
 
 function T(zh, en){ return LANG === 'en' ? en : zh; }
 function labelOf(f){
@@ -998,6 +1005,8 @@ function refreshPreview(){
   const img = $('pageImg');
   const q = new URLSearchParams({doc:S.docId, page:S.page, zoom:S.zoom,
     sel:[...S.sel].join(','), mask:S.mask?'1':'0', hi:S.hi||'', t:Date.now()});
+  const er = (S.erasers[S.page] || []).map(r=>r.join(',')).join(';');
+  if(er) q.set('er', er);
   img.src = '/api/preview?' + q.toString();
   syncBar();
 }
@@ -1072,17 +1081,32 @@ window.addEventListener('mouseup', e=>{
   if(panning){ panning = null; $('canvasWrap').style.cursor = ''; }
 });
 $('maskPreview').addEventListener('change', e=>{ S.mask = e.target.checked; refreshPreview(); });
-$('drawBtn').addEventListener('click', ()=>{
-  S.drawing = !S.drawing;
-  $('drawBtn').classList.toggle('active', S.drawing);
+function setMode(m){
+  if(S.mode === m){ S.mode='pan'; S.drawing=false; }
+  else { S.mode=m; S.drawing=true; }
+  $('drawBtn').classList.toggle('active', S.mode==='draw');
+  $('eraseBtn').classList.toggle('active', S.mode==='erase');
   $('canvasWrap').classList.toggle('draw', S.drawing);
-  if(S.drawing) toast(T('在页面上按住鼠标拖动，框出要打码的区域', 'Hold and drag on the page to draw a box'));
-});
+  if(S.mode==='draw') toast(T('手动框选：拖动框出要打码的区域，放大镜帮你对准', 'Box: drag to mark an area; the loupe helps you aim'));
+  if(S.mode==='erase') toast(T('橡皮擦：拖动只擦掉误框的一小块，旁边该打的内容不动', 'Eraser: drag to restore just one small spot; nearby masks stay'));
+}
+$('drawBtn').addEventListener('click', ()=>setMode('draw'));
+$('eraseBtn').addEventListener('click', ()=>setMode('erase'));
 
 /* 双击方框：取消 / 恢复这一处打码（自动识别的框和手动框都支持） */
-$('canvasWrap').addEventListener('dblclick', e=>{
+$('canvasWrap').addEventListener('dblclick', async e=>{
   const img = $('pageImg');
-  if(!img || !img.src || !S.findings.length) return;
+  if(!img || !img.src) return;
+  if(S.mode==='erase'){
+    const es = S.erasers[S.page] || [];
+    if(!es.length) return;
+    es.pop(); refreshPreview();
+    try{ await api('/api/erase/undo', {method:'POST', headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({doc:S.docId, page:S.page})}); }catch(_err){}
+    toast(T('已撤销最后一笔擦除', 'Last erase undone'));
+    return;
+  }
+  if(!S.findings.length) return;
   const r = img.getBoundingClientRect();
   if(e.clientX<r.left || e.clientX>r.right || e.clientY<r.top || e.clientY>r.bottom) return;
   const x = (e.clientX - r.left) / S.zoom;
@@ -1104,8 +1128,21 @@ $('canvasWrap').addEventListener('dblclick', e=>{
   toast((wasOn ? T('已取消这处打码：', 'Mask removed: ') : T('已恢复这处打码：', 'Mask restored: ')) + labelOf(hit));
 });
 
-/* 手动框选 */
-let band=null, startPt=null;
+/* 手动框选 / 橡皮擦：共用拖动与放大镜 */
+let band=null, startPt=null, loupe=null;
+function updateLoupe(e){
+  const img = $('pageImg'); if(!img.src) return;
+  if(!loupe){ loupe=document.createElement('div'); loupe.className='loupe'; document.body.appendChild(loupe); }
+  const r = img.getBoundingClientRect();
+  const z = 3, size = 120;
+  loupe.style.backgroundImage = 'url("' + img.src + '")';
+  loupe.style.backgroundSize = Math.round(r.width*z)+'px '+Math.round(r.height*z)+'px';
+  loupe.style.backgroundPosition = (-Math.round((e.clientX-r.left)*z-size/2))+'px '+
+                                   (-Math.round((e.clientY-r.top)*z-size/2))+'px';
+  loupe.style.left = Math.min(window.innerWidth-130, e.clientX+16)+'px';
+  loupe.style.top  = Math.max(4, e.clientY-140)+'px';
+}
+function hideLoupe(){ if(loupe){ loupe.remove(); loupe=null; } }
 $('canvasWrap').addEventListener('mousedown', e=>{
   if(!S.drawing || e.button!==0) return;
   const img = $('pageImg'); if(!img.src) return;
@@ -1113,13 +1150,16 @@ $('canvasWrap').addEventListener('mousedown', e=>{
   if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom) return;
   e.preventDefault();
   startPt = {x:e.clientX, y:e.clientY};
-  band = document.createElement('div'); band.className='band'; document.body.appendChild(band);
-  drawBand(startPt, startPt);
+  band = document.createElement('div');
+  band.className = 'band' + (S.mode==='erase' ? ' erase' : '');
+  document.body.appendChild(band);
+  drawBand(startPt, startPt); updateLoupe(e);
 });
 $('canvasWrap').addEventListener('mousemove', e=>{
-  if(band && startPt) drawBand(startPt, {x:e.clientX, y:e.clientY});
+  if(band && startPt){ drawBand(startPt, {x:e.clientX, y:e.clientY}); updateLoupe(e); }
 });
 window.addEventListener('mouseup', async e=>{
+  hideLoupe();
   if(!band || !startPt) return;
   const end = {x:e.clientX, y:e.clientY};
   band.remove(); band=null;
@@ -1127,16 +1167,22 @@ window.addEventListener('mouseup', async e=>{
   const img = $('pageImg'); const r = img.getBoundingClientRect();
   const x0 = Math.min(p0.x,end.x), y0 = Math.min(p0.y,end.y);
   const x1 = Math.max(p0.x,end.x), y1 = Math.max(p0.y,end.y);
-  if(x1-x0 < 5 || y1-y0 < 5) return;
+  if(x1-x0 < 4 || y1-y0 < 4) return;
   const rect = [ (x0-r.left)/S.zoom, (y0-r.top)/S.zoom, (x1-r.left)/S.zoom, (y1-r.top)/S.zoom ];
   try{
-    const res = await api('/api/manual', {method:'POST', headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({doc:S.docId, page:S.page, rect:rect})});
-    S.findings.push({id:res.id, type:'manual', label:T('手动框选', 'Manual box'),
-      mask:T('手动框选区域', 'Manual area'), page:S.page, rect:rect, note:'manual'});
-    S.sel.add(res.id); S.hi = res.id;
-    const sub = $('fSub');
-    renderList(); syncBar(); refreshPreview(); toast(T('已添加手动打码区域', 'Manual mask added'));
+    if(S.mode==='erase'){
+      await api('/api/erase', {method:'POST', headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({doc:S.docId, page:S.page, rect:rect})});
+      (S.erasers[S.page] = S.erasers[S.page] || []).push(rect);
+      refreshPreview(); toast(T('已擦掉这一小块，旁边的打码还在', 'Spot restored; nearby masks kept'));
+    }else{
+      const res = await api('/api/manual', {method:'POST', headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({doc:S.docId, page:S.page, rect:rect})});
+      S.findings.push({id:res.id, type:'manual', label:T('手动框选', 'Manual box'),
+        mask:T('手动框选区域', 'Manual area'), page:S.page, rect:rect, note:'manual'});
+      S.sel.add(res.id); S.hi = res.id;
+      renderList(); syncBar(); refreshPreview(); toast(T('已添加手动打码区域', 'Manual mask added'));
+    }
   }catch(err){ toast(err.message, true); }
 });
 function drawBand(a,b){
@@ -1223,7 +1269,7 @@ async function doRender(opt){
   if(!S.sel.size) return;
   overlay(true, T('正在生成打码 PDF…', 'Generating masked PDF…'));
   try{
-    const body = {doc:S.docId, ids:[...S.sel]};
+    const body = {doc:S.docId, ids:[...S.sel], erasers:S.erasers};
     if(opt){ body.dir = opt.dir || ''; body.remember = !!opt.remember; body.noAsk = !!opt.noAsk; }
     const d = await api('/api/render', {method:'POST', headers:{'Content-Type':'application/json'},
       body:JSON.stringify(body)});

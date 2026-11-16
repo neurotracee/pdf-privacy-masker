@@ -39,6 +39,7 @@ object PdfMasker {
         findings: List<Finding>,
         out: OutputStream,
         options: Options = Options(),
+        erasers: Map<Int, List<Rect>> = emptyMap(),
         onProgress: (Float) -> Unit = {}
     ): MaskSummary {
         PDFBoxResourceLoader.init(context.applicationContext)
@@ -71,6 +72,11 @@ object PdfMasker {
                 page.render(bmp, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
                 page.close()
 
+                // 橡皮擦：先留一份打码前的原页像素，打码完成后只把用户划过的
+                // 小矩形贴回去。不动标记框，也不越过矩形边界。
+                val eraserRects = erasers[i].orEmpty()
+                val backup = if (eraserRects.isEmpty()) null else Bitmap.createBitmap(bmp)
+
                 val items = findings.filter { it.page == i && !it.suspect }
                 if (items.isNotEmpty()) {
                     hitPages.add(i)
@@ -94,6 +100,21 @@ object PdfMasker {
                         bmp, annotRects.map { Finding(i, Kind.ANNOT, "", it) },
                         w / pw, h / ph
                     )
+                }
+
+                if (backup != null) {
+                    for (r in eraserRects) {
+                        val x0 = (r.x0 * (w / pw) - 1.5f).toInt().coerceIn(0, w - 1)
+                        val y0 = (r.y0 * (h / ph) - 1.5f).toInt().coerceIn(0, h - 1)
+                        val x1 = (r.x1 * (w / pw) + 1.5f).toInt().coerceIn(x0 + 1, w)
+                        val y1 = (r.y1 * (h / ph) + 1.5f).toInt().coerceIn(y0 + 1, h)
+                        val ww = x1 - x0
+                        val hh = y1 - y0
+                        val px = IntArray(ww * hh)
+                        backup.getPixels(px, 0, ww, x0, y0, ww, hh)
+                        bmp.setPixels(px, 0, ww, x0, y0, ww, hh)
+                    }
+                    backup.recycle()
                 }
 
                 val bos = ByteArrayOutputStream()

@@ -1,9 +1,16 @@
 package com.neurotracee.pdfmask.core
 
 import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.Matrix
+import android.graphics.RectF
+import kotlin.math.abs
+import kotlin.math.cos
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
+import kotlin.math.sin
 
 /**
  * 扫描件的前处理：把「灰字 + 泛黄纸底」「一边亮一边暗」这类页面，拉回
@@ -183,5 +190,110 @@ object OcrPreprocess {
         if (values.isEmpty()) return 0f
         java.util.Arrays.sort(values)
         return pick(values, values.size, p)
+    }
+
+    // ------------------------------------------------------------------ 倾斜校正
+    // 与 Python 端 pdfmask_ocr.estimate_skew 用同一套判据：
+    // 旋转若干角度，看水平投影「相邻行差」的方差，文字摆得越正，行间空隙越干净。
+    // 手机拍照 / 平板扫描的页面几乎都带 0.3~2 度歪，歪着送进检测网络会整行漏掉。
+
+    private fun graySmall(src: Bitmap): Triple<FloatArray, Int, Int> {
+        val s = min(1f, 600f / maxOf(src.width, src.height).toFloat())
+        val w = max(1, (src.width * s).roundToInt())
+        val h = max(1, (src.height * s).roundToInt())
+        val small = if (w == src.width && h == src.height) src
+                    else Bitmap.createScaledBitmap(src, w, h, true)
+        val px = IntArray(w * h)
+        small.getPixels(px, 0, w, 0, 0, w, h)
+        val gray = FloatArray(w * h) { i ->
+            val c = px[i]
+            ((c shr 16 and 0xFF) * 0.299f + (c shr 8 and 0xFF) * 0.587f + (c and 0xFF) * 0.114f)
+        }
+        if (small !== src) small.recycle()
+        return Triple(gray, w, h)
+    }
+
+    /** 水平投影相邻行差值的方差；不新建旋转后的图，直接按角度反采样，几十次评分也不卡 */
+    private fun skewScore(gray: FloatArray, w: Int, h: Int, deg: Float): Float {
+        val rad = Math.toRadians(deg.toDouble())
+        val ca = cos(rad).toFloat()
+        val sa = sin(rad).toFloat()
+        val cx = w / 2f
+        val cy = h / 2f
+        val prof = FloatArray(h)
+        for (y in 0 until h) {
+            val dy = y - cy
+            var cnt = 0f
+            var x = 0
+            while (x < w) {
+                val dx = x - cx
+                val sx = (ca * dx + sa * dy + cx).roundToInt()
+                val sy = (-sa * dx + ca * dy + cy).roundToInt()
+                if (sx in 0 until w && sy in 0 until h && gray[sy * w + sx] < 165f) cnt++
+                x += 2
+            }
+            prof[y] = cnt
+        }
+        var mean = 0f
+        for (y in 1 until h) mean += prof[y] - prof[y - 1]
+        mean /= max(1, h - 1)
+        var v = 0f
+        for (y in 1 until h) {
+            val d = prof[y] - prof[y - 1] - mean
+            v += d * d
+        }
+        return v / max(1, h - 1)
+    }
+
+    /** 返回「把页面摆正需要旋转的角度」；小于 0.2 度不动，免得白转一次掉精度 */
+    fun estimateSkew(src: Bitmap): Float {
+        val (gray, w, h) = graySmall(src)
+        var best = 0f
+        var bestV = skewScore(gray, w, h, 0f)
+        var t = -3f
+        while (t <= 3.0001f) {
+            val v = skewScore(gray, w, h, t)
+            if (v > bestV) { bestV = v; best = t }
+            t += 0.25f
+        }
+        t = best - 0.35f
+        while (t <= best + 0.3501f) {
+            val v = skewScore(gray, w, h, t)
+            if (v > bestV) { bestV = v; best = t }
+            t += 0.05f
+        }
+        return if (abs(best) < 0.2f) 0f else best
+    }
+
+    /** 整页旋转摆正，画布尺寸不变、四角补白，这样坐标换算只需要绕中心一次 */
+    fun rotate(src: Bitmap, deg: Float): Bitmap {
+        val out = Bitmap.createBitmap(src.width, src.height, Bitmap.Config.ARGB_8888)
+        val c = Canvas(out)
+        c.drawColor(Color.WHITE)
+        val m = Matrix()
+        m.postRotate(deg, src.width / 2f, src.height / 2f)
+        c.drawBitmap(src, m, null)
+        return out
+    }
+
+    /** 把摆正图里的检测框换回原图坐标：四角各转一次，取外接矩形 */
+    fun unrotateBox(box: RectF, cx: Float, cy: Float, deg: Float): RectF {
+        if (deg == 0f) return box
+        val rad = Math.toRadians(deg.toDouble())
+        val ca = cos(rad).toFloat()
+        val sa = sin(rad).toFloat()
+        var x0 = Float.MAX_VALUE
+        var y0 = Float.MAX_VALUE
+        var x1 = -Float.MAX_VALUE
+        var y1 = -Float.MAX_VALUE
+        for (p in arrayOf(box.left to box.top, box.right to box.top,
+                          box.right to box.bottom, box.left to box.bottom)) {
+            val dx = p.first - cx
+            val dy = p.second - cy
+            val x = ca * dx - sa * dy + cx
+            val y = sa * dx + ca * dy + cy
+            x0 = min(x0, x); y0 = min(y0, y); x1 = max(x1, x); y1 = max(y1, y)
+        }
+        return RectF(x0, y0, x1, y1)
     }
 }
