@@ -1,3 +1,24 @@
+# 1.4.7.3（2026-11-16）
+
+**中文** | [English](#1473)
+
+更新级别：可选（仅安卓应用内更新的缓存清理）
+
+> **一句话**：应用内更新下载失败 / 中断时，半成品安装包现在会立刻删掉，不再留在缓存里占地方。
+
+## 修复：安卓应用内更新的临时文件残留
+
+- 下载中断、网络断开、内容不完整、下到的不是安装包、版本对不上等**任何失败路径**，都会删除缓存目录里的半成品 `download.part`（原来只在下次点更新时才清）。
+- 保留策略不变：下载目录用固定文件名，每次下载开头先清一次；所以中断 100 次也只会有 1 个残包，不会被覆盖安装留下、也不会一直堆着。
+- 已下好、只差「安装应用」权限的正式包仍会保留，供「继续安装」用。
+- 新增 `UpdateApkCacheTest`（Robolectric，4 例）验证：100 次中断只留 1 个 part、`clean` 清掉残包与旧包、`keep` 保留待安装包、目录按需创建。
+
+## English
+
+**Fix (Android in-app update).** Any failed or interrupted download now deletes the partial `download.part` immediately instead of leaving it in the cache until the next update attempt. The download folder still uses fixed filenames and is cleaned at the start of every download, so 100 interrupted attempts still leave at most one partial file. An already-downloaded APK waiting only for the install permission is kept for "Continue". Added `UpdateApkCacheTest` (4 Robolectric cases).
+
+---
+
 # 1.4.7.2（2026-11-16）
 
 **中文** | [English](#1472)

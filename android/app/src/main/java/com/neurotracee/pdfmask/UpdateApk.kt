@@ -180,6 +180,11 @@ object UpdateApk {
                     )
                 }
             }
+        } catch (e: Exception) {
+            // 下载中断（网络断 / 校验不过 / 太小 / 不是安装包 / 版本不符）时不要把
+            // 半成品留在缓存里占地方。clean() 只删 update 目录下的残包，不碰别的缓存。
+            part.delete()
+            throw e
         } finally {
             conn.disconnect()
         }
