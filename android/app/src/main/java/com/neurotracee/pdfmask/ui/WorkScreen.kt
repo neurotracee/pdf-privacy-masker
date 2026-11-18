@@ -220,10 +220,6 @@ fun WorkScreen(
             BottomBar(vm, onGenerate)
         }
 
-        if (vm.stage == Stage.MASKING) {
-            MaskingOverlay(vm.progress)
-        }
-
         if (vm.stage == Stage.DONE) {
             DoneDialog(vm) { onOpenFile(vm.savedName) }
         }
@@ -1203,42 +1199,6 @@ private fun BottomBar(vm: AppViewModel, onGenerate: () -> Unit) {
                     T("生成打码 PDF", "Mask PDF"),
                     fontSize = 13.sp,
                     fontWeight = FontWeight.SemiBold
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun MaskingOverlay(progress: Float) {
-    Box(
-        Modifier
-            .fillMaxSize()
-            .background(Color(0x99101820)),
-        contentAlignment = Alignment.Center
-    ) {
-        Surface(shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surface) {
-            Column(
-                Modifier.padding(24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(30.dp),
-                    strokeWidth = 3.dp,
-                    color = MaterialTheme.colorScheme.primary
-                )
-                Spacer(Modifier.height(14.dp))
-                Text(T("正在生成…", "Generating…"), fontSize = 14.sp, fontWeight = FontWeight.Medium)
-                Spacer(Modifier.height(10.dp))
-                LinearProgressIndicator(
-                    progress = { progress },
-                    modifier = Modifier.width(180.dp).height(4.dp).clip(RoundedCornerShape(2.dp))
-                )
-                Spacer(Modifier.height(8.dp))
-                Text(
-                    "${(progress * 100).toInt()}%",
-                    fontSize = 11.5.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }

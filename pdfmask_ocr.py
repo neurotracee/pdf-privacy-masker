@@ -569,17 +569,28 @@ class OcrEngine(object):
         return results
 
     # -- 对外接口 -----------------------------------------------------------
-    def page_lines(self, page, zoom: float = None, min_conf: float = 0.0):
+    def page_lines(self, page, zoom: float = None, min_conf: float = 0.0, on_stage=None):
         """把一页渲染出来做 OCR，返回 [(text, entries)]
 
         entries 与 `pdfmask._visual_lines()` 同构：(字, Rect) 或 (" ", None)，
         Rect 用**页面显示坐标**（与 redact 用的坐标系一致）。
+
+        on_stage(frac)：本页内部的粗略进度（0~1），只给界面的「当前页」进度条用。
         """
         import pymupdf
 
+        def stage(f):
+            if on_stage is not None:
+                try:
+                    on_stage(f)
+                except Exception:
+                    pass
+
+        stage(0.05)
         z = float(zoom) if zoom else _pick_zoom(page)
         pix = page.get_pixmap(matrix=pymupdf.Matrix(z, z), alpha=False, colorspace=pymupdf.csRGB)
         full = np.frombuffer(pix.samples, dtype=np.uint8).reshape(pix.height, pix.width, 3)
+        stage(0.15)
 
         # 先摆正再检测：扫描件 / 拍照件几乎都带零点几度的歪，
         # 歪着送进检测网络，整行会被漏掉（实测 0.9 度就能让 15 行只剩 5 行）。
@@ -606,7 +617,9 @@ class OcrEngine(object):
         small = (_resize_rgb(work, int(round(w * scale)), int(round(h * scale)))
                  if scale < 1.0 else work)
         boxes = self._detect(small)
+        stage(0.45)
         if not boxes:
+            stage(1.0)
             return []
 
         # 裁到全分辨率图上做识别：检测只要位置，识别要好像素
@@ -632,12 +645,15 @@ class OcrEngine(object):
             rects.append((X0, Y0, X1, Y1, ry0, ry1))
 
         if not crops:
+            stage(1.0)
             return []
 
         patches = [work[a[0]:a[1], a[2]:a[3]] for a in crops]
         recs = []
-        for i in range(0, len(patches), REC_BATCH):
+        n_batches = max(1, (len(patches) + REC_BATCH - 1) // REC_BATCH)
+        for bi, i in enumerate(range(0, len(patches), REC_BATCH)):
             recs.extend(self._rec_batch(patches[i:i + REC_BATCH]))
+            stage(0.45 + 0.45 * (bi + 1) / n_batches)
 
         items = []
         for (X0, Y0, X1, Y1, ry0, ry1), (text, chars) in zip(rects, recs):
@@ -682,7 +698,10 @@ class OcrEngine(object):
                         it["y0"] = c - cap / 2.0
                         it["y1"] = c + cap / 2.0
 
-        return _group_lines(items)
+        stage(0.95)
+        out = _group_lines(items)
+        stage(1.0)
+        return out
 
 
 def _group_lines(items):

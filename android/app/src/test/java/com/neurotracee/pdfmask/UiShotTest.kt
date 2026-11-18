@@ -31,6 +31,7 @@ import com.neurotracee.pdfmask.core.PageText
 import com.neurotracee.pdfmask.core.Rect
 import com.neurotracee.pdfmask.ui.FoldInfo
 import com.neurotracee.pdfmask.ui.HomeScreen
+import com.neurotracee.pdfmask.ui.JobPanel
 import androidx.compose.foundation.shape.RoundedCornerShape
 import com.neurotracee.pdfmask.ui.PdfMaskTheme
 import com.neurotracee.pdfmask.ui.AboutPanel
@@ -253,6 +254,37 @@ class UiShotTest {
     // ---------- 用例 ----------
 
     /** 360×800dp 常见手机竖屏 */
+    @Test
+    @Config(qualifiers = "w360dp-h800dp-xxhdpi")
+    fun job_panel_running() = render("09-job-panel-running") {
+        // 与真实界面同样：贴在底部居中，不是铺满整屏
+        androidx.compose.foundation.layout.Box(
+            androidx.compose.ui.Modifier.fillMaxSize(),
+            contentAlignment = androidx.compose.ui.Alignment.BottomCenter
+        ) {
+        JobPanel(
+            title = "正在识别扫描页", note = "扫描页",
+            page = 4, pages = 12, pageFrac = 0.62f, overall = 0.28f,
+            paused = false, animate = false, onPause = {}, onResume = {}, onStop = {}
+        )
+        }
+    }
+
+    @Test
+    @Config(qualifiers = "w360dp-h800dp-xxhdpi")
+    fun job_panel_paused() = render("10-job-panel-paused") {
+        androidx.compose.foundation.layout.Box(
+            androidx.compose.ui.Modifier.fillMaxSize(),
+            contentAlignment = androidx.compose.ui.Alignment.BottomCenter
+        ) {
+        JobPanel(
+            title = "正在打码", note = "",
+            page = 7, pages = 12, pageFrac = 0.15f, overall = 0.58f,
+            paused = true, animate = false, onPause = {}, onResume = {}, onStop = {}
+        )
+        }
+    }
+
     @Test
     @Config(qualifiers = "w360dp-h800dp-xxhdpi")
     fun home_phone_portrait() = shootApp("01-home-phone-portrait", false, false, noFold)

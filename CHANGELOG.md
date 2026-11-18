@@ -1,3 +1,52 @@
+# 1.4.8.0（2026-11-18）
+
+**中文** | [English](#1480)
+
+更新级别：建议（功能新增，两端同步）
+
+> **一句话**：拖文件进来不再只有一个转圈——窗口底部会出现一块进度面板，上面是当前页的进度、下面是整个文件的进度，还能暂停、继续、停止。
+
+**开发模型**：常用、惯用、主要是 **DeepSeek-V4.1-Flash**——大多数场景和功能维护升级都以它为核心骨架；偶尔也会用其他模型，如 GLM 5.3 Flash、Hy4 Flash。本次改动由 DeepSeek-V4.1-Flash 接手完成。
+
+## 背景
+
+打开一份 PDF 时要逐页读文字、扫描件还要跑一遍 OCR，慢的时候要几十秒。这期间界面上只有一个转圈和一句「正在识别…」：不知道跑到第几页、不知道还剩多久、想停也停不下来，容易被当成卡死。
+
+## 新增
+
+- **底部居中的进度面板（两端一致）**：
+  - 第一行：当前阶段（读取文件 / 读取文字层 / 识别扫描页 / 定位敏感信息 / 打码 / 保存）+「第 3 / 12 页」+ 右侧总百分比；
+  - 第二行：**当前页**进度条（这一页内部的进度，逐字识别时按检测框推进）；
+  - 第三行：**整个文件**进度条（渐变 + 流光，在动就是没卡住）；
+  - 第四行：**暂停 / 停止**，暂停后第一颗按钮变成**继续**。
+- 扫描件 OCR 阶段，「第 x / y 页」按**需要 OCR 的页数**算，并标注「扫描页」，不会出现「第 1/1 页」却跑很久这种看不懂的数字。
+- 保存（打码）阶段同样有两条进度：当前页在渲染 / 马赛克 / 编码哪一步，文件整体到第几页。
+
+## 实现要点
+
+- 两端同一个模型：任务状态机（页码、本页比例、总进度、暂停、停止）由工作线程更新，界面只负责画。
+- 暂停发生在**页与页之间的安全点**，不打断 pymupdf / onnxruntime 的底层调用；因此停下来不会留下半页的坏状态，点「继续」从下一页接着跑。
+- 停止抛一个专门的取消信号（安卓 `JobCancelled` / 桌面 `JobCancelled`），一路冒到界面层显示「已停止」，不会被当成「解析失败」，也不会在缓存里留下半成品文件。
+- 安卓端的进度数字与界面同源：`OcrEngine.readPage` 按「前处理 → 摆正 → 检测 → 逐框识别 → 分行」报比例；桌面端 `page_lines` 同一套阶段。
+- 面板本身不引额外依赖：三个按钮图标是 Canvas 画的，进度条是圆角矩形 + 渐变 + 流光。
+
+## 验证
+
+- 安卓单测新增 `JobControlTest`（暂停真的冻结、停止真的抛出、停止能叫醒等待中的线程、停止后 resume 不会复活）。
+- 界面截图核对新增「进行中 / 已暂停」两张（`app/build/ui-shots/09-*`、`10-*`）。
+- 桌面端新增 `dev/test_job_progress.py`：直连 `detect()` 校验页码递增与总进度单调；校验暂停后 0.8 秒内进度冻结、继续后重新上升、停止抛 `JobCancelled`；再用真 HTTP 跑一遍上传与 `/api/job`、`/api/job/pause|resume|stop`（18 项全过）。
+- 面板版式单独出图核对：`dev/make_job_panel_preview.py`（用程序真正在浏览器里跑的那份 HTML 渲染）。
+
+## English
+
+<a id="1480"></a>
+
+**New: progress panel (both clients).** Opening a PDF used to show nothing but a spinner. Now a card sits at the bottom centre with two bars — the current page's progress and the whole file's progress — plus a page counter ("page 3 of 12"), a stage label, and Pause / Stop buttons that turn into Resume / Stop when paused. Scanned pages count the page numbers in OCR terms and say "scanned", so the numbers match what is actually happening. Masking/export gets the same two bars.
+
+Pause happens at a safe point between pages, so pymupdf/onnxruntime native calls are never interrupted and stopping never leaves a half-written page behind. Stop raises a dedicated cancellation signal that surfaces as "stopped" instead of an error, and no partial file is left in the cache.
+
+Verified by the new `JobControlTest` (Android), two UI screenshots (running / paused) and `dev/test_job_progress.py` on the desktop side (18 assertions, including a real HTTP round-trip against `/api/job` and its pause/resume/stop endpoints).
+
 # 1.4.7.5（2026-11-16）
 
 **中文** | [English](#1475)

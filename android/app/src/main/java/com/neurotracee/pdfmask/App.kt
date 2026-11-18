@@ -49,6 +49,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.neurotracee.pdfmask.ui.AppInfoDialog
 import com.neurotracee.pdfmask.ui.AutoUpdateGate
 import com.neurotracee.pdfmask.ui.HomeScreen
+import com.neurotracee.pdfmask.ui.JobOverlay
 import com.neurotracee.pdfmask.ui.LeaveConfirmDialog
 import com.neurotracee.pdfmask.ui.GreenTag
 import com.neurotracee.pdfmask.ui.SaveTargetDialog
@@ -194,6 +195,9 @@ fun AppRoot(vm: AppViewModel = viewModel()) {
                     onOpenFile = { name -> savedMsg(name) }
                 )
             }
+
+            // 识别 / 打码进行中：底部居中的进度面板（两条进度 + 暂停/停止/继续）
+            if (vm.jobActive) JobOverlay(vm)
         }
     }
 

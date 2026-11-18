@@ -186,10 +186,34 @@ main{flex:1;min-height:0;display:flex;overflow:hidden}
 .sum{font-size:13px;color:var(--ink2)}
 .sum b{color:var(--ink);font-size:15px}
 /* overlay / toast / result */
-.overlay{position:fixed;inset:0;background:rgba(244,245,247,.82);backdrop-filter:blur(3px);
-  display:grid;place-items:center;z-index:200}
-.overlay .box{background:#fff;border-radius:16px;padding:26px 34px;text-align:center;
-  box-shadow:0 24px 60px -24px rgba(15,24,40,.4);min-width:260px}
+.overlay{position:fixed;inset:0;background:rgba(244,245,247,.62);backdrop-filter:blur(3px);
+  display:flex;align-items:flex-end;justify-content:center;z-index:200;padding:22px}
+/* ---- 处理中的进度面板（贴在窗口底部居中）----
+   以前这里只有一个转圈加一行字：看不出进度、也停不下来。
+   现在是「当前页 + 整个文件」两条进度，配暂停 / 停止 / 继续。 */
+.jobp{width:min(560px,100%);background:#fff;border-radius:20px;padding:18px 20px 16px;
+  box-shadow:0 26px 70px -28px rgba(15,24,40,.5)}
+.jobhead{display:flex;align-items:center;gap:12px}
+.jobtitle{flex:1;font-size:15px;font-weight:600;color:var(--ink);line-height:1.35}
+.jobpct{font-size:22px;font-weight:700;color:var(--accent);font-variant-numeric:tabular-nums}
+.jobpage{font-size:12px;color:var(--ink2);margin-top:4px}
+.barrow{display:grid;grid-template-columns:60px 1fr 44px;gap:10px;align-items:center;margin-top:10px}
+.barrow > span{font-size:11.5px;color:var(--ink2)}
+.bar{height:8px;border-radius:99px;background:#e8ecf3;overflow:hidden}
+.barrow.strong .bar{height:12px}
+.bar > i{display:block;height:100%;width:0;border-radius:99px;
+  background:linear-gradient(90deg,rgba(79,124,247,.5),rgba(79,124,247,.85));
+  transition:width .28s ease}
+.barrow.strong .bar > i{background:linear-gradient(90deg,#4f7cf7,#7c5cf0)}
+.barrow > b{font-size:11.5px;color:var(--ink2);text-align:right;font-variant-numeric:tabular-nums}
+.barrow.strong > b{color:var(--accent);font-weight:600}
+.jobp.paused .bar > i{filter:grayscale(.45);opacity:.55}
+.jobbtns{display:flex;justify-content:center;gap:12px;margin-top:16px}
+.jbtn{border:0;border-radius:99px;padding:10px 26px;font-size:13.5px;font-weight:600;cursor:pointer;
+  background:#eef2ff;color:var(--accent);font-family:inherit;transition:filter .15s}
+.jbtn:hover{filter:brightness(.97)}
+.jbtn.primary{background:var(--accent);color:#fff}
+.jbtn.stop{background:#fdecea;color:#b42318}
 .spin{width:32px;height:32px;border:3px solid #e3e8f0;border-top-color:var(--accent);border-radius:50%;
   margin:0 auto 14px;animation:sp .8s linear infinite}
 @keyframes sp{to{transform:rotate(360deg)}}
@@ -448,7 +472,21 @@ main{flex:1;min-height:0;display:flex;overflow:hidden}
 </div>
 
 <div class="overlay" id="overlay" hidden>
-  <div class="box"><div class="spin"></div><div class="ov-text" id="ovText">处理中…</div></div>
+  <div class="jobp" id="jobPanel">
+    <div class="jobhead">
+      <div class="jobtitle" id="jobTitle">处理中…</div>
+      <div class="jobpct" id="jobPct">0%</div>
+    </div>
+    <div class="jobpage" id="jobPage">正在准备…</div>
+    <div class="barrow"><span id="jobPageLabel">当前页</span>
+      <div class="bar"><i id="jobBarPage"></i></div><b id="jobPagePct">0%</b></div>
+    <div class="barrow strong"><span id="jobAllLabel">整个文件</span>
+      <div class="bar"><i id="jobBarAll"></i></div><b id="jobAllPct">0%</b></div>
+    <div class="jobbtns">
+      <button class="jbtn primary" id="jobPause">暂停</button>
+      <button class="jbtn stop" id="jobStop">停止</button>
+    </div>
+  </div>
 </div>
 <div class="toast" id="toast"></div>
 
@@ -823,9 +861,68 @@ function copyText(text, okMsg){
 function copyProjectUrl(el){
   copyText(el.dataset.url || el.textContent, T('已复制项目地址：', 'Link copied: '));
 }
-function overlay(on, text){
-  $('overlay').hidden = !on; if (text) $('ovText').textContent = text;
+/* ---------- 处理进度面板 ---------- */
+/* 服务端每跑一页就会更新 /api/job，这里 250ms 拉一次画两条进度条。
+   暂停 / 停止是「请求服务端」，本地不自己编状态——否则界面说停了、后台还在跑。 */
+let JOB_TIMER = 0, JOB_PAUSED = false;
+
+function jobShow(title){
+  $('overlay').hidden = false;
+  const el = $('jobTitle');
+  el.textContent = title || T('正在处理…', 'Working…');
+  $('jobPageLabel').textContent = T('当前页', 'This page');
+  $('jobAllLabel').textContent = T('整个文件', 'Whole file');
+  $('jobPause').textContent = T('暂停', 'Pause');
+  $('jobStop').textContent = T('停止', 'Stop');
+  $('jobPanel').classList.remove('paused');
+  $('jobPage').textContent = T('正在准备…', 'Getting ready…');
+  $('jobPct').textContent = '0%';
+  $('jobPagePct').textContent = '0%';
+  $('jobAllPct').textContent = '0%';
+  $('jobBarPage').style.width = '0%';
+  $('jobBarAll').style.width = '0%';
+  JOB_PAUSED = false;
+  clearTimeout(JOB_TIMER);
+  jobPoll();
 }
+function jobHide(){
+  clearTimeout(JOB_TIMER); JOB_TIMER = 0;
+  $('overlay').hidden = true;
+}
+async function jobPoll(){
+  try{
+    const r = await fetch('/api/job', {headers:{'X-Token':TOKEN}, cache:'no-store'});
+    if(r.ok){ const d = await r.json(); if(d && d.active) paintJob(d); }
+  }catch(e){}
+  JOB_TIMER = setTimeout(jobPoll, 250);
+}
+function paintJob(d){
+  const pc = Math.round((d.overall || 0) * 100);
+  const pf = Math.round((d.pageFrac || 0) * 100);
+  JOB_PAUSED = !!d.paused;
+  $('jobTitle').textContent = d.paused ? T('已暂停', 'Paused')
+    : (LANG === 'en' ? (d.titleEn || d.title) : d.title);
+  $('jobPct').textContent = pc + '%';
+  $('jobPagePct').textContent = pf + '%';
+  $('jobAllPct').textContent = pc + '%';
+  $('jobBarPage').style.width = pf + '%';
+  $('jobBarAll').style.width = pc + '%';
+  $('jobPage').textContent = d.pages > 0
+    ? (LANG === 'en' ? ('Page ' + (d.page || 1) + ' of ' + d.pages)
+                     : ('第 ' + (d.page || 1) + ' / ' + d.pages + ' 页'))
+      + (d.note ? (' · ' + d.note) : '')
+    : T('正在准备…', 'Getting ready…');
+  $('jobPanel').classList.toggle('paused', JOB_PAUSED);
+  $('jobPause').textContent = JOB_PAUSED ? T('继续', 'Resume') : T('暂停', 'Pause');
+}
+async function jobCtrl(what){
+  try{
+    const r = await fetch('/api/job/' + what, {method:'POST', headers:{'X-Token':TOKEN}});
+    if(r.ok){ const d = await r.json(); if(d && d.active) paintJob(d); }
+  }catch(e){}
+}
+$('jobPause').onclick = () => jobCtrl(JOB_PAUSED ? 'resume' : 'pause');
+$('jobStop').onclick = () => jobCtrl('stop');
 async function api(path, opts){
   opts = opts || {};
   opts.headers = Object.assign({'X-Token':TOKEN}, opts.headers||{});
@@ -843,23 +940,23 @@ async function api(path, opts){
 async function uploadFile(file){
   if(!file) return;
   if(!/\.pdf$/i.test(file.name)) return toast(T('只支持 PDF 文件', 'PDF files only'), true);
-  overlay(true, T('正在识别敏感信息…', 'Scanning for sensitive data…'));
+  jobShow(T('正在识别敏感信息…', 'Scanning for sensitive data…'));
   try{
     const r = await fetch('/api/upload', {method:'POST',
       headers:{'X-Token':TOKEN,'X-File-Name':encodeURIComponent(file.name)}, body:file});
     if(!r.ok){ let m=T('识别失败', 'Scan failed'); try{const j=await r.json(); m=j.error||m;}catch(e){} throw new Error(m); }
     applyDoc(await r.json());
   }catch(e){ toast(e.message, true); }
-  finally{ overlay(false); }
+  finally{ jobHide(); }
 }
 async function openPath(path){
-  overlay(true, T('正在识别敏感信息…', 'Scanning for sensitive data…'));
+  jobShow(T('正在识别敏感信息…', 'Scanning for sensitive data…'));
   try{
     const d = await api('/api/open', {method:'POST', headers:{'Content-Type':'application/json'},
       body:JSON.stringify({path:path})});
     applyDoc(d);
   }catch(e){ toast(e.message, true); }
-  finally{ overlay(false); }
+  finally{ jobHide(); }
 }
 
 function applyDoc(d){
@@ -1267,16 +1364,16 @@ async function saveCopyAs(token, initial){
 
 async function doRender(opt){
   if(!S.sel.size) return;
-  overlay(true, T('正在生成打码 PDF…', 'Generating masked PDF…'));
+  jobShow(T('正在生成打码 PDF…', 'Generating masked PDF…'));
   try{
     const body = {doc:S.docId, ids:[...S.sel], erasers:S.erasers};
     if(opt){ body.dir = opt.dir || ''; body.remember = !!opt.remember; body.noAsk = !!opt.noAsk; }
     const d = await api('/api/render', {method:'POST', headers:{'Content-Type':'application/json'},
       body:JSON.stringify(body)});
-    overlay(false);
+    jobHide();
     if(opt) await loadCfg();
     showResult(d);
-  }catch(e){ overlay(false); toast(e.message, true); }
+  }catch(e){ jobHide(); toast(e.message, true); }
 }
 
 /* 生成：先决定要不要问保存位置 */

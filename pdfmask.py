@@ -71,7 +71,7 @@ from thanks_asset import QR_PNG_B64  # 赞赏码图片（base64 内嵌，单文�
 APP_NAME = "PDF 隐私打码工具"
 # 版本号统一四段：主.次.修订.小版本（见 CONTRIBUTING.md「版本号规则」）。
 # 越靠右越细：日常修缺陷、改文案就动第四位；第三位留给成体系的新能力（大版本）。
-VERSION = "1.4.7.4"
+VERSION = "1.4.8.0"
 
 # ---- 署名信息（开源后请勿删除，AGPL-3.0 第 5 条要求保留版权声明） ----
 AUTHOR = "项目创作时为初中生"
@@ -1698,17 +1698,152 @@ def ocr_engine():
     return _OCR_ENGINE
 
 
-def detect(doc, only_pages=None, use_ocr=True):
+# ---------------------------------------------------------------------------
+# 处理任务：进度上报 + 暂停 / 停止
+# ---------------------------------------------------------------------------
+#
+# 以前打开文件只在页面上盖一层「正在识别敏感信息…」的文字，用户既看不出
+# 在干什么、也不知道还剩多久，更没法中途停下。这里把「一页一页往前推」的
+# 过程抽成一个可查询的小状态机：
+#
+#   - 工作线程（HTTP 处理线程）在处理过程中不断调 report() 更新页码与比例；
+#   - 界面每 250ms 拉一次 /api/job，画两条进度条（当前页 / 整个文件）；
+#   - 点「暂停」把 paused 置真，工作线程在**页与页之间**的安全点原地等；
+#   - 点「停止」抛 JobCancelled，一路冒到接口层，返回「已停止」。
+#
+# 只在页边界生效：不去打断 pymupdf / onnxruntime 的 native 调用，
+# 停下来时不会留下半页的错误状态。
+
+class JobCancelled(Exception):
+    """用户点了「停止」。"""
+
+
+class Job:
+    def __init__(self, kind="scan", title="正在处理…", title_en=""):
+        self.lock = threading.Lock()
+        self.active = True
+        self.paused = False
+        self.stopped = False
+        self.kind = kind          # scan / mask
+        self.title = title
+        self.title_en = title_en or title
+        self.note = ""
+        self.page = 0             # 当前页（1 起）
+        self.pages = 0
+        self.page_frac = 0.0
+        self.overall = 0.0
+        self._ev = threading.Event()
+
+    # ---- 状态查询（给 /api/job）----------------------------------------
+    def status(self):
+        with self.lock:
+            return {
+                "active": self.active,
+                "paused": self.paused,
+                "kind": self.kind,
+                "title": self.title,
+                "titleEn": self.title_en,
+                "note": self.note,
+                "page": self.page,
+                "pages": self.pages,
+                "pageFrac": round(self.page_frac, 4),
+                "overall": round(self.overall, 4),
+            }
+
+    # ---- 控制（暂停 / 继续 / 停止）-------------------------------------
+    def pause(self):
+        with self.lock:
+            if not self.stopped:
+                self.paused = True
+
+    def resume(self):
+        with self.lock:
+            if not self.stopped:
+                self.paused = False
+        self._ev.set()
+
+    def stop(self):
+        with self.lock:
+            self.stopped = True
+            self.paused = False
+            self.active = False
+        self._ev.set()
+
+    def finish(self):
+        with self.lock:
+            self.active = False
+            self.paused = False
+        self._ev.set()
+
+    def checkpoint(self):
+        """安全点：暂停则原地等，停止则抛 JobCancelled。"""
+        while True:
+            with self.lock:
+                if self.stopped:
+                    raise JobCancelled()
+                if not self.paused:
+                    return
+            self._ev.wait(0.1)
+            self._ev.clear()
+
+    # ---- 进度上报 -------------------------------------------------------
+    def begin_page(self, page1, pages, title=None, note=None):
+        with self.lock:
+            self.page = max(1, int(page1))
+            self.pages = max(0, int(pages))
+            self.page_frac = 0.0
+            if title is not None:
+                self.title = title
+                self.title_en = title
+            if note is not None:
+                self.note = note
+
+    def report(self, frac=None, overall=None):
+        """更新当前页比例；总进度默认由「已完成页数 + 本页比例」推算。"""
+        with self.lock:
+            if frac is not None:
+                self.page_frac = min(1.0, max(0.0, float(frac)))
+            if overall is not None:
+                self.overall = min(1.0, max(0.0, float(overall)))
+            elif self.pages > 0:
+                self.overall = min(
+                    1.0, max(0.0, (self.page - 1 + self.page_frac) / self.pages))
+
+
+JOB = None
+JOB_LOCK = threading.Lock()
+
+
+def job_new(kind, title, title_en=""):
+    global JOB
+    j = Job(kind, title, title_en)
+    with JOB_LOCK:
+        JOB = j
+    return j
+
+
+def job_current():
+    with JOB_LOCK:
+        return JOB
+
+
+def detect(doc, only_pages=None, use_ocr=True, job=None):
     eng = ocr_engine() if use_ocr else None
     LAST_OCR["pages"] = []
     LAST_OCR["secs"] = 0.0
     LAST_OCR["used"] = False
     findings = []
+    total = doc.page_count
     for pno in range(doc.page_count):
         if only_pages is not None and pno not in only_pages:
             continue
+        if job is not None:
+            job.checkpoint()
+            job.begin_page(pno + 1, total)
         page = doc[pno]
         lines = _visual_lines(page)
+        if job is not None:
+            job.report(0.12)
         # 没有文字层（扫描件 / 拍照件 / 纯图片页）时，用 OCR 补出「文字 + 每字矩形」，
         # 后面的识别规则完全复用 —— 打码只吃矩形，不关心矩形是谁给的
         ocr_from = len(lines)
@@ -1717,7 +1852,10 @@ def detect(doc, only_pages=None, use_ocr=True):
                 import pdfmask_ocr as _o
                 if _o.needs_ocr(page):
                     _t0 = time.time()
-                    got = eng.page_lines(page)
+                    # OCR 内部按「渲染 → 检测 → 逐行识别」报比例，映射到本页 0.12~0.85
+                    got = eng.page_lines(
+                        page,
+                        on_stage=(lambda f: job.report(0.12 + 0.73 * f)) if job else None)
                     LAST_OCR["secs"] += time.time() - _t0
                     if got:
                         lines = lines + got
@@ -1800,6 +1938,8 @@ def detect(doc, only_pages=None, use_ocr=True):
         for f in scan_widgets(page, pno):
             f["rect"] = _to_page_rect(f["rect"], page)
             findings.append(f)
+        if job is not None:
+            job.report(1.0)
     findings = _dedupe(findings)
     findings = _dedupe(_spread_confirmed_names(doc, findings))
     # 疑似人名：证据不足、默认不打码，但列出来让用户一眼确认
@@ -2041,7 +2181,7 @@ def _scrub_toc(doc, vals):
     return changed
 
 
-def redact(doc, findings, review_rects=None, erasers=None):
+def redact(doc, findings, review_rects=None, erasers=None, job=None):
     """执行打码：先按原文渲染像素 → 马赛克 → 抹除文本层 → 贴回马赛克块
 
     最后再洗一遍注释与书签（正文打码碰不到它们）。
@@ -2070,7 +2210,14 @@ def redact(doc, findings, review_rects=None, erasers=None):
     by_page = {}
     for f in findings:
         by_page.setdefault(f["page"], []).append((f.get("type") or "", pymupdf.Rect(f["rect"])))
-    for pno, items in by_page.items():
+    order = list(by_page.items())
+    for idx, (pno, items) in enumerate(order):
+        if job is not None:
+            job.checkpoint()
+            job.begin_page(pno + 1, doc.page_count)
+            # 打码只碰「有命中」的页，所以总进度按命中页的完成比例算，
+            # 页数仍显示文件真实页码（第 7/12 页），两者不矛盾
+            job.report(frac=0.0, overall=0.9 * idx / max(1, len(order)))
         page = doc[pno]
         prect = page.rect
         clusters = []
@@ -2291,7 +2438,7 @@ TYPE_COLOR = {
 
 
 class DocState:
-    def __init__(self, path, name):
+    def __init__(self, path, name, job=None):
         self.path = path
         self.name = name
         raw = pymupdf.open(path)
@@ -2310,7 +2457,7 @@ class DocState:
                 "hasText": bool(p.get_text().strip()),
                 "rot": p.rotation,
             })
-        self.findings = detect(self.doc)
+        self.findings = detect(self.doc, job=job)
         self.ocr_pages = list(LAST_OCR["pages"])
         self.ocr_secs = round(LAST_OCR["secs"], 2)
         self.manual_n = 0
@@ -2739,7 +2886,7 @@ def _preview_png(state, pno, zoom, sel, show_mask, hi, erasers=None):
     return buf.getvalue()
 
 
-def _build_output(state, ids, out_dir="", erasers=None):
+def _build_output(state, ids, out_dir="", erasers=None, job=None):
     sel = [f for f in state.findings if f["id"] in set(ids)]
     if not sel:
         raise ValueError("没有选中任何需要打码的内容")
@@ -2752,7 +2899,11 @@ def _build_output(state, ids, out_dir="", erasers=None):
         work = src
     else:
         src.close()
-    redact(work, sel, erasers=erasers)
+    redact(work, sel, erasers=erasers, job=job)
+    if job is not None:
+        job.title = "正在保存…"
+        job.title_en = "Saving…"
+        job.report(frac=1.0, overall=0.92)
     total_pages = work.page_count
     base = os.path.splitext(state.name)[0]
     outp = _unique_path(folder, base, "_已打码")
@@ -2762,6 +2913,8 @@ def _build_output(state, ids, out_dir="", erasers=None):
         work.close()
         raise ValueError("保存失败：%s\n请换一个保存位置，或关掉正在打开的同名文件再试" % e)
     work.close()
+    if job is not None:
+        job.report(frac=1.0, overall=1.0)
     tok = uuid.uuid4().hex[:16]
     stats = {}
     for f in sel:
@@ -2873,6 +3026,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if u.path == "/api/ping":
             self._json({"ok": True})
             return
+        if u.path == "/api/job":
+            # 前端 250ms 拉一次，用来画两条进度条。任务不存在 = 没在跑。
+            if not self._authed():
+                return
+            j = job_current()
+            return self._json(j.status() if j is not None else {"active": False})
         if u.path == "/api/check_update":
             # GET / POST 都收：前端一直用 GET（api() 不带 method），
             # 早先只注册了 POST，导致手动检查拿到 404 —— v1.4.2 一并修掉。
@@ -2926,6 +3085,21 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if not self._authed():
             return
         try:
+            if u.path == "/api/job/pause":
+                j = job_current()
+                if j is not None:
+                    j.pause()
+                return self._json(j.status() if j is not None else {"active": False})
+            if u.path == "/api/job/resume":
+                j = job_current()
+                if j is not None:
+                    j.resume()
+                return self._json(j.status() if j is not None else {"active": False})
+            if u.path == "/api/job/stop":
+                j = job_current()
+                if j is not None:
+                    j.stop()
+                return self._json(j.status() if j is not None else {"active": False})
             if u.path == "/api/upload":
                 return self._upload()
             if u.path == "/api/open":
@@ -2971,7 +3145,16 @@ class Handler(http.server.BaseHTTPRequestHandler):
                         erasers[int(k)] = [pymupdf.Rect(*[float(v) for v in r]) for r in rects]
                     except Exception:
                         continue
-                res = _build_output(st, data.get("ids", []), out_dir, erasers)
+                job = job_new("mask", "正在打码", "Masking")
+                try:
+                    res = _build_output(st, data.get("ids", []), out_dir, erasers, job=job)
+                except JobCancelled:
+                    job.finish()
+                    return self._err("已停止")
+                except Exception:
+                    job.finish()
+                    raise
+                job.finish()
                 # 记住用户这次的选择（勾选项只影响「下次」，不改变本次结果）
                 kw = {}
                 if data.get("remember"):
@@ -3042,6 +3225,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 self._json({"ok": True})
                 threading.Thread(target=lambda: (time.sleep(0.3), _hard_exit(0)), daemon=True).start()
                 return
+        except JobCancelled:
+            j = job_current()
+            if j is not None:
+                j.finish()
+            return self._err("已停止")
         except Exception as e:
             return self._err(e, 500)
         self._err("not found", 404)
@@ -3058,10 +3246,21 @@ class Handler(http.server.BaseHTTPRequestHandler):
         path = os.path.join(TMPROOT, did + ".pdf")
         with open(path, "wb") as fh:
             fh.write(raw)
+        job = job_new("scan", "正在识别敏感信息", "Scanning for sensitive data")
         try:
-            st = DocState(path, name)
+            st = DocState(path, name, job=job)
+        except JobCancelled:
+            # 用户点了停止：别把半成品留在临时目录，也别报成「解析失败」
+            job.finish()
+            try:
+                os.remove(path)
+            except Exception:
+                pass
+            return self._err("已停止")
         except Exception as e:
+            job.finish()
             return self._err("无法解析这个 PDF：%s" % e)
+        job.finish()
         st.doc_id = did
         DOCS[did] = st
         self._json(st.payload())
@@ -3071,9 +3270,20 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if not os.path.exists(path) or not path.lower().endswith(".pdf"):
             return self._err("文件不存在或不是 PDF")
         try:
-            st = DocState(path, os.path.basename(path))
+            st = DocState(path, os.path.basename(path), job=job_new("scan", "正在识别敏感信息", "Scanning for sensitive data"))
+        except JobCancelled:
+            j = job_current()
+            if j is not None:
+                j.finish()
+            return self._err("已停止")
         except Exception as e:
+            j = job_current()
+            if j is not None:
+                j.finish()
             return self._err("无法解析这个 PDF：%s" % e)
+        j = job_current()
+        if j is not None:
+            j.finish()
         st.doc_id = uuid.uuid4().hex[:12]
         DOCS[st.doc_id] = st
         self._json(st.payload())

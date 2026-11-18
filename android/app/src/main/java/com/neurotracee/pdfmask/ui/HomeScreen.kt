@@ -162,13 +162,8 @@ private fun ShieldMark(modifier: Modifier = Modifier) {
 
 @Composable
 private fun LoadingCard() {
-    val tr = rememberInfiniteTransition(label = "p")
-    val a by tr.animateFloat(
-        initialValue = 0.35f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(900), RepeatMode.Reverse),
-        label = "a"
-    )
+    // 进度条和暂停按钮都在底部的 JobPanel 里，这里不再放第二个转圈：
+    // 两个动画同时转，用户反而不知道该看哪个。
     Surface(
         shape = RoundedCornerShape(22.dp),
         color = MaterialTheme.colorScheme.surface,
@@ -180,22 +175,35 @@ private fun LoadingCard() {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            CircularProgressIndicator(
-                modifier = Modifier.size(34.dp),
-                strokeWidth = 3.dp,
-                color = MaterialTheme.colorScheme.primary
-            )
-            Spacer(Modifier.height(18.dp))
+            Box(
+                Modifier
+                    .size(88.dp)
+                    .clip(RoundedCornerShape(24.dp))
+                    .background(
+                        Brush.linearGradient(
+                            listOf(Color(0xFF3B82F6), Color(0xFF7C3AED))
+                        )
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                ShieldMark(Modifier.size(54.dp))
+            }
+            Spacer(Modifier.height(20.dp))
             Text(
-                T("正在识别…", "Scanning…"),
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Medium,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = a)
+                T("正在处理这份文档", "Working on your document"),
+                fontSize = 17.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface,
+                textAlign = TextAlign.Center
             )
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(10.dp))
             Text(
-                T("逐页读取文字层并定位敏感信息", "Reading each page and locating sensitive data"),
+                T(
+                    "逐页读取文字并定位敏感信息，进度见下方，随时可以暂停或停止",
+                    "Reading each page and locating sensitive data. Progress is shown below — pause or stop anytime."
+                ),
                 fontSize = 12.5.sp,
+                lineHeight = 19.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center
             )

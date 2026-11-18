@@ -108,9 +108,15 @@ object Detector {
 
     // ---------------------------------------------------------------- 主入口
 
-    fun detect(pages: List<PageText>): List<Finding> {
+    fun detect(
+        pages: List<PageText>,
+        onProgress: (Int, Int) -> Unit = { _, _ -> },
+        job: JobControl? = null
+    ): List<Finding> {
         val findings = mutableListOf<Finding>()
-        for (p in pages) {
+        for ((i, p) in pages.withIndex()) {
+            job?.checkpoint()
+            onProgress(i + 1, pages.size)
             for (line in p.lines) {
                 findings.addAll(scanLine(line, p.index))
             }

@@ -16,6 +16,8 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.neurotracee.pdfmask.core.Detector
 import com.neurotracee.pdfmask.core.Finding
+import com.neurotracee.pdfmask.core.JobCancelled
+import com.neurotracee.pdfmask.core.JobControl
 import com.neurotracee.pdfmask.core.Kind
 import com.neurotracee.pdfmask.core.MaskSummary
 import com.neurotracee.pdfmask.core.PageText
@@ -30,6 +32,9 @@ import java.io.File
 import java.io.FileOutputStream
 
 enum class Stage { HOME, LOADING, READY, MASKING, DONE }
+
+/** 当前跑的是哪一类长任务（决定底部面板的标题与按钮可用性） */
+enum class JobKind { NONE, SCAN, MASK }
 
 /** 一次成功的打开：名字、缓存文件、页面文字、命中列表、文档身份 */
 private data class Loaded(
@@ -65,6 +70,35 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     var savedName by mutableStateOf("")
         private set
 
+    // ------------------------------------------------------------ 任务进度面板
+    //
+    // 以前界面上只有个转圈，用户不知道在干什么、也不知道还要多久。现在统一成
+    // 「文件总进度 + 当前页进度」两条，外加暂停 / 停止 / 继续三个按钮。
+    // 数字全部由工作线程推进（IO 线程写 Compose 状态与 pdfmask 里既有的
+    // `progress = p` 是同一做法），界面只负责画。
+    var jobActive by mutableStateOf(false)
+        private set
+    var jobPaused by mutableStateOf(false)
+        private set
+    var jobKind by mutableStateOf(JobKind.NONE)
+        private set
+    var jobTitle by mutableStateOf("")
+        private set
+
+    /** 标题后的小字说明，例如「扫描页」——OCR 阶段页数只算要 OCR 的那几页 */
+    var jobNote by mutableStateOf("")
+        private set
+    var jobPage by mutableStateOf(0)
+        private set
+    var jobPages by mutableStateOf(0)
+        private set
+    var jobPageFrac by mutableStateOf(0f)
+        private set
+    var jobOverall by mutableStateOf(0f)
+        private set
+
+    private var ctl: JobControl? = null
+
     /** 保存目录记忆（SAF 授权过的树 Uri） */
     var saveTreeUri by mutableStateOf<String?>(null)
         private set
@@ -89,6 +123,70 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun toast(msg: String) {
         message = msg
+    }
+
+    // -------------------------------------------------------------- 任务控制
+
+    private fun beginJob(kind: JobKind, title: String): JobControl {
+        val c = JobControl()
+        ctl = c
+        jobKind = kind
+        jobActive = true
+        jobPaused = false
+        jobTitle = title
+        jobNote = ""
+        jobPage = 0
+        jobPages = 0
+        jobPageFrac = 0f
+        jobOverall = 0f
+        return c
+    }
+
+    private fun endJob() {
+        jobActive = false
+        jobPaused = false
+        jobKind = JobKind.NONE
+        jobTitle = ""
+        jobNote = ""
+        ctl = null
+    }
+
+    fun pauseJob() {
+        ctl?.pause()
+        jobPaused = true
+    }
+
+    fun resumeJob() {
+        ctl?.resume()
+        jobPaused = false
+    }
+
+    /** 停止：工作线程在下一个安全点（页与页之间）抛 [JobCancelled] 退出 */
+    fun stopJob() {
+        ctl?.stop()
+        jobPaused = false
+    }
+
+    /**
+     * 上报进度。整个任务按「阶段权重」换算成一条总进度：
+     * 例如「读取文字层」占 0.05~0.20，那么读到第 2/10 页时总进度就是 0.08。
+     *
+     * @param page0 当前页（从 0 开始）
+     * @param total 本阶段的页数（OCR 阶段只算需要 OCR 的页）
+     */
+    private fun reportProgress(
+        from: Float, to: Float, page0: Int, pageFrac: Float, total: Int,
+        title: String? = null, note: String? = null
+    ) {
+        if (total <= 0) return
+        val p = page0.coerceIn(0, total - 1)
+        val f = pageFrac.coerceIn(0f, 1f)
+        if (title != null) jobTitle = title
+        if (note != null) jobNote = note
+        jobPages = total
+        jobPage = p + 1
+        jobPageFrac = f
+        jobOverall = (from + (to - from) * ((p + f) / total)).coerceIn(0f, 1f)
     }
 
     /**
@@ -194,7 +292,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun cancelMasking() {
-        if (stage == Stage.MASKING) stage = Stage.READY
+        if (stage == Stage.MASKING) {
+            stopJob()
+            stage = Stage.READY
+        }
     }
 
     fun clearMessage() {
@@ -211,27 +312,72 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         // 套到新文档的同一坐标上，看起来像「默认继承了上次的编辑」。
         erasers = emptyMap()
         nextManualId = -1
+        val job = beginJob(JobKind.SCAN, tr("正在读取文件", "Reading file"))
         viewModelScope.launch {
             runCatching {
                 withContext(Dispatchers.IO) {
                     val ctx = getApplication<Application>()
                     val name = queryName(ctx, uri) ?: (tr("文档", "document") + ".pdf")
                     val tmp = File(ctx.cacheDir, "src_" + System.currentTimeMillis() + ".pdf")
+                    // 拷文件也报进度：大文件在低端机上要几秒，不给数字就像卡死
+                    val totalBytes = runCatching {
+                        ctx.contentResolver.openFileDescriptor(uri, "r")?.use { it.statSize }
+                    }.getOrNull() ?: -1L
                     ctx.contentResolver.openInputStream(uri)?.use { ins ->
-                        FileOutputStream(tmp).use { outs -> ins.copyTo(outs) }
+                        FileOutputStream(tmp).use { outs ->
+                            val buf = ByteArray(64 * 1024)
+                            var done = 0L
+                            while (true) {
+                                job.checkpoint()
+                                val n = ins.read(buf)
+                                if (n < 0) break
+                                outs.write(buf, 0, n)
+                                done += n
+                                if (totalBytes > 0) {
+                                    jobTitle = tr("正在读取文件", "Reading file")
+                                    jobOverall = 0.05f * (done.toFloat() / totalBytes).coerceAtMost(1f)
+                                }
+                            }
+                        }
                     } ?: error(tr("无法读取这个文件", "Cannot read this file"))
+
                     // 扫描件 / 拍照件没有文字层，PDFBox 读不出任何字形；
                     // 这类页面交给端侧 OCR 补出「文字 + 每字矩形」，后续规则完全复用
-                    val rawText = PdfTextExtractor.extract(ctx, tmp)
-                    val pageText = if (rawText.any { it.lines.isEmpty() })
-                        OcrEngine.augment(ctx, tmp, rawText) else rawText
+                    val rawText = PdfTextExtractor.extract(ctx, tmp) { pno, n ->
+                        reportProgress(0.05f, 0.20f, pno, 0f, n,
+                            tr("正在读取文字层", "Reading text layer"), "")
+                    }
+                    val scanTotal = rawText.count { it.lines.isEmpty() }
+                    var ocrAt = 0
+                    val pageText = if (scanTotal > 0)
+                        OcrEngine.augment(
+                            ctx, tmp, rawText,
+                            onProgress = { i ->
+                                ocrAt = i - 1
+                                reportProgress(0.20f, 0.90f, i - 1, 0f, scanTotal,
+                                    tr("正在识别扫描页", "Reading scanned pages"),
+                                    tr("扫描页", "scanned"))
+                            },
+                            job = job,
+                            onPageFrac = { f ->
+                                reportProgress(0.20f, 0.90f, ocrAt, f, scanTotal)
+                            }
+                        ) else rawText
                     ocrPages = rawText.indices.count {
                         rawText[it].lines.isEmpty() && pageText[it].lines.isNotEmpty()
                     }
-                    val found = Detector.detect(pageText)
+                    val found = Detector.detect(
+                        pageText,
+                        onProgress = { i, n ->
+                            reportProgress(0.90f, 1f, i - 1, 0f, n,
+                                tr("正在定位敏感信息", "Locating sensitive data"), "")
+                        },
+                        job = job
+                    )
                     Loaded(name, tmp, pageText, found, "$name|${tmp.length()}")
                 }
             }.onSuccess { r ->
+                endJob()
                 val key = r.key
                 docName = r.name
                 docFile = r.file
@@ -289,10 +435,16 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                     )
                 }
             }.onFailure {
+                endJob()
                 docKey = ""
                 erasers = emptyMap()
                 stage = Stage.HOME
-                toast(tr("打开失败：", "Open failed: ") + (it.message ?: tr("未知错误", "unknown error")))
+                // 用户自己点的「停止」不是失败，不要说成「打开失败」
+                if (it is JobCancelled) {
+                    toast(tr("已停止", "Stopped"))
+                } else {
+                    toast(tr("打开失败：", "Open failed: ") + (it.message ?: tr("未知错误", "unknown error")))
+                }
             }
         }
     }
@@ -327,9 +479,24 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         current = 0
     }
 
+    /**
+     * 真正干打码活的地方：三个保存入口（另存为 / 复制 / 直接存目录）都走这里，
+     * 保证进度上报、暂停停止、擦除减法在三条路径上完全一致。
+     */
+    private fun maskInto(ctx: Context, src: File, os: java.io.OutputStream) {
+        val total = pages.size.coerceAtLeast(1)
+        val job = beginJob(JobKind.MASK, tr("正在打码", "Masking"))
+        PdfMasker.mask(
+            ctx, src, findings.filter { it.id in selected }, os,
+            erasers = erasers,
+            job = job,
+            onPage = { i, fr -> reportProgress(0f, 1f, i, fr, total) },
+            onProgress = { p -> progress = p }
+        )
+    }
+
     /** 渲染某一页缩略图（用于预览） */
-    fun ensureThumb(page: Int, maxWidthPx: Int) {
-        if (thumbs.containsKey(page)) return
+    fun ensureThumb(page: Int, maxWidthPx: Int) {        if (thumbs.containsKey(page)) return
         val f = docFile ?: return
         viewModelScope.launch {
             val bmp = withContext(Dispatchers.IO) { renderPage(f, page, maxWidthPx) }
@@ -347,21 +514,19 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                     val ctx = getApplication<Application>()
                     val out = ctx.contentResolver.openOutputStream(uri)
                         ?: error(tr("无法写入这个位置", "Cannot write to this location"))
-                    out.use { os ->
-                        PdfMasker.mask(
-                            ctx, f, findings.filter { it.id in selected }, os,
-                            erasers = erasers
-                        ) { p -> progress = p }
-                    }
+                    out.use { os -> maskInto(ctx, f, os) }
                     queryName(ctx, uri) ?: (tr("已打码", "masked") + ".pdf")
                 }
             }.onSuccess { name ->
+                endJob()
                 savedName = name
                 stage = Stage.DONE
                 onDone(name)
             }.onFailure {
+                endJob()
                 stage = Stage.READY
-                toast(tr("生成失败：", "Failed: ") + (it.message ?: tr("未知错误", "unknown error")))
+                if (it is JobCancelled) toast(tr("已停止", "Stopped"))
+                else toast(tr("生成失败：", "Failed: ") + (it.message ?: tr("未知错误", "unknown error")))
             }
         }
     }
@@ -376,12 +541,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                     val ctx = getApplication<Application>()
                     // 需要一个源文件：先写到缓存，再复制到用户选的位置
                     val tmp = File(ctx.cacheDir, "rerun_" + System.currentTimeMillis() + ".pdf")
-                    FileOutputStream(tmp).use { os ->
-                        PdfMasker.mask(
-                            ctx, f, findings.filter { it.id in selected }, os,
-                            erasers = erasers
-                        ) { p -> progress = p }
-                    }
+                    FileOutputStream(tmp).use { os -> maskInto(ctx, f, os) }
                     ctx.contentResolver.openOutputStream(uri)?.use { os ->
                         tmp.inputStream().use { it.copyTo(os) }
                     }
@@ -389,11 +549,14 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                     queryName(ctx, uri) ?: (tr("已打码", "masked") + ".pdf")
                 }
             }.onSuccess {
+                endJob()
                 savedName = it
                 stage = Stage.DONE
             }.onFailure {
+                endJob()
                 stage = Stage.READY
-                toast(tr("保存失败：", "Save failed: ") + (it.message ?: tr("未知错误", "unknown error")))
+                if (it is JobCancelled) toast(tr("已停止", "Stopped"))
+                else toast(tr("保存失败：", "Save failed: ") + (it.message ?: tr("未知错误", "unknown error")))
             }
         }
     }
@@ -414,20 +577,20 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                         ctx.contentResolver, parent, "application/pdf", name
                     ) ?: error(tr("无法在该目录创建文件", "Cannot create file in that folder"))
                     ctx.contentResolver.openOutputStream(docUri)?.use { os ->
-                        PdfMasker.mask(
-                            ctx, f, findings.filter { it.id in selected }, os,
-                            erasers = erasers
-                        ) { p -> progress = p }
+                        maskInto(ctx, f, os)
                     } ?: error(tr("无法写入这个位置", "Cannot write to this location"))
                     name
                 }
             }.onSuccess { name ->
+                endJob()
                 savedName = name
                 stage = Stage.DONE
                 onDone(name)
             }.onFailure {
+                endJob()
                 stage = Stage.READY
-                toast(tr("保存失败：", "Save failed: ") + (it.message ?: tr("未知错误", "unknown error")))
+                if (it is JobCancelled) toast(tr("已停止", "Stopped"))
+                else toast(tr("保存失败：", "Save failed: ") + (it.message ?: tr("未知错误", "unknown error")))
             }
         }
     }

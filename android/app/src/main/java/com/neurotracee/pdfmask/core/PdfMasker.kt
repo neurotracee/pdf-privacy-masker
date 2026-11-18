@@ -40,6 +40,8 @@ object PdfMasker {
         out: OutputStream,
         options: Options = Options(),
         erasers: Map<Int, List<Rect>> = emptyMap(),
+        job: JobControl? = null,
+        onPage: (Int, Float) -> Unit = { _, _ -> },
         onProgress: (Float) -> Unit = {}
     ): MaskSummary {
         PDFBoxResourceLoader.init(context.applicationContext)
@@ -60,6 +62,9 @@ object PdfMasker {
         var count = 0
         try {
             for (i in 0 until total) {
+                // 页与页之间是安全点：上一页已经写进 PDF 了，停下来不会留下半页
+                job?.checkpoint()
+                onPage(i, 0f)
                 val page = renderer.openPage(i)
                 val pw = page.width.toFloat()
                 val ph = page.height.toFloat()
@@ -71,6 +76,7 @@ object PdfMasker {
                 bmp.eraseColor(Color.WHITE)
                 page.render(bmp, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
                 page.close()
+                onPage(i, 0.25f)
 
                 // 橡皮擦：从「要打码的区域」里减掉用户划过的小块。
                 // 减法的好处是那些像素**从来没被写过**，显示的就是原图，
@@ -105,6 +111,7 @@ object PdfMasker {
                 val bos = ByteArrayOutputStream()
                 bmp.compress(Bitmap.CompressFormat.JPEG, options.quality, bos)
                 bmp.recycle()
+                onPage(i, 0.7f)
                 val img = JPEGFactory.createFromStream(
                     doc, ByteArrayInputStream(bos.toByteArray())
                 )
@@ -113,6 +120,7 @@ object PdfMasker {
                 PDPageContentStream(doc, pdfPage).use { cs ->
                     cs.drawImage(img, 0f, 0f, pw, ph)
                 }
+                onPage(i, 1f)
                 onProgress((i + 1f) / total)
             }
             doc.save(out)

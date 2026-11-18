@@ -18,12 +18,15 @@ import java.io.File
  */
 object PdfTextExtractor {
 
-    fun extract(context: Context, file: File): List<PageText> {
+    fun extract(context: Context, file: File, onPage: (Int, Int) -> Unit = { _, _ -> }): List<PageText> {
         PDFBoxResourceLoader.init(context.applicationContext)
         val doc = PDDocument.load(file)
         try {
             val count = doc.numberOfPages
             val glyphs = HashMap<Int, MutableList<RawGlyph>>()
+            // 文字层是一遍顺序流扫完的，没有天然的页分隔点；靠 currentPageNo
+            // 变化来推「进到下一页了」，给总进度条一个能看的数字
+            var lastPage = -1
 
             val stripper = object : PDFTextStripper() {
                 override fun processTextPosition(text: TextPosition) {
@@ -32,6 +35,10 @@ object PdfTextExtractor {
                         val fs = text.fontSizeInPt
                         if (fs > 0.1f) {
                             val pno = currentPageNo - 1
+                            if (pno != lastPage) {
+                                lastPage = pno
+                                onPage(pno, count)
+                            }
                             val base = text.yDirAdj
                             val per = if (uni.length == 1) text.widthDirAdj else text.widthDirAdj / uni.length
                             var x = text.xDirAdj

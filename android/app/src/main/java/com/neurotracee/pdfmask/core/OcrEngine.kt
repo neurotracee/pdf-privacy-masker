@@ -356,8 +356,16 @@ object OcrEngine {
      *
      * @param page 已经由 PDFBox 读出的页面（可能是空的 lines）
      * @param bitmap 该页渲染好的位图，坐标按 page.width / bitmap.width 换算
+     * @param onStage 本页内部的进度（0~1），给界面上的「当前页」进度条用
+     * @param job 暂停 / 停止开关；在页内的几个大阶段之间采样
      */
-    fun readPage(page: PageText, bitmap: Bitmap): List<Line> {
+    fun readPage(
+        page: PageText,
+        bitmap: Bitmap,
+        onStage: (Float) -> Unit = {},
+        job: JobControl? = null
+    ): List<Line> {
+        job?.checkpoint()
         val bw = bitmap.width
         val bh = bitmap.height
         // 灰字 + 泛黄底 / 一边亮一边暗的扫描页，先拉黑白场、除掉光照再送进网络。
@@ -372,13 +380,15 @@ object OcrEngine {
             if (statFail.isBlank()) statFail = "preprocess " + t.javaClass.simpleName
             null
         } ?: bitmap
+        onStage(0.08f)
         // 扫描件 / 拍照件几乎都带零点几度的歪，歪着送进检测网络会整行漏掉。
         // 与 Windows 端一样：先摆正再检测，最后把框转回原来的页面坐标。
         val skew = try { OcrPreprocess.estimateSkew(work) } catch (t: Throwable) { 0f }
         val aligned = if (skew != 0f) OcrPreprocess.rotate(work, skew) else work
+        onStage(0.18f)
         var lines: List<Line>
         try {
-            lines = readPageInner(page, aligned, bw, bh, skew)
+            lines = readPageInner(page, aligned, bw, bh, skew, onStage, job)
         } finally {
             if (aligned !== work) aligned.recycle()
             if (work !== bitmap) work.recycle()
@@ -389,8 +399,9 @@ object OcrEngine {
         // 也不能因为一道可选的增强把整页判死。
         if (lines.isEmpty() && work !== bitmap) {
             statFallback++
-            lines = readPageInner(page, bitmap, bw, bh, 0f)
+            lines = readPageInner(page, bitmap, bw, bh, 0f, onStage, job)
         }
+        onStage(1f)
         return lines
     }
 
@@ -406,7 +417,9 @@ object OcrEngine {
      * 歪 1 度、离页心 500px 就差出十几像素——正好差半行，识别会读到邻行去。
      */
     private fun readPageInner(page: PageText, bitmap: Bitmap, bw: Int, bh: Int,
-                              skew: Float = 0f): List<Line> {
+                              skew: Float = 0f,
+                              onStage: (Float) -> Unit = {},
+                              job: JobControl? = null): List<Line> {
         // 检测在缩小图上跑（快），识别回到原图裁（准）
         val scale = min(1f, DET_LIMIT / max(bw, bh).toFloat())
         val small = if (scale < 1f) {
@@ -423,7 +436,11 @@ object OcrEngine {
             if (small !== bitmap) small.recycle()
         }
         statBoxes += boxes.size
-        if (boxes.isEmpty()) return emptyList()
+        onStage(0.34f)
+        if (boxes.isEmpty()) {
+            onStage(0.95f)
+            return emptyList()
+        }
 
         val inv = 1f / scale                      // 检测图 → 摆正图
         val scaleX = page.width / bw              // 摆正图 → 页面点
@@ -441,7 +458,11 @@ object OcrEngine {
         }
 
         val items = ArrayList<Item>()
-        for (b in boxes) {
+        val total = boxes.size
+        for ((bi, b) in boxes.withIndex()) {
+            // 逐框识别是整页里最慢的一段，按框数报进度（0.34 → 0.90）
+            onStage(0.34f + 0.56f * bi / total.coerceAtLeast(1))
+            job?.checkpoint()
             val X0 = (b[0] * inv).toInt().coerceIn(0, bw - 1)
             val Y0 = (b[1] * inv).toInt().coerceIn(0, bh - 1)
             val X1 = ((b[2] * inv).toInt() + 1).coerceIn(X0 + 1, bw)
@@ -494,7 +515,10 @@ object OcrEngine {
             }
             items.add(Item(rec.text.substring(0, n), chars, chh * scaleY))
         }
-        if (items.isEmpty()) return emptyList()
+        if (items.isEmpty()) {
+            onStage(0.95f)
+            return emptyList()
+        }
 
         // 按本页行距封顶：墨迹实测后一般不会超标，这里只兜「两条线粘成一段」这类极端情况。
         // 90% 行距几乎不会切到字，却能把误吞的邻行挡在外面。
@@ -599,6 +623,7 @@ object OcrEngine {
         }
         statLines += out.size
         if (statSample.isBlank() && out.isNotEmpty()) statSample = out.first().text
+        onStage(0.95f)
         return out
     }
 
@@ -612,7 +637,9 @@ object OcrEngine {
         ctx: Context,
         src: File,
         pages: List<PageText>,
-        onProgress: (Int) -> Unit = {}
+        onProgress: (Int) -> Unit = {},
+        job: JobControl? = null,
+        onPageFrac: (Float) -> Unit = {}
     ): List<PageText> {
         statPages = 0
         statBoxes = 0
@@ -637,7 +664,10 @@ object OcrEngine {
             pfd = ParcelFileDescriptor.open(src, ParcelFileDescriptor.MODE_READ_ONLY)
             renderer = PdfRenderer(pfd)
             for ((i, p) in need.withIndex()) {
+                // 页与页之间是天然的暂停点：上一页做完了才停，不会把一页切一半
+                job?.checkpoint()
                 onProgress(i + 1)
+                onPageFrac(0f)
                 if (p.index < 0 || p.index >= renderer.pageCount) continue
                 val bmp = try {
                     renderer.openPage(p.index).use { pg ->
@@ -656,16 +686,21 @@ object OcrEngine {
                 } ?: continue
                 statPages++
                 val lines = try {
-                    readPage(p, bmp)
+                    readPage(p, bmp, onPageFrac, job)
                 } catch (t: Throwable) {
+                    // 用户点了「停止」：这不是故障，不能计到体检数字里，直接往上拔
+                    if (t is JobCancelled) throw t
                     noteFail("ocr", t)
                     emptyList()
                 } finally {
                     bmp.recycle()
                 }
                 if (lines.isNotEmpty()) result[p.index] = p.copy(lines = lines)
+                onPageFrac(1f)
             }
         } catch (t: Throwable) {
+            // 用户主动停：同样不是「渲染不了」，原样往上拔
+            if (t is JobCancelled) throw t
             // 渲染不了就当没有 OCR，保持原样——但原因必须留下来，不能静默
             noteFail("open", t)
         } finally {
