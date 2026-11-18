@@ -179,7 +179,13 @@ main{flex:1;min-height:0;display:flex;overflow:hidden}
 /* 手动框选 / 橡皮擦共用：指针旁边的放大镜，便于只擦掉前缀和冒号 */
 .loupe{position:fixed;width:120px;height:120px;border-radius:50%;border:2px solid #fff;
   box-shadow:0 4px 18px rgba(0,0,0,.35),0 0 0 1px rgba(0,0,0,.15);
-  background-repeat:no-repeat;background-color:#fff;pointer-events:none;z-index:120}
+  background-repeat:no-repeat;background-color:#fff;pointer-events:none;z-index:120;
+  overflow:hidden}
+/* 镜里的虚线框：和手指上那条是同一条线放大后的样子。
+   手动=红、橡皮擦=蓝，与 .band 的配色一一对应，看一眼就知道现在是什么模式。 */
+.loupe .lbox{position:absolute;left:0;top:0;width:0;height:0;display:none;
+  border:1.5px dashed #ff2d55;background:rgba(255,45,85,.12);pointer-events:none}
+.loupe .lbox.erase{border-color:#2f6bff;background:rgba(47,107,255,.15)}
 /* action bar */
 .actionbar{flex:0 0 66px;height:66px;background:#fff;border-top:1px solid var(--line);
   display:flex;align-items:center;gap:14px;padding:0 22px}
@@ -188,11 +194,14 @@ main{flex:1;min-height:0;display:flex;overflow:hidden}
 /* overlay / toast / result */
 .overlay{position:fixed;inset:0;background:rgba(244,245,247,.62);backdrop-filter:blur(3px);
   display:flex;align-items:flex-end;justify-content:center;z-index:200;padding:22px}
-/* ---- 处理中的进度面板（贴在窗口底部居中）----
+/* ---- 处理中的进度面板（窗口正中）----
    以前这里只有一个转圈加一行字：看不出进度、也停不下来。
-   现在是「当前页 + 整个文件」两条进度，配暂停 / 停止 / 继续。 */
+   现在是「当前页 + 整个文件」两条进度，配暂停 / 停止 / 继续。
+   overlay 本身是靠底对齐的，面板单独用 align-self:center 抬到正中，
+   其它用同一个 overlay 的弹层不受影响。 */
 .jobp{width:min(560px,100%);background:#fff;border-radius:20px;padding:18px 20px 16px;
-  box-shadow:0 26px 70px -28px rgba(15,24,40,.5)}
+  box-shadow:0 26px 70px -28px rgba(15,24,40,.5);
+  align-self:center}
 .jobhead{display:flex;align-items:center;gap:12px}
 .jobtitle{flex:1;font-size:15px;font-weight:600;color:var(--ink);line-height:1.35}
 .jobpct{font-size:22px;font-weight:700;color:var(--accent);font-variant-numeric:tabular-nums}
@@ -1238,6 +1247,22 @@ function updateLoupe(e){
                                    (-Math.round((e.clientY-r.top)*z-size/2))+'px';
   loupe.style.left = Math.min(window.innerWidth-130, e.clientX+16)+'px';
   loupe.style.top  = Math.max(4, e.clientY-140)+'px';
+  // 镜里同步画出正在拉的那条虚线框。坐标换算和 backgroundPosition 同一套：
+  // 内容点相对 img 的偏移 × z，再减去「镜心对准的指下点」，最后挪到圆心。
+  let box = loupe.querySelector('.lbox');
+  if(!box){ box = document.createElement('div'); box.className = 'lbox'; loupe.appendChild(box); }
+  if(band){
+    const br = band.getBoundingClientRect();
+    const bw = br.width * z, bh = br.height * z;
+    box.className = 'lbox' + (S.mode === 'erase' ? ' erase' : '');
+    box.style.display = (bw < 1 || bh < 1) ? 'none' : 'block';
+    box.style.left = ((br.left - e.clientX) * z + size/2) + 'px';
+    box.style.top  = ((br.top  - e.clientY) * z + size/2) + 'px';
+    box.style.width = bw + 'px';
+    box.style.height = bh + 'px';
+  } else {
+    box.style.display = 'none';
+  }
 }
 function hideLoupe(){ if(loupe){ loupe.remove(); loupe=null; } }
 $('canvasWrap').addEventListener('mousedown', e=>{

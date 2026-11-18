@@ -61,7 +61,11 @@ import time
 import uuid
 import zlib
 
-import pymupdf
+from pdfengine import (
+    Rect, Matrix, Pixmap, open_doc, new_doc, as_doc,
+    PDF_REDACT_IMAGE_NONE, PDF_REDACT_LINE_ART_NONE, PDF_REDACT_TEXT_REMOVE,
+    CS_RGB,
+)
 from PIL import Image
 
 import pdfmask_update as _upd       # 检查更新：Gitee / GitHub 双通道
@@ -71,7 +75,7 @@ from thanks_asset import QR_PNG_B64  # 赞赏码图片（base64 内嵌，单文�
 APP_NAME = "PDF 隐私打码工具"
 # 版本号统一四段：主.次.修订.小版本（见 CONTRIBUTING.md「版本号规则」）。
 # 越靠右越细：日常修缺陷、改文案就动第四位；第三位留给成体系的新能力（大版本）。
-VERSION = "1.4.8.0"
+VERSION = "1.4.8.1"
 
 # ---- 署名信息（开源后请勿删除，AGPL-3.0 第 5 条要求保留版权声明） ----
 AUTHOR = "项目创作时为初中生"
@@ -764,14 +768,14 @@ def _visual_lines(page):
                         continue
                     if (x1 - x0) > (y1 - y0) * 1.8:  # 竖排 / 旋转字符
                         continue
-                    chars.append((_fold_width(c), pymupdf.Rect(x0, y0, x1, y1)))
+                    chars.append((_fold_width(c), Rect(x0, y0, x1, y1)))
                 if not chars:
                     continue
                 xs0 = min(c[1].x0 for c in chars)
                 ys0 = min(c[1].y0 for c in chars)
                 xs1 = max(c[1].x1 for c in chars)
                 ys1 = max(c[1].y1 for c in chars)
-                spans.append({"rect": pymupdf.Rect(xs0, ys0, xs1, ys1), "chars": chars})
+                spans.append({"rect": Rect(xs0, ys0, xs1, ys1), "chars": chars})
     if not spans:
         return []
 
@@ -943,7 +947,7 @@ def _bank_across_lines(text, entries, nxt_text, nxt_entries):
     rb = _span_rect(nxt_entries, 0, mb.end())
     if ra is None or rb is None:
         return None
-    return (pymupdf.Rect(ra), pymupdf.Rect(rb), m.group(0), mb.group(0))
+    return (Rect(ra), Rect(rb), m.group(0), mb.group(0))
 
 
 def _phone_across_lines(text, entries, nxt_text, nxt_entries):
@@ -974,7 +978,7 @@ def _phone_across_lines(text, entries, nxt_text, nxt_entries):
     rb = _span_rect(nxt_entries, 0, mb.end())
     if ra is None or rb is None:
         return None
-    return (pymupdf.Rect(ra), pymupdf.Rect(rb), m.group(0), mb.group(0))
+    return (Rect(ra), Rect(rb), m.group(0), mb.group(0))
 
 
 def _scan_line(text, entries, pno):
@@ -1397,7 +1401,7 @@ def scan_widgets(page, pno):
         if not isinstance(val, str) or not val.strip():
             continue
         try:
-            rect = pymupdf.Rect(w.rect)
+            rect = Rect(w.rect)
         except Exception:
             continue
         if rect.is_empty or rect.width < 2 or rect.height < 2:
@@ -1828,6 +1832,7 @@ def job_current():
 
 
 def detect(doc, only_pages=None, use_ocr=True, job=None):
+    doc = as_doc(doc)          # 允许调用方直接传底层 Document
     eng = ocr_engine() if use_ocr else None
     LAST_OCR["pages"] = []
     LAST_OCR["secs"] = 0.0
@@ -1868,7 +1873,7 @@ def detect(doc, only_pages=None, use_ocr=True, job=None):
             line_findings = _scan_line(text, entries, pno)
             for f in line_findings:
                 # OCR 给的矩形本来就在显示坐标系里，不用再转一次
-                f["rect"] = pymupdf.Rect(f["rect"]) if is_ocr else _to_page_rect(f["rect"], page)
+                f["rect"] = Rect(f["rect"]) if is_ocr else _to_page_rect(f["rect"], page)
                 if is_ocr:
                     f["src"] = "ocr"
                 findings.append(f)
@@ -1885,7 +1890,7 @@ def detect(doc, only_pages=None, use_ocr=True, job=None):
                         r = _span_rect(nxt_entries, 0, len(seg))
                         if r is not None:
                             findings.append({
-                                "type": "address", "text": seg, "rect": pymupdf.Rect(r),
+                                "type": "address", "text": seg, "rect": Rect(r),
                                 "page": pno, "note": "跨行承接", "src": "ocr"})
                             line_findings.append(findings[-1])
                 # 手机号折行：11 位断在倒数两三位，两段单看都不成立
@@ -2047,7 +2052,7 @@ def _merge_rects(rects):
     （判决书第一页十几处命中并成一块 450×120 的灰砖），既盖住大量无关
     内容，也把本来清楚的行一起糊掉。跨行不合并，行与行各自成块。
     """
-    items = [pymupdf.Rect(r) for r in rects if not pymupdf.Rect(r).is_empty]
+    items = [Rect(r) for r in rects if not Rect(r).is_empty]
     items.sort(key=lambda r: (round(r.y0, 1), r.x0))
     out = []
     for b in items:
@@ -2190,6 +2195,7 @@ def redact(doc, findings, review_rects=None, erasers=None, job=None):
     **打码前的原始像素**贴回去，不删除任何标记框，也不会越过矩形边界——
     例如只恢复「公民身份证号：」这几个字，后面的号码仍然是马赛克。
     """
+    doc = as_doc(doc)          # 同上：外部怎么传进来都收敛成代理对象
     eraser_patches = {}
     for pno, rects in (erasers or {}).items():
         try:
@@ -2197,11 +2203,11 @@ def redact(doc, findings, review_rects=None, erasers=None, job=None):
         except Exception:
             continue
         for rr in rects:
-            clip = pymupdf.Rect(rr) & page.rect
+            clip = Rect(rr) & page.rect
             if clip.is_empty or clip.width < 0.5 or clip.height < 0.5:
                 continue
             try:
-                pm = page.get_pixmap(clip=clip, matrix=pymupdf.Matrix(MOSAIC_ZOOM, MOSAIC_ZOOM),
+                pm = page.get_pixmap(clip=clip, matrix=Matrix(MOSAIC_ZOOM, MOSAIC_ZOOM),
                                      alpha=False)
                 eraser_patches.setdefault(int(pno), []).append((clip, pm))
             except Exception:
@@ -2209,7 +2215,7 @@ def redact(doc, findings, review_rects=None, erasers=None, job=None):
     vals = _scrub_values(findings)
     by_page = {}
     for f in findings:
-        by_page.setdefault(f["page"], []).append((f.get("type") or "", pymupdf.Rect(f["rect"])))
+        by_page.setdefault(f["page"], []).append((f.get("type") or "", Rect(f["rect"])))
     order = list(by_page.items())
     for idx, (pno, items) in enumerate(order):
         if job is not None:
@@ -2231,7 +2237,7 @@ def redact(doc, findings, review_rects=None, erasers=None, job=None):
             by_kind.setdefault(kind, []).append(r)
         for kind_rects in by_kind.values():
             for r in _merge_rects(kind_rects):
-                r = pymupdf.Rect(r)
+                r = Rect(r)
                 r.x0 = max(r.x0, prect.x0)
                 r.y0 = max(r.y0, prect.y0)
                 r.x1 = min(r.x1, prect.x1)
@@ -2240,9 +2246,9 @@ def redact(doc, findings, review_rects=None, erasers=None, job=None):
                     clusters.append(r)
         patches = []
         for r in clusters:
-            clip = pymupdf.Rect(r)
+            clip = Rect(r)
             try:
-                pix = page.get_pixmap(clip=clip, matrix=pymupdf.Matrix(MOSAIC_ZOOM, MOSAIC_ZOOM), alpha=False)
+                pix = page.get_pixmap(clip=clip, matrix=Matrix(MOSAIC_ZOOM, MOSAIC_ZOOM), alpha=False)
             except Exception:
                 continue
             img = Image.frombytes("RGB", (pix.width, pix.height), pix.samples)
@@ -2253,13 +2259,13 @@ def redact(doc, findings, review_rects=None, erasers=None, job=None):
             img = _pixelate(img, block, seed=hash((pno, round(r.y0, 1))))
             buf = io.BytesIO()
             img.save(buf, format="PNG", optimize=True)
-            patches.append((clip, pymupdf.Pixmap(buf.getvalue())))
+            patches.append((clip, Pixmap.from_bytes(buf.getvalue())))
         # 抹除文本层（不动图片、线框、表格线）
         # 表单域单独处理：redact 动不了 widget，字段值会整条留在成品里
         try:
             for w in list(page.widgets()):
                 try:
-                    wr = pymupdf.Rect(w.rect)
+                    wr = Rect(w.rect)
                 except Exception:
                     continue
                 hit = any(not (wr & r).is_empty for r in clusters)
@@ -2276,12 +2282,12 @@ def redact(doc, findings, review_rects=None, erasers=None, job=None):
         for r in clusters:
             page.add_redact_annot(r, fill=False)
         try:
-            page.apply_redactions(images=pymupdf.PDF_REDACT_IMAGE_NONE,
-                                  graphics=pymupdf.PDF_REDACT_LINE_ART_NONE,
-                                  text=pymupdf.PDF_REDACT_TEXT_REMOVE)
+            page.apply_redactions(images=PDF_REDACT_IMAGE_NONE,
+                                  graphics=PDF_REDACT_LINE_ART_NONE,
+                                  text=PDF_REDACT_TEXT_REMOVE)
         except TypeError:
-            page.apply_redactions(images=pymupdf.PDF_REDACT_IMAGE_NONE,
-                                  graphics=pymupdf.PDF_REDACT_LINE_ART_NONE)
+            page.apply_redactions(images=PDF_REDACT_IMAGE_NONE,
+                                  graphics=PDF_REDACT_LINE_ART_NONE)
         for clip, pm in patches:
             page.insert_image(clip + (-0.4, -0.4, 0.4, 0.4), pixmap=pm, overlay=True, keep_proportion=False)
         # 橡皮擦最后贴回：盖在马赛克之上，只恢复用户划过的那一小块原文字，
@@ -2318,13 +2324,13 @@ def load_normalized(src):
     不一致会导致打码错位。固化后全部统一，非旋转页原样拷贝（保留书签与链接）。
     """
     if isinstance(src, str):
-        src = pymupdf.open(src)
+        src = open_doc(src)
         own = True
     else:
         own = False
     if src.page_count == 0 or all(p.rotation % 360 == 0 for p in src):
         return src, False
-    out = pymupdf.open()
+    out = new_doc()
     for i in range(src.page_count):
         p = src[i]
         if p.rotation % 360 == 0:
@@ -2332,7 +2338,7 @@ def load_normalized(src):
         else:
             r = p.rect
             np_ = out.new_page(width=r.width, height=r.height)
-            np_.show_pdf_page(pymupdf.Rect(0, 0, r.width, r.height), src, i, rotate=0)
+            np_.show_pdf_page(Rect(0, 0, r.width, r.height), src, i, rotate=0)
     if own:
         src.close()
     return out, True
@@ -2441,7 +2447,7 @@ class DocState:
     def __init__(self, path, name, job=None):
         self.path = path
         self.name = name
-        raw = pymupdf.open(path)
+        raw = open_doc(path)
         if raw.needs_pass:
             raise ValueError("该 PDF 有密码保护，请先解除密码后再处理")
         if raw.page_count == 0:
@@ -2841,7 +2847,7 @@ def _output_dir(src_path):
 def _preview_png(state, pno, zoom, sel, show_mask, hi, erasers=None):
     page = state.doc[pno]
     zoom = max(0.5, min(3.0, float(zoom)))
-    pix = page.get_pixmap(matrix=pymupdf.Matrix(zoom, zoom), alpha=False)
+    pix = page.get_pixmap(matrix=Matrix(zoom, zoom), alpha=False)
     img = Image.frombytes("RGB", (pix.width, pix.height), pix.samples)
     if show_mask:
         for f in state.findings:
@@ -2858,11 +2864,11 @@ def _preview_png(state, pno, zoom, sel, show_mask, hi, erasers=None):
                 img.paste(_pixelate(crop, block, seed=abs(hash(f["id"]))), (x0, y0))
     # 橡皮擦：只把划过的小块恢复成打码前的样子，标记框与相邻号码都还在
     for rr in (erasers or []):
-        clip = pymupdf.Rect(rr) & page.rect
+        clip = Rect(rr) & page.rect
         if clip.is_empty or clip.width < 0.5 or clip.height < 0.5:
             continue
         try:
-            q = page.get_pixmap(clip=clip, matrix=pymupdf.Matrix(zoom, zoom), alpha=False)
+            q = page.get_pixmap(clip=clip, matrix=Matrix(zoom, zoom), alpha=False)
             img.paste(Image.frombytes("RGB", (q.width, q.height), q.samples),
                       (int(round(clip.x0 * zoom)), int(round(clip.y0 * zoom))))
         except Exception:
@@ -2893,7 +2899,7 @@ def _build_output(state, ids, out_dir="", erasers=None, job=None):
     folder, err = _ensure_dir(out_dir or _default_out_dir(state.path))
     if err:
         raise ValueError(err)
-    src = pymupdf.open(state.path)
+    src = open_doc(state.path)
     work, _made = load_normalized(src)
     if not _made:
         work = src
@@ -3060,7 +3066,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     try:
                         vals = [float(x) for x in chunk.split(",")]
                         if len(vals) == 4:
-                            er.append(pymupdf.Rect(*vals))
+                            er.append(Rect(*vals))
                     except Exception:
                         continue
                 png = _preview_png(st, pno, zoom, sel, mask, hi, er)
@@ -3115,7 +3121,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 fid = "m%d" % st.manual_n
                 st.findings.append({
                     "id": fid, "type": "manual", "text": "",
-                    "rect": pymupdf.Rect(r[0], r[1], r[2], r[3]),
+                    "rect": Rect(r[0], r[1], r[2], r[3]),
                     "page": int(data.get("page", 0)), "note": "手动框选",
                 })
                 return self._json({"ok": True, "id": fid})
@@ -3131,7 +3137,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                         lst.pop()
                     return self._json({"ok": True, "left": len(lst)})
                 r = [float(v) for v in data["rect"]]
-                st.erasers.setdefault(pno, []).append(pymupdf.Rect(*r))
+                st.erasers.setdefault(pno, []).append(Rect(*r))
                 return self._json({"ok": True, "count": len(st.erasers[pno])})
             if u.path == "/api/render":
                 data = json.loads(self._body() or b"{}")
@@ -3142,7 +3148,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 erasers = {}
                 for k, rects in (data.get("erasers") or {}).items():
                     try:
-                        erasers[int(k)] = [pymupdf.Rect(*[float(v) for v in r]) for r in rects]
+                        erasers[int(k)] = [Rect(*[float(v) for v in r]) for r in rects]
                     except Exception:
                         continue
                 job = job_new("mask", "正在打码", "Masking")

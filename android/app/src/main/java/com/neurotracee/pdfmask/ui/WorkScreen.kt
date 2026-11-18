@@ -7,6 +7,7 @@ import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.ui.input.pointer.changedToUpIgnoreConsumed
 import kotlinx.coroutines.Job
@@ -562,6 +563,11 @@ private fun PreviewPane(
 ) {
     val page = vm.current
     val pageText = vm.pages.getOrNull(page)
+    // pointerInput 的 key 里不能放 editMode，否则一切换模式手势就会重建、
+    // 正在拖的框会被打断；但手势块里的 lambda 是在注册那一刻捕获的，
+    // 一直握着旧的 editMode —— 表现就是「切了按钮但行为没变，偶尔才对」。
+    // rememberUpdatedState 给闭包一个永远指向最新值的引用，两头都不误。
+    val editModeNow = rememberUpdatedState(editMode)
     BoxWithConstraints(
         modifier.background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
     ) {
@@ -769,7 +775,7 @@ private fun PreviewPane(
                                         if (w > 12f && h > 12f && scaleX > 0f && scaleY > 0f) {
                                             val pr = Rect(l / scaleX, t / scaleY,
                                                           (l + w) / scaleX, (t + h) / scaleY)
-                                            if (editMode == 2) vm.addEraser(page, pr)
+                                            if (editModeNow.value == 2) vm.addEraser(page, pr)
                                             else vm.addManual(page, pr)
                                         }
                                     }
@@ -779,7 +785,7 @@ private fun PreviewPane(
                                 }
 
                                 if (isTap && !multi) {
-                                    if (editMode == 2) {
+                                    if (editModeNow.value == 2) {
                                         // 橡皮擦模式下轻点 = 撤销上一笔擦除；
                                         // 以前这里没有分支隔开，撤销完还会继续走「打开放大视图」，
                                         // 一次点击同时干了两件事。
@@ -914,9 +920,15 @@ private fun PreviewPane(
                                 val w = kotlin.math.abs(b.x - a.x)
                                 val h = kotlin.math.abs(b.y - a.y)
                                 if (w > 1f && h > 1f) {
-                                    drawRect(Color(0x262563EB), Offset(l, t), Size(w, h))
+                                    // 拉框时就用当前模式的配色：手动=蓝、橡皮擦=绿。
+                                    // 以前固定蓝色，切到橡皮擦后手上拖的框还是蓝的，
+                                    // 看着像「模式没切过去」。
+                                    val erasing = editMode == 2
+                                    val edge = if (erasing) Color(0xFF2FA84F) else Color(0xFF2563EB)
+                                    val fill = if (erasing) Color(0x262FA84F) else Color(0x262563EB)
+                                    drawRect(fill, Offset(l, t), Size(w, h))
                                     drawRect(
-                                        Color(0xFF2563EB), Offset(l, t), Size(w, h),
+                                        edge, Offset(l, t), Size(w, h),
                                         style = Stroke(
                                             width = 1.8.dp.toPx(),
                                             pathEffect = PathEffect.dashPathEffect(floatArrayOf(6f, 4f))

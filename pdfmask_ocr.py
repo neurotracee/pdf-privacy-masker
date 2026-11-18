@@ -49,6 +49,7 @@ import sys
 import threading
 import numpy as np
 
+from pdfengine import Rect, CS_RGB, render_page  # 几何 / 色彩空间 / 渲染
 # ---------------------------------------------------------------------------
 # 参数：都是「准确率 / 速度」的权衡点，集中放在这里便于调
 # ---------------------------------------------------------------------------
@@ -577,8 +578,6 @@ class OcrEngine(object):
 
         on_stage(frac)：本页内部的粗略进度（0~1），只给界面的「当前页」进度条用。
         """
-        import pymupdf
-
         def stage(f):
             if on_stage is not None:
                 try:
@@ -588,7 +587,7 @@ class OcrEngine(object):
 
         stage(0.05)
         z = float(zoom) if zoom else _pick_zoom(page)
-        pix = page.get_pixmap(matrix=pymupdf.Matrix(z, z), alpha=False, colorspace=pymupdf.csRGB)
+        pix = render_page(page, z, alpha=False, colorspace=CS_RGB)
         full = np.frombuffer(pix.samples, dtype=np.uint8).reshape(pix.height, pix.width, 3)
         stage(0.15)
 
@@ -707,10 +706,8 @@ class OcrEngine(object):
 def _group_lines(items):
     """把检测框拼成「视觉行」，与 pdfmask._visual_lines 的分行口径保持一致
 
-    返回的每个字都带 pymupdf.Rect —— 上层规则直接拿去做几何运算。
+    返回的每个字都带 pdfengine.Rect —— 上层规则直接拿去做几何运算。
     """
-    import pymupdf
-
     if not items:
         return []
     items.sort(key=lambda it: ((it["y0"] + it["y1"]) / 2.0, it["x0"]))
@@ -778,7 +775,7 @@ def _group_lines(items):
                         cx0 = mid - min_w / 2.0
                         cx1 = mid + min_w / 2.0
                 parts.append(ch)
-                entries.append((ch, pymupdf.Rect(cx0, gy0, cx1, gy1)))
+                entries.append((ch, Rect(cx0, gy0, cx1, gy1)))
             prev_h = hgt
             prev_x1 = it["x1"]
         out.append(("".join(parts), entries))
