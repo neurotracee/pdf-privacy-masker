@@ -52,6 +52,18 @@ a = Analysis(
 )
 a.binaries = _fix_vcrt(a.binaries)
 
+# ---------------------------------------------------------------------------
+# 新版本 PyMuPDF 自带一套版面分析 / 表格识别的 onnx 模型（pymupdf/layout/...），
+# 打包时会一起塞进 exe，约 35 MB —— 但本项目只用它读文字、切图片、redact，
+# 从来不走 layout / table 那套接口。这里把它们剔掉：
+#   - exe 从 120 MB 降到 ~85 MB（Gitee 附件单文件上限 100 MB，超了就传不上去）；
+#   - 文件更小，用户下载也快。
+# 万一以后真用上了 layout，把这段删掉即可。
+# ---------------------------------------------------------------------------
+_DROP = ("pymupdf/layout/", "pymupdf/table/")
+a.datas = [d for d in a.datas
+           if not d[0].replace("\\", "/").lower().startswith(_DROP)]
+
 pyz = PYZ(a.pure)
 exe = EXE(
     pyz,
