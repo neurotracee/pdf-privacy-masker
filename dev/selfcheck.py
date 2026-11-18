@@ -14,6 +14,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, ".."))
 sys.path.insert(0, HERE)
 import pdfmask  # noqa: E402
+from pdfengine import raw_rect  # noqa: E402
 from _testpaths import IN_DIR, out  # noqa: E402
 
 # 输入样本只读自 test/；本次产生的 pdf / png 全部写到临时目录，
@@ -189,8 +190,12 @@ def main():
     f0 = next(f for f in findings if f["type"] == "idcard")
     r = f0["rect"]
     z2 = pdfmask.MOSAIC_ZOOM
-    po = doc0[f0["page"]].get_pixmap(clip=r, matrix=pymupdf.Matrix(z2, z2), alpha=False, colorspace=pymupdf.csGRAY)
-    pn = doc2[f0["page"]].get_pixmap(clip=r, matrix=pymupdf.Matrix(z2, z2), alpha=False, colorspace=pymupdf.csGRAY)
+    # clip 必须转成底层 Rect：PyMuPDF 只认自己的矩形类型和元组，收到别的一律
+    # **静默忽略**并渲染整页（不报错），边缘密度就会被整页空白稀释成假失败。
+    po = doc0[f0["page"]].get_pixmap(clip=raw_rect(r), matrix=pymupdf.Matrix(z2, z2),
+                                     alpha=False, colorspace=pymupdf.csGRAY)
+    pn = doc2[f0["page"]].get_pixmap(clip=raw_rect(r), matrix=pymupdf.Matrix(z2, z2),
+                                     alpha=False, colorspace=pymupdf.csGRAY)
     io_ = Image.frombytes("L", (po.width, po.height), po.samples)
     inr = Image.frombytes("L", (pn.width, pn.height), pn.samples)
     d_o, d_n = edge_density(io_), edge_density(inr)

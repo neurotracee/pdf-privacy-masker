@@ -75,7 +75,7 @@ from thanks_asset import QR_PNG_B64  # 赞赏码图片（base64 内嵌，单文�
 APP_NAME = "PDF 隐私打码工具"
 # 版本号统一四段：主.次.修订.小版本（见 CONTRIBUTING.md「版本号规则」）。
 # 越靠右越细：日常修缺陷、改文案就动第四位；第三位留给成体系的新能力（大版本）。
-VERSION = "1.4.8.1"
+VERSION = "1.4.8.2"
 
 # ---- 署名信息（开源后请勿删除，AGPL-3.0 第 5 条要求保留版权声明） ----
 AUTHOR = "项目创作时为初中生"
@@ -162,6 +162,8 @@ NAME_STOP = set("""
 程序 办法 方式 期间 部门 单位 情况 标准 规范 要求 说明 系统 记录 数据 信息 文件 材料 流程 规定 制度 格式
 办法 事项 工作 业务 服务 产品 技术 管理 安全 质量 效率 成本 费用 时间 地点 原因 结果 问题 方案 计划 报告
 单元 楼栋 楼层 门牌 房间 车库 车位 栋号 室号 广场 大厦 花园 公寓 别墅 中心 广场
+申请人 被保险人 投保人 受益人 委托人 受托人 代理人 监护人 经办人 审核人 核验人 收件人
+签收人 寄件人 派件人 快递员 联系人 见证人 证明人 负责人 承租人 出租人 借款人 出借人
 """.split())
 
 # 全局标签词表：用于截断「值」的边界
@@ -261,7 +263,9 @@ RE_NAME_LABEL = re.compile(
     r"([\u4e00-\u9fa5·]{2,8})"
 )
 RE_NAME_HONOR = re.compile(r"([\u4e00-\u9fa5·]{2,4})(?=先生|女士|同学|老师|经理|总监)")
-
+# 扫描件会把长标签的尾巴重复一次（「被保险人:险人:林志强」）。识别这种
+# 「标签残余 + 冒号 + 真值」的形状，第一组是疑似标签尾巴，第二组才是值。
+_RE_LABEL_ECHO = re.compile(r"([\u4e00-\u9fa5·]{2,4})\s*[:：]\s*([\u4e00-\u9fa5·]{2,8})")
 # 法律文书 / 合同里的「角色 + 姓名」：原告：陈志远、被告王建国、甲方（签字）：赵国安、
 # 审判员 张凤岐、执行员李振华……
 # 这类文书通常**不写「姓名：」**，只用角色指代当事人，靠上面那套标签一个都抓不到。
@@ -1244,13 +1248,22 @@ def _scan_line(text, entries, pno):
 
     for rx in (RE_NAME_LABEL, RE_NAME_SIGN, RE_NAME_SELF, RE_NAME_ROLE):
         for m in rx.finditer(text):
-            s, e = _clip_value(text, m.start(1))
+            # 扫描件会把长标签的尾巴再吐一次：「被保险人:险人:林志强」——OCR 把
+            # 标签末两字又输出一遍、还补了个冒号。正则于是把「险人」当成字段值，
+            # 真名「林志强」反倒漏掉（一边误伤标签、一边泄漏真名）。若捕获段
+            # 正好是前面那个标签自己的结尾，就跳过它，从下一个冒号之后取值。
+            vs = m.start(1)
+            ve = m.end(1)
+            echo = _RE_LABEL_ECHO.match(text, vs)
+            if echo and re.sub(r"[^\u4e00-\u9fa5]", "", text[m.start(0):vs]).endswith(echo.group(1)):
+                vs, ve = echo.start(2), echo.end(2)
+            s, e = _clip_value(text, vs)
             cand = text[s:e]
             if not _looks_name(cand.strip()):
-                s, e = m.start(1), m.end(1)
+                s, e = vs, ve
                 cand = text[s:e]
             # 匹配段里带冒号/逗号分隔符的，说明前面是明确的字段名，可放宽姓氏校验
-            loose = bool(re.search(r"[:：,，、]", text[m.start(0):m.start(1)]))
+            loose = bool(re.search(r"[:：,，、]", text[m.start(0):vs]))
             add_name(s, e, cand, loose)
     for m in RE_NAME_HONOR.finditer(text):
         add_name(m.start(1), m.end(1), m.group(1))

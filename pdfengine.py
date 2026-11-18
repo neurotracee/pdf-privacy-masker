@@ -555,3 +555,14 @@ def render_page(page, zoom=1.0, clip=None, alpha=False, colorspace=None):
     if clip is not None:
         kw["clip"] = _to_raw_rect(clip)
     return Pixmap(raw.get_pixmap(**kw))
+
+
+def raw_rect(r):
+    """自有 Rect / 元组 -> 底层 Rect。
+
+    对外暴露它是为了让**测试脚本**也能安全地把矩形交给底层接口：
+    PyMuPDF 的 ``clip=`` / ``rect=`` 参数只认自己的 Rect 和 tuple/list，
+    收到别的东西不会报错，而是**静默忽略**（`get_pixmap(clip=...)` 直接
+    渲染整页）。这类降级不抛异常，很容易把验证结论测偏。
+    """
+    return _to_raw_rect(r)
