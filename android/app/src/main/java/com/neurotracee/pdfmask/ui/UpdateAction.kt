@@ -45,6 +45,12 @@ import java.io.File
 internal fun SourceNote(r: Updater.Result) {
     if (r.channel.isBlank()) return
     val text = when {
+        // 限流不是「连不上」：说清楚是接口次数用完了，而且下载照样优先走 Gitee
+        r.fallbackFrom.isNotBlank() && r.fallbackWhy == "limited" -> T(
+            r.fallbackFrom + " 的接口次数用完了，这次改用 " + r.channel + " 查询；下载仍然优先走 Gitee。",
+            r.fallbackFrom + " hit its API rate limit, so " + r.channel +
+                " was used to check; the download still prefers Gitee."
+        )
         r.fallbackFrom.isNotBlank() -> T(
             r.fallbackFrom + " 这次没连上，已经自动改用 " + r.channel + " 了。",
             r.fallbackFrom + " could not be reached, so " + r.channel + " was used instead."
@@ -98,7 +104,8 @@ internal fun UpdateActionBlock(
         scope.launch {
             val f = UpdateApk.fetchAndInstall(
                 ctx = ctx,
-                url = r.url,
+                // 候选地址：Gitee 在前，通道原地址在后，逐个试
+                urls = r.urls.ifEmpty { listOf(r.url) },
                 version = r.latest
             ) { done, total ->
                 percent = if (total > 0) ((done * 100) / total).toInt().coerceIn(0, 100) else 0

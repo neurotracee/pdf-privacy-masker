@@ -21,7 +21,20 @@
 用户在设置里可以自己指定更新源（Gitee / GitHub），也可以留在「跟随系统」：
 简体中文的界面 + 简体中文的系统 → 先 Gitee（国内直连稳定）；
 其他语言 → 先 GitHub。指定的（或自动选中的）通道连不上时，会自动换另一个
-再试一次，两个都拿不到才报错——不会因为选错源就彻底查不了更新。
+再试——不会因为选错源就彻底查不了更新。
+
+容错（v1.4.9 起）
+------------------
+同一个通道要试满几轮才认定「挂了」：首选通道 3 轮、备用 2 轮，每轮都先走系统
+代理再直连，轮间稍等。只试一两次就跳 GitHub 是不对的——国内 GitHub 通常更差。
+**接口限流（403/429）不算连不上**，不重试，直接换通道，但下载地址仍然优先给
+Gitee：限流的是 API，附件不在这条接口上。
+
+下载地址
+--------
+Gitee 的 `/releases/download/<tag>/<文件名>` 和 GitHub 写法一致（会 302 到
+attach_files）。所以即使这一版是从 GitHub 查到的，只要 Gitee 上同名附件还在，
+下载就指回 Gitee——国内 GitHub 的资产 CDN 基本下不动，「查得到、下不了」就出在这。
 
 系统语言问不出来时（ctypes 被拦、locale 异常等）一律按中文用户处理，
 默认走 Gitee：宁可让海外用户多等一下，也不让国内用户卡在连不上的 GitHub 上。
@@ -31,6 +44,8 @@ import json
 import os
 import re
 import ssl
+import time
+import urllib.error
 import urllib.parse
 import urllib.request
 
@@ -42,9 +57,23 @@ GITEE_API = "https://gitee.com/api/v5/repos/%s/releases?per_page=20" % GITEE_REP
 GITHUB_PAGE = "https://github.com/%s/releases/latest" % GITHUB_REPO
 GITEE_PAGE = "https://gitee.com/%s/releases/latest" % GITEE_REPO
 
-UPDATE_TIMEOUT = 10      # 秒；单通道超时就换下一个通道，界面不会卡住。
+# Gitee 的固定下载地址格式，和 GitHub 一个样：/releases/download/<tag>/<文件名>
+# （会 302 到 attach_files/<id>）。有了它，即使这一版是从 GitHub 查到的，
+# 也能把下载指回 Gitee——国内 GitHub 的 CDN 基本下不动，Gitee 反而快。
+GITEE_DL = "https://gitee.com/%s/releases/download/%%s/%%s" % GITEE_REPO
+
+UPDATE_TIMEOUT = 10      # 秒；单次请求上限。
                          # 原来是 8 秒，移动网络/首次解析常常刚过线就被判死，
                          # 于是「默认 Gitee」悄悄变成了 GitHub。
+
+# 容错：同一个通道要多试几轮再换人。
+# 早先一个通道只试两次（代理一次、直连一次）就下结论，结果 Gitee 偶尔一次
+# 抖动就被判死、直接跳到 GitHub——而 GitHub 在国内往往更连不上。
+# 现在首选通道给 3 轮，备用通道 2 轮；每轮都不超过 CHANNEL_BUDGET 的剩余时间。
+CHANNEL_TRIES = 3           # 首选通道最多试几轮
+CHANNEL_TRIES_FALLBACK = 2  # 备用通道：够了，别让用户干等
+RETRY_PAUSE = (0.5, 1.2)    # 轮与轮之间歇多久（秒）；用完就取最后一个
+CHANNEL_BUDGET = 24.0       # 单个通道累计最多花多久（秒）
 
 # 允许的下载域名：GitHub 的发布资产走 objects./release-assets. 两个 CDN，
 # Gitee 的附件走 gitee.com 自身。其余域名一律不接受。
@@ -54,6 +83,8 @@ ALLOWED_HOSTS = (
     "release-assets.githubusercontent.com",
     "codeload.github.com",
     "gitee.com",
+    # Gitee 的附件会 302 到自己的 CDN，不放行的话国内下载反而会被白名单挡住
+    "giteeusercontent.com",
 )
 
 
@@ -438,27 +469,105 @@ def resolve_source(pref=None, ui_lang=None):
 
 # ---------------------------------------------------------------- 网络
 
-def _fetch(api, user_agent, bypass_proxy=False):
+class RateLimited(Exception):
+    """接口限流（Gitee / GitHub 匿名调用都有次数上限）。
+
+    **它不是「连不上」。** 早先这里被当成普通网络错误：Gitee 明明通了、只是返回
+    403（Rate Limit Exceeded），我们照样重试三轮、然后判它「挂了」跳到 GitHub。
+    国内用移动网络的用户走的是运营商大内网，一个出口 IP 可能被很多设备共用，
+    碰上这种情况并不稀奇——于是「默认 Gitee」看起来总在往 GitHub 跑。
+
+    现在遇到限流：不重试（重试只会让限流更久），如实记一笔，直接换下一个通道；
+    但**下载地址照样优先用 Gitee**——限流的是 API，附件不在那个接口上。
+    """
+
+    def __init__(self, label, code):
+        super().__init__("%s HTTP %s" % (label, code))
+        self.label = label
+        self.code = code
+
+
+def _fetch(api, user_agent, bypass_proxy=False, timeout=None):
     """严格证书校验的一次 GET。
 
     ``bypass_proxy`` 只影响「走不走系统代理」，不放松任何证书校验：
     有些机器的系统代理是残留的坏配置（指向一个已经不存在的端口），
-    这时直连反而通——所以每个通道失败后都会再直连试一次。
+    这时直连反而通——所以每一轮失败后都会再直连试一次。
     """
     ctx = ssl.create_default_context()
     req = urllib.request.Request(api, headers={
         "User-Agent": user_agent,
         "Accept": "application/vnd.github+json",
     })
-    if bypass_proxy:
-        opener = urllib.request.build_opener(
-            urllib.request.ProxyHandler({}),
-            urllib.request.HTTPSHandler(context=ctx),
-        )
-        with opener.open(req, timeout=UPDATE_TIMEOUT) as r:
+    t = timeout if timeout and timeout > 0 else UPDATE_TIMEOUT
+    try:
+        if bypass_proxy:
+            opener = urllib.request.build_opener(
+                urllib.request.ProxyHandler({}),
+                urllib.request.HTTPSHandler(context=ctx),
+            )
+            with opener.open(req, timeout=t) as r:
+                return json.loads(r.read().decode("utf-8", "replace"))
+        with urllib.request.urlopen(req, timeout=t, context=ctx) as r:
             return json.loads(r.read().decode("utf-8", "replace"))
-    with urllib.request.urlopen(req, timeout=UPDATE_TIMEOUT, context=ctx) as r:
-        return json.loads(r.read().decode("utf-8", "replace"))
+    except urllib.error.HTTPError as e:
+        # 403 / 429 是限流，不是网络不通：换个代理重试也没有意义
+        if e.code in (403, 429):
+            raise RateLimited("", e.code)
+        raise
+
+
+def _fetch_with_retry(ch, user_agent, tries):
+    """同一个通道多试几轮，每轮先按系统代理、再直连。
+
+    为什么要多试：国内网络对 Gitee 也会有偶发抖动（一次 DNS 慢、一次 TLS 握手
+    超时），只试一两次就换到 GitHub，等于把用户扔进更差的那条路。宁可多等一两秒。
+    但也不能无限等：整个通道有 ``CHANNEL_BUDGET`` 秒的预算，超了就交给下一个通道。
+    限流（403/429）不重试——越试锁得越久。
+    """
+    deadline = time.monotonic() + CHANNEL_BUDGET
+    last = None
+    for i in range(max(1, tries)):
+        left = deadline - time.monotonic()
+        if left <= 1.0:
+            break
+        t = min(UPDATE_TIMEOUT, max(3.0, left))
+        for bypass in (False, True):
+            try:
+                return _fetch(ch["api"], user_agent, bypass_proxy=bypass, timeout=t)
+            except RateLimited as e:
+                raise RateLimited(ch["label"], e.code)
+            except Exception as e:      # noqa: BLE001 —— 网络错误种类太多，留最后一个说
+                last = e
+        if i + 1 < tries:
+            pause = RETRY_PAUSE[min(i, len(RETRY_PAUSE) - 1)]
+            if time.monotonic() + pause >= deadline:
+                break
+            time.sleep(pause)
+    raise last or RuntimeError("unreachable")
+
+
+def gitee_asset_url(tag, asset_name):
+    """按版本 tag + 文件名拼 Gitee 的下载地址；参数不全时返回空串。"""
+    if not tag or not asset_name:
+        return ""
+    return GITEE_DL % (tag, asset_name)
+
+
+def _probe(url, timeout=4.0):
+    """轻量 HEAD 探一下 Gitee 上这个附件在不在（302 到 attach_files 也算在）。"""
+    if not url:
+        return False
+    try:
+        req = urllib.request.Request(url, method="HEAD",
+                                     headers={"User-Agent": "PDFPrivacyMasker/check"})
+        with urllib.request.urlopen(req, timeout=timeout,
+                                    context=ssl.create_default_context()) as r:
+            return 200 <= int(getattr(r, "status", 200) or 200) < 400
+    except urllib.error.HTTPError as e:
+        return 300 <= int(e.code) < 400
+    except Exception:                          # noqa: BLE001
+        return False
 
 
 def parse_releases(data, suffix, page_fallback):
@@ -510,13 +619,14 @@ def parse_releases(data, suffix, page_fallback):
                 best = (v, url, name, strong, body)
             if v not in seen:
                 seen[v] = {"ver": v, "url": url, "asset": name, "strong": strong,
-                           "body": body, "page": page}
+                           "body": body, "page": page, "tag": tag}
     # all：本平台每个可下载版本的说明，升序（旧 → 新）。
     # 只收「本平台确实有安装包」的版本——另一个平台单独发的版本不该出现在这里。
     allv = [seen[k] for k in sorted(seen)]
     if best:
+        tag = (seen.get(best[0]) or {}).get("tag") or ("v" + ver_text(best[0]))
         return {"ver": best[0], "url": best[1], "asset": best[2], "source": "asset",
-                "strong": best[3], "body": best[4], "all": allv}
+                "strong": best[3], "body": best[4], "all": allv, "tag": tag}
     if tag_only:
         return {"ver": tag_only[0], "url": tag_only[1], "asset": "", "source": "tag",
                 "strong": tag_only[3], "body": tag_only[4], "all": allv}
@@ -540,18 +650,24 @@ def check_update(current, suffix, t, ui_lang=None, source=None, order=None):
     wanted_label = chans[0]["label"] if chans else ""
     errors = []
     seen_no_asset = None
+    last_why = ""       # 上一个通道为什么没成："limited" 表示只是被限流
     for ch in chans:
         label = ch["label"]
         ua = "PDFPrivacyMasker/" + current
+        # 首选通道多给几轮机会；备用通道少一点，别让用户干等
+        tries = CHANNEL_TRIES if label == wanted_label else CHANNEL_TRIES_FALLBACK
         try:
-            data = _fetch(ch["api"], ua)
-        except Exception as e:
-            # 系统代理坏了（残留配置指向死端口）时直连往往能通，再试一次
-            try:
-                data = _fetch(ch["api"], ua, bypass_proxy=True)
-            except Exception as e2:
-                errors.append("%s: %s: %s" % (label, e.__class__.__name__, str(e2)[:100]))
-                continue
+            data = _fetch_with_retry(ch, ua, tries)
+        except RateLimited as e:
+            # 限流 ≠ 连不上：如实说清是「接口次数用完了」，别让人以为是网络坏了
+            errors.append("%s: %s" % (label, t(
+                "接口限流（HTTP %s），本次查询没拿到" % e.code,
+                "rate limited (HTTP %s)" % e.code)))
+            last_why = "limited"
+            continue
+        except Exception as e:      # noqa: BLE001
+            errors.append("%s: %s: %s" % (label, e.__class__.__name__, str(e)[:100]))
+            continue
         got = parse_releases(data, suffix, ch["page"])
         if not got:
             errors.append("%s: %s" % (label, t(
@@ -571,6 +687,20 @@ def check_update(current, suffix, t, ui_lang=None, source=None, order=None):
                 "digest": parse_digest(it.get("body") or ""),
                 "page": it.get("page") or ch["page"],
             })
+        # 下载地址：能走 Gitee 就走 Gitee。
+        # 这一版即使是从 GitHub 查到的，只要 Gitee 那边同名附件还在（最新两版都在），
+        # 就把下载指回 Gitee——国内 GitHub 的 CDN 基本下不动，查得到、下不动的怪事就出在这。
+        dl = got["url"]
+        urls = [dl] if dl else []
+        if got.get("asset"):
+            g = gitee_asset_url(got.get("tag"), got["asset"])
+            if g and g not in urls:
+                # 只有确认附件真的在才换，免得把用户引到一个 404 页面
+                if label != "Gitee" and _probe(g):
+                    urls.insert(0, g)
+                else:
+                    urls.append(g)
+            dl = urls[0] if urls else dl
         return {
             "ok": True,
             "current": current,
@@ -579,12 +709,16 @@ def check_update(current, suffix, t, ui_lang=None, source=None, order=None):
             "pendingCount": len(pending),
             "hasUpdate": got["ver"] > cur,
             "strong": bool(got.get("strong")),
-            "url": got["url"],
+            "url": dl,
+            # 候选下载地址，按优先级排好；界面上只展示第一个，扩展/脚本可以挨个试
+            "urls": urls,
             "asset": got["asset"],
             "source": got["source"],
             "channel": label,
             # 首选通道连不上、自动换了一个时据实说明，免得用户以为「默认 Gitee 怎么用了 GitHub」
             "fallbackFrom": "" if label == wanted_label else wanted_label,
+            # 换通道的原因：""=没换，"limited"=只是接口限流（下载仍走 Gitee）
+            "fallbackWhy": "" if label == wanted_label else last_why,
             "preferred": src,
             # 弹窗要显示的两段东西：一行摘要 + 按平台归类的详细条目
             "digest": parse_digest(got.get("body") or ""),

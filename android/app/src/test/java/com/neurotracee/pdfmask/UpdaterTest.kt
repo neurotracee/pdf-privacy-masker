@@ -193,6 +193,39 @@ class UpdaterTest {
                       "browser_download_url":"https://github.com/x/PDFPrivacyMasker-$ver-arm64.apk"}]}"""
 
     @Test
+    fun download_urls_put_gitee_first() {
+        // 哪怕更新信息是从 GitHub 查到的，下载也先试 Gitee：
+        // 国内 GitHub 的资产 CDN 基本下不动，「查得到、下不了」就是这么来的
+        val urls = Updater.downloadUrls(
+            "https://github.com/neurotracee/pdf-privacy-masker/releases/download/v1.4.9.0/" +
+                "PDFPrivacyMasker-1.4.9.0-arm64.apk",
+            "v1.4.9.0",
+            "PDFPrivacyMasker-1.4.9.0-arm64.apk"
+        )
+        assertEquals(2, urls.size)
+        assertTrue(urls[0], urls[0].startsWith("https://gitee.com/"))
+        assertTrue(urls[0], urls[0].endsWith("/v1.4.9.0/PDFPrivacyMasker-1.4.9.0-arm64.apk"))
+        assertTrue(urls[1], urls[1].contains("github.com"))
+    }
+
+    @Test
+    fun download_urls_skip_release_page() {
+        // 只拿到发布页（没有具体资产）时，不能把发布页当成下载地址
+        val urls = Updater.downloadUrls(
+            Updater.RELEASES_PAGE, "v1.4.9.0", "PDFPrivacyMasker-1.4.9.0-arm64.apk"
+        )
+        assertEquals(1, urls.size)
+        assertTrue(urls[0].startsWith("https://gitee.com/"))
+    }
+
+    @Test
+    fun parse_keeps_tag_and_asset_for_download() {
+        val r = parseReleasesForTest("[" + apkRel("1.4.6.4") + "]", "1.4.6.3")
+        assertEquals("v1.4.6.4", r.tag)
+        assertTrue(r.asset, r.asset.endsWith(".apk"))
+    }
+
+    @Test
     fun pending_lists_every_version_behind_oldest_first() {
         // 当前 1.4.6.2，仓库有 1.4.6.3 / 1.4.6.4：两页都要有，且是「旧 → 新」升序。
         // 故意把 1.4.6.4 放在前面，确认不是照 JSON 顺序堆出来的。
@@ -241,8 +274,7 @@ class UpdaterTest {
     }
 
     @Test
-    fun each_pending_page_keeps_its_own_notes() {
-        // 每页显示的是这一版自己的正文，不能都拿最新版顶替
+    fun each_pending_page_keeps_its_own_notes() {        // 每页显示的是这一版自己的正文，不能都拿最新版顶替
         // 摘要要求 ≥8 字才收（ReleaseDigest 的既有口径），这里写足长度
         val z3 = "更新级别：建议\\n\\n> **一句话**：第三版修掉了扫描件长句整行漏检的问题\\n"
         val z4 = "更新级别：建议\\n\\n> **一句话**：第四版修掉了住址被折行切开时漏打的问题\\n"

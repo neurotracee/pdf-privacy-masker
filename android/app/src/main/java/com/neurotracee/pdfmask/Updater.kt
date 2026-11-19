@@ -46,11 +46,17 @@ object Updater {
         "objects.githubusercontent.com",
         "release-assets.githubusercontent.com",
         "codeload.github.com",
-        "gitee.com"
+        "gitee.com",
+        // Gitee 的附件会 302 到自己的 CDN，不放行的话国内下载反而会被自己的白名单挡住
+        "giteeusercontent.com"
     )
 
     /** 一个更新通道 */
     data class Channel(val name: String, val label: String, val api: String, val page: String)
+
+    private const val TRIES_PREFERRED = 3       // 首选通道最多试几轮
+    private const val TRIES_FALLBACK = 2        // 备用通道：够了，别让用户干等
+    private const val RETRY_PAUSE_MS = 600L     // 轮与轮之间歇多久（乘上轮次）
 
     val GITHUB = Channel(
         "github", "GitHub",
@@ -81,6 +87,23 @@ object Updater {
          * 空串表示没有发生切换；界面上据实说明一句，用户就不会以为「明明选了 Gitee 怎么用了 GitHub」。
          */
         val fallbackFrom: String = "",
+
+        /**
+         * 换通道的原因：""=没换，"limited"=只是接口限流（下载仍然优先走 Gitee）。
+         * 限流不是「连不上」，界面上要分开说，否则用户会以为 Gitee 挂了。
+         */
+        val fallbackWhy: String = "",
+
+        /** 本次版本在仓库里的 tag（例如 v1.4.9.0）与安装包文件名，用来拼备用下载地址 */
+        val tag: String = "",
+        val asset: String = "",
+
+        /**
+         * 候选下载地址，按优先级排好：Gitee 的固定下载地址在前，通道给的原地址在后。
+         * 国内 GitHub 的资产 CDN 基本下不动，所以哪怕更新信息是从 GitHub 查到的，
+         * 也先试着从 Gitee 拿同名附件（最新两版 Gitee 都留着）。
+         */
+        val urls: List<String> = emptyList(),
 
         /**
          * 比当前版本新的每一个版本（升序，旧 → 新），用来在更新弹窗里逐页翻看说明。
@@ -145,10 +168,23 @@ object Updater {
         var noAsset: Channel? = null
         val channels = order(resolve(source))
         val wanted = channels.first()
+        var lastWhy = ""
 
         for (ch in channels) {
+            // 首选通道多给几轮机会；备用通道少一点，别让用户干等
+            val tries = if (ch.label == wanted.label) TRIES_PREFERRED else TRIES_FALLBACK
             val text = try {
-                fetch(ch.api)
+                fetchWithRetry(ch, tries)
+            } catch (e: RateLimited) {
+                // 限流 ≠ 连不上：不重试（越试锁得越久），如实记一笔再换通道
+                errors.add(
+                    ch.label + ": " + tr(
+                        "接口限流（HTTP " + e.code + "），本次查询没拿到",
+                        "rate limited (HTTP " + e.code + ")"
+                    )
+                )
+                lastWhy = "limited"
+                continue
             } catch (e: Exception) {
                 errors.add(
                     ch.label + ": " + (e.message ?: e.javaClass.simpleName)
@@ -169,7 +205,9 @@ object Updater {
             return got.copy(
                 channel = ch.label,
                 // 首选通道没成功才可能走到这里，如实记下来给界面用
-                fallbackFrom = if (ch.label == wanted.label) "" else wanted.label
+                fallbackFrom = if (ch.label == wanted.label) "" else wanted.label,
+                fallbackWhy = if (ch.label == wanted.label) "" else lastWhy,
+                urls = downloadUrls(got.url, got.tag, got.asset)
             )
         }
 
@@ -202,6 +240,8 @@ object Updater {
         var bestUrl = ""
         var bestStrong = false
         var bestBody = ""
+        var bestTag = ""
+        var bestAsset = ""
         var tagVer: IntArray? = null
         var tagUrl = ""
         var tagStrong = false
@@ -257,6 +297,8 @@ object Updater {
                     bestUrl = url
                     bestStrong = strong
                     bestBody = body
+                    bestTag = rel.optString("tag_name")
+                    bestAsset = name
                 }
                 if (notes.none { cmp(it.v, v) == 0 }) {
                     notes.add(NoteEntry(v, url, strong, body, page))
@@ -272,7 +314,8 @@ object Updater {
 
         bestVer?.let { v ->
             return Result(true, current, fmt(v), cmp(v, cur) > 0, bestUrl, strong = bestStrong,
-                digest = ReleaseDigest.of(bestBody), page = pageFallback, pending = pending)
+                digest = ReleaseDigest.of(bestBody), page = pageFallback, pending = pending,
+                tag = bestTag, asset = bestAsset)
         }
         tagVer?.let { v ->
             return Result(true, current, fmt(v), cmp(v, cur) > 0, tagUrl, strong = tagStrong,
@@ -328,11 +371,64 @@ object Updater {
         conn.setRequestProperty("Accept", "application/vnd.github+json")
         try {
             val code = conn.responseCode
+            // 403 / 429 是接口限流，不是网络不通：再试只会让限流持续更久
+            if (code == 403 || code == 429) throw RateLimited(code)
             if (code !in 200..299) throw RuntimeException("HTTP $code")
             return conn.inputStream.bufferedReader().use { it.readText() }
         } finally {
             conn.disconnect()
         }
+    }
+
+    /** 接口限流。单独一类，是为了让它「不重试」并且能被如实说明。 */
+    class RateLimited(val code: Int) : Exception("HTTP $code")
+
+    /**
+     * 同一个通道多试几轮再换人。
+     *
+     * 早先一次就下结论：Gitee 一次 DNS 慢或 TLS 握手超时，就跳到 GitHub——而国内
+     * GitHub 往往更连不上，等于帮了倒忙。现在首选通道 3 轮、备用 2 轮，每轮之间
+     * 歇一下；限流则立刻放弃（重试只会让锁更久）。
+     */
+    private fun fetchWithRetry(ch: Channel, tries: Int): String {
+        var last: Exception? = null
+        for (i in 0 until tries.coerceAtLeast(1)) {
+            try {
+                return fetch(ch.api)
+            } catch (e: RateLimited) {
+                throw e
+            } catch (e: Exception) {
+                last = e
+            }
+            if (i + 1 < tries) {
+                try {
+                    Thread.sleep(RETRY_PAUSE_MS * (i + 1))
+                } catch (ignored: InterruptedException) {
+                    Thread.currentThread().interrupt()
+                    break
+                }
+            }
+        }
+        throw last ?: RuntimeException("unreachable")
+    }
+
+    /**
+     * 候选下载地址：Gitee 的固定地址在前，通道给的原地址在后。
+     *
+     * Gitee 的 `/releases/download/<tag>/<文件名>` 会 302 到 attach_files，
+     * 和 GitHub 的写法一致。这样即使这一版是从 GitHub 查到的，也能先从 Gitee 下——
+     * 国内 GitHub 的资产 CDN 基本下不动，这正是「查得到、下不了」的根源。
+     */
+    fun downloadUrls(primary: String, tag: String, asset: String): List<String> {
+        val out = ArrayList<String>()
+        if (tag.isNotBlank() && asset.isNotBlank()) {
+            out.add("https://gitee.com/$GITEE_REPO/releases/download/$tag/$asset")
+        }
+        // 只有本身就是「文件地址」时才排进候选；发布页不能当下载地址用
+        if (primary.contains("/download/") || primary.contains("/attach_files/")) {
+            out.add(primary)
+        }
+        return out.filter { allowedDownload(it) }.distinct()
     }
 }
 

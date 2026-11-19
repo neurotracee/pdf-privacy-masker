@@ -1722,11 +1722,14 @@ function renderUpdate(){
     return;
   }
   $('latestVer').textContent = 'v' + r.latest;
-  // 从哪个源读到的：自动换源时说清原因，免得用户以为「默认 Gitee 怎么跑去 GitHub」
+  // 从哪个源读到的：自动换源时按原因说清楚，免得用户以为「默认 Gitee 怎么跑去 GitHub」
   const srcLine = !r.channel ? ''
     : (r.fallbackFrom
-        ? T('（' + r.fallbackFrom + ' 这次没连上，已经自动改用 ' + r.channel + '）',
-            ' (' + r.fallbackFrom + ' could not be reached, so ' + r.channel + ' was used)')
+        ? (r.fallbackWhy === 'limited'
+            ? T('（' + r.fallbackFrom + ' 的接口次数用完了，这次改用 ' + r.channel + ' 查询；下载仍然优先走 Gitee）',
+                ' (' + r.fallbackFrom + ' hit its API rate limit, so ' + r.channel + ' was used to check; the download still prefers Gitee)')
+            : T('（' + r.fallbackFrom + ' 这次没连上，已经自动改用 ' + r.channel + '）',
+                ' (' + r.fallbackFrom + ' could not be reached, so ' + r.channel + ' was used)'))
         : T('（本次从 ' + r.channel + ' 读取）', ' (read from ' + r.channel + ')'));
   if(!r.hasUpdate){
     box.className = 'upd-box ok';

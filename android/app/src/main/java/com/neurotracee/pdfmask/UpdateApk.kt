@@ -11,6 +11,7 @@ import androidx.core.content.FileProvider
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.io.FileOutputStream
 import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
@@ -43,6 +44,8 @@ object UpdateApk {
     private const val MIN_BYTES = 2L * 1024 * 1024      // 正常安装包 14MB 左右，低于 2MB 肯定不对
     private const val MAX_BYTES = 300L * 1024 * 1024
     private const val PROGRESS_GAP_MS = 120L
+    private const val ATTEMPTS_PER_URL = 3      // 同一个地址最多试几次（中断可续传）
+    private const val RETRY_PAUSE_MS = 800L     // 重试前歇一会儿，乘上轮次
 
     sealed class Outcome {
         /** 已经拉起系统安装界面 */
@@ -69,16 +72,18 @@ object UpdateApk {
     /**
      * 下载 + 校验 + 拉起安装。整个过程在 IO 线程，进度回调切回主线程。
      *
+     * @param urls 候选下载地址，按优先级排好（Gitee 在前）。下载时逐个试，
+     *             每个地址最多 [ATTEMPTS_PER_URL] 次，失败可续传。
      * @param version 期望的版本号（来自发布页），用来核对下载到的包确实是这一版
      */
     suspend fun fetchAndInstall(
         ctx: Context,
-        url: String,
+        urls: List<String>,
         version: String,
         onProgress: (done: Long, total: Long) -> Unit = { _, _ -> }
     ): Fetched {
         val apk = try {
-            withContext(Dispatchers.IO) { download(ctx, url, version, onProgress) }
+            withContext(Dispatchers.IO) { download(ctx, urls, version, onProgress) }
         } catch (e: Exception) {
             val msg = e.message?.takeIf { it.isNotBlank() }
                 ?: tr("下载没完成", "The download did not finish")
@@ -94,35 +99,79 @@ object UpdateApk {
 
     /**
      * 下载安装包到缓存目录。完成时返回文件；任何一步不对都抛异常，由调用方转成提示。
+     *
+     * 逐地址、逐次重试：同一个地址断在中途时用 Range 续传，别把几十兆重下一遍。
+     * 网络抖动一两次就放弃太亏——手机流量下重下整包最伤。
      */
     fun download(
         ctx: Context,
-        url: String,
+        urls: List<String>,
         version: String,
         onProgress: (Long, Long) -> Unit
     ): File {
         // 只认白名单里的域名，绝不跟着任何陌生地址走
-        if (!Updater.allowedDownload(url)) {
+        val candidates = urls.filter { Updater.allowedDownload(it) }.distinct()
+        if (candidates.isEmpty()) {
             throw IOException(tr("下载地址不在允许的范围内", "The download address is not allowed"))
         }
 
         clean(ctx)
         val part = File(dir(ctx), "download.part")
-        part.delete()
+        var last: Exception? = null
+        for (url in candidates) {
+            for (i in 0 until ATTEMPTS_PER_URL) {
+                try {
+                    return downloadOnce(ctx, url, version, part, onProgress)
+                } catch (e: Exception) {
+                    last = e
+                    // 4xx（404 附件不在 / 403 拒绝）再试也没用，直接换下一个地址；
+                    // 校验不过（下到了错误页）同理
+                    if (!worthRetry(e)) break
+                    if (i + 1 < ATTEMPTS_PER_URL) {
+                        Thread.sleep(RETRY_PAUSE_MS * (i + 1))
+                    }
+                }
+            }
+            // 换地址就从头下，别把上一个地址的半截文件续上去
+            part.delete()
+        }
+        throw last ?: IOException(tr("下载没完成", "The download did not finish"))
+    }
 
-        val conn = open(url)
+    /** HTTP 4xx 属于「这个地址不行」，重试无意义；网络中断、超时才值得再试。 */
+    private fun worthRetry(e: Exception): Boolean {
+        val m = Regex("HTTP (\\d{3})").find(e.message ?: "") ?: return true
+        val code = m.groupValues[1].toIntOrNull() ?: return true
+        return code !in 400..499
+    }
+
+    private fun downloadOnce(
+        ctx: Context,
+        url: String,
+        version: String,
+        part: File,
+        onProgress: (Long, Long) -> Unit
+    ): File {
+        // 上次断在半路就接着下；服务器不认 Range（回 200）时自动改成从头来
+        val resumeFrom = if (part.exists()) part.length() else 0L
+        val conn = open(url, resumeFrom)
         try {
-            val total = conn.contentLengthLong
+            val partial = conn.responseCode == HttpURLConnection.HTTP_PARTIAL
+            val append = resumeFrom > 0 && partial
+            if (resumeFrom > 0 && !append) part.delete()
+            val start = if (append) resumeFrom else 0L
+            val have = conn.contentLengthLong
+            val total = if (have > 0) (if (append) start + have else have) else -1L
             if (total > MAX_BYTES) {
                 throw IOException(tr("安装包比预期大得多，已中止", "The file is far larger than expected — stopped"))
             }
 
             val main = Handler(Looper.getMainLooper())
             var lastPush = 0L
-            var done = 0L
+            var done = start
 
             conn.inputStream.use { input ->
-                part.outputStream().use { out ->
+                FileOutputStream(part, append).use { out ->
                     val buf = ByteArray(64 * 1024)
                     while (true) {
                         val n = input.read(buf)
@@ -181,9 +230,9 @@ object UpdateApk {
                 }
             }
         } catch (e: Exception) {
-            // 下载中断（网络断 / 校验不过 / 太小 / 不是安装包 / 版本不符）时不要把
-            // 半成品留在缓存里占地方。clean() 只删 update 目录下的残包，不碰别的缓存。
-            part.delete()
+            // 网络断了就留着半截文件，下一次续传；校验不过（太小 / 不是安装包 /
+            // 版本不符 / 4xx）则删掉，那种文件续下去也没意义。
+            if (!worthRetry(e)) part.delete()
             throw e
         } finally {
             conn.disconnect()
@@ -267,7 +316,7 @@ object UpdateApk {
     }
 
     /** 发请求并手动跟重定向：每一跳都必须是 https + 白名单域名 */
-    private fun open(url: String): HttpURLConnection {
+    private fun open(url: String, rangeFrom: Long = 0L): HttpURLConnection {
         var current = url
         var hops = 0
         while (true) {
@@ -278,6 +327,8 @@ object UpdateApk {
             conn.requestMethod = "GET"
             conn.setRequestProperty("User-Agent", "PDFPrivacyMasker-Android")
             conn.setRequestProperty("Accept", "*/*")
+            // 断点续传：只在下半截时带上，平常不带，免得 Gitee 那边没实现 Range 反而不对
+            if (rangeFrom > 0) conn.setRequestProperty("Range", "bytes=$rangeFrom-")
             val code = conn.responseCode
             if (code in 300..399) {
                 val loc = conn.getHeaderField("Location")
