@@ -139,6 +139,33 @@ class UiShotTest {
         c.drawColor(AColor.WHITE)
         // 用页面点坐标直接画，保证与 Finding 的 rect 严格对齐
         c.scale(w / 595f, h / 842f)
+        // 先铺一层「表单底稿」：表头、表格线、下面的正文灰条。
+        // 只画淡灰线条，不画任何真实文字——图里的字仍然只有 demoPage 的那几行，
+        // 这样截图看起来像一份填好的表格，而不是一张只有几行字的白纸。
+        val rule = Paint().apply {
+            color = AColor.rgb(223, 227, 234); strokeWidth = 1.2f; isAntiAlias = true
+        }
+        val bar = Paint().apply { color = AColor.rgb(236, 239, 244); isAntiAlias = true }
+        // 表头：左侧小方块 + 一条短横线，右边一条长一点的
+        c.drawRect(56f, 40f, 78f, 62f, bar)
+        c.drawRect(88f, 46f, 300f, 56f, bar)
+        c.drawRect(430f, 46f, 539f, 56f, bar)
+        // 表格：每行 26pt，与 demoPage 的行距一致，文字正好落在格子里
+        for (i in 0..9) {
+            val y = 78f + i * 26f
+            c.drawLine(56f, y, 539f, y, rule)
+        }
+        c.drawLine(56f, 312f, 539f, 312f, rule)
+        c.drawLine(300f, 78f, 300f, 312f, rule)
+        // 正文：内容区下面用灰条填满，避免大片空白
+        var y = 348f
+        var k = 0
+        while (y < 790f) {
+            val wid = if (k % 4 == 3) 330f else 483f
+            c.drawRect(56f, y, 56f + wid, y + 7f, bar)
+            y += 24f
+            k++
+        }
         val p = Paint().apply {
             color = AColor.rgb(70, 70, 70)
             textSize = 15f

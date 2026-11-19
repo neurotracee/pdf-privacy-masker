@@ -695,6 +695,10 @@ const $ = id => document.getElementById(id);
 let LANG = 'zh';
 const DICT = {
   '设置':'Settings', '关于':'About', '退出':'Quit',
+  '手动框选':'Manual box', '橡皮擦':'Eraser',
+  '按住鼠标拖出一个要打码的区域':'Hold and drag to mark an area to mask',
+  '按住鼠标擦掉误框的一小块，旁边该打码的内容不受影响':
+    'Hold and drag to erase a small mis-boxed patch; nearby masks stay',
   'PDF 隐私打码工具':'PDF Privacy Masker',
   '支持扫描件':'Scans supported',  '真马赛克 · 全程本地零上传 · ':'Real mosaic · 100% local · ',
   '扫描件自动识别 · 也可手动框选':'scans read automatically · manual box too',

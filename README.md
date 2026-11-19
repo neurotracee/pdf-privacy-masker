@@ -1,14 +1,31 @@
-# PDF 隐私打码工具
+<a id="top-zh"></a>
 
-[![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](https://github.com/neurotracee/pdf-privacy-masker/blob/main/LICENSE)
-[![Latest release](https://img.shields.io/github/v/release/neurotracee/pdf-privacy-masker?label=latest)](https://github.com/neurotracee/pdf-privacy-masker/releases/latest)
-[![Downloads](https://img.shields.io/github/downloads/neurotracee/pdf-privacy-masker/total?label=downloads)](https://github.com/neurotracee/pdf-privacy-masker/releases)
-[![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-green.svg)](https://github.com/neurotracee/pdf-privacy-masker/blob/main/requirements.txt)
-[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Android-blue.svg)](https://github.com/neurotracee/pdf-privacy-masker/releases)
-[![Gitee](https://img.shields.io/badge/Gitee-releases-c71d23.svg)](https://gitee.com/bio234/pdf-privacy-masker/releases/latest)
-[![selfcheck](https://github.com/neurotracee/pdf-privacy-masker/actions/workflows/ci.yml/badge.svg)](https://github.com/neurotracee/pdf-privacy-masker/actions/workflows/ci.yml)
+<p align="center">
+  <b>简体中文</b> · <a href="#pdf-privacy-masker">English</a>
+</p>
 
-**中文** | [English](#pdf-privacy-masker)
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/img/shot/hero-zh-dark.webp">
+    <img src="docs/img/shot/hero-zh-light.webp" width="100%" alt="PDF 隐私打码工具：把 PDF 拖进去，自动打上马赛克">
+  </picture>
+</p>
+
+<p align="center">
+  本地离线运行的 PDF 隐私打码工具。把 PDF 拖进去，自动认出手机号、身份证号、银行卡、姓名等敏感信息，用不可还原的马赛克盖掉；Windows 与 Android 共用同一套识别内核，全程不联网、不上传。
+</p>
+
+<p align="center">
+  <a href="https://github.com/neurotracee/pdf-privacy-masker/blob/main/LICENSE"><img alt="许可证 AGPL-3.0" src="https://img.shields.io/badge/%E8%AE%B8%E5%8F%AF%E8%AF%81-AGPL--3.0-2563EB?style=flat-square&labelColor=1E293B"></a>
+  <a href="https://github.com/neurotracee/pdf-privacy-masker/releases/latest"><img alt="最新版本" src="https://img.shields.io/github/v/release/neurotracee/pdf-privacy-masker?label=%E6%9C%80%E6%96%B0%E7%89%88%E6%9C%AC&color=2563EB&labelColor=1E293B&style=flat-square"></a>
+  <a href="https://github.com/neurotracee/pdf-privacy-masker/releases"><img alt="总下载量" src="https://img.shields.io/github/downloads/neurotracee/pdf-privacy-masker/total?label=%E4%B8%8B%E8%BD%BD&color=2563EB&labelColor=1E293B&style=flat-square"></a>
+  <a href="https://github.com/neurotracee/pdf-privacy-masker/blob/main/requirements.txt"><img alt="Python 3.11+" src="https://img.shields.io/badge/Python-3.11%2B-2563EB?style=flat-square&logo=python&logoColor=white&labelColor=1E293B"></a>
+  <a href="https://github.com/neurotracee/pdf-privacy-masker/releases"><img alt="平台 Windows / Android" src="https://img.shields.io/badge/%E5%B9%B3%E5%8F%B0-Windows%20%7C%20Android-2563EB?style=flat-square&labelColor=1E293B"></a>
+  <a href="https://gitee.com/bio234/pdf-privacy-masker/releases/latest"><img alt="Gitee 发布页" src="https://img.shields.io/badge/Gitee-%E5%8F%91%E5%B8%83%E9%A1%B5-C71D23?style=flat-square&labelColor=1E293B"></a>
+  <a href="https://github.com/neurotracee/pdf-privacy-masker/actions/workflows/ci.yml"><img alt="selfcheck" src="https://github.com/neurotracee/pdf-privacy-masker/actions/workflows/ci.yml/badge.svg"></a>
+</p>
+
+<br>
 
 > **本项目此前已在 GitHub 发布，后于 2026 年 11 月 7 日首次同步至国内开源平台 Gitee（https://gitee.com/bio234/pdf-privacy-masker）**
 >
@@ -60,31 +77,62 @@
 
 ---
 
-## 界面
 
-**Windows**（浏览器界面）：
+<h3 align="center">拖进去，自动标出每一处</h3>
 
-![界面](docs/img/interface.png)
+<p align="center">打开 PDF 就地分析：左边逐条列出识别到的敏感信息，右边预览里已经盖好马赛克，不想涂的取消勾选就行。</p>
 
-**安卓**（带壳展示：左首页选文件 / 右工作区「手动框选 · 橡皮擦」切换；截图取自真实界面渲染，非示意图）：
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/img/shot/win-work-zh-dark.webp">
+    <img src="docs/img/shot/win-work-zh-light.webp" width="100%" alt="Windows 工作区：左侧识别结果列表，右侧文档预览与马赛克">
+  </picture>
+</p>
 
-![安卓界面](docs/img/android-interface-framed.png)
+<br>
 
-> 安卓端更多实拍图见 [使用说明-安卓](docs/02-使用说明-安卓.md)：放大镜、扫描件识别、应用内更新。
+<h3 align="center">安卓端，同一个内核装进口袋</h3>
 
-点「生成打码 PDF」时先问你要存到哪个文件夹，两个勾选决定以后还问不问：
+<p align="center">首页选文件、工作区手动框选与橡皮擦、设置里切换语言与主题；识别规则与电脑端完全一致。</p>
 
-![保存位置](docs/img/save-location.jpg)
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/img/shot/phone-feature-zh-dark.webp">
+    <img src="docs/img/shot/phone-feature-zh-light.webp" width="100%" alt="安卓端：首页选文件、工作区、设置">
+  </picture>
+</p>
 
-也能随时在右上角「设置」里用勾选的方式改回来，不用记命令、不用改配置：
+<br>
 
-![设置](docs/img/settings.png)
+<h3 align="center">设置是勾选框，不是配置文件</h3>
 
-同一个面板里还有**检查更新**和**界面语言（中文 / English）**：
+<p align="center">保存位置、更新检查方式、界面语言都在同一个面板里，勾完立即生效，不用记命令、不用改 JSON。</p>
 
-- **检查更新**：打开时静默查一次，有新版本才提示；设置里也可以改成只手动查。断网就跳过，不影响打码。安卓端在应用内下载安装包并交给系统安装器。更新内容的详细说明都写在发布页：[Gitee](https://gitee.com/bio234/pdf-privacy-masker/releases) · [GitHub](https://github.com/neurotracee/pdf-privacy-masker/releases)。
-- **界面语言**：中英文一键切换，立即生效不用重启，选择存在 `settings.json` 里，下次打开还是这个语言。
-- **按返回 / 左右滑手势（v1.4.5 起，安卓）**：工作区里还开着文件时，返回键和全面屏手势会先问一句——**继续编辑** / **保存后离开** / **直接离开**。直接离开是回主页，不是关应用；在主页再按返回才是退出。
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/img/shot/win-settings-zh-dark.webp">
+    <img src="docs/img/shot/win-settings-zh-light.webp" width="100%" alt="设置面板：保存位置、界面语言、更新检查方式">
+  </picture>
+</p>
+
+<br>
+
+<h3 align="center">中文，也说 English</h3>
+
+<p align="center">全部界面支持英文，设置里一键切换，立即生效不用重启，下次打开还是你选的那个。</p>
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/img/shot/lang-zh-dark.webp">
+    <img src="docs/img/shot/lang-zh-light.webp" width="100%" alt="同一份文件的中文界面与英文界面">
+  </picture>
+</p>
+
+<br>
+
+<p align="center">
+  <sub>截图取自程序真实渲染，非示意图。安卓端的放大镜、扫描件识别、应用内更新实拍图见 <a href="docs/02-使用说明-安卓.md">使用说明 · 安卓</a>。</sub>
+</p>
 
 ---
 
@@ -241,6 +289,12 @@ https://gitee.com/bio234/pdf-privacy-masker      # mirror / 镜像（国内访�
 
 选择界面用的是 Windows 原生文件夹选择框，路径也可以直接粘贴。指定的文件夹不存在时程序会自动创建。原 PDF 始终只读，不会被改动或覆盖。
 
+### 设置面板里的几个开关
+
+- **检查更新**：打开时静默查一次，有新版本才提示；设置里也可以改成只手动查。断网就跳过，不影响打码。安卓端在应用内下载安装包并交给系统安装器。更新内容的详细说明都写在发布页：[Gitee](https://gitee.com/bio234/pdf-privacy-masker/releases) · [GitHub](https://github.com/neurotracee/pdf-privacy-masker/releases)。
+- **界面语言**：中英文一键切换，立即生效不用重启，选择存在 `settings.json` 里，下次打开还是这个语言。
+- **按返回 / 左右滑手势（v1.4.5 起，安卓）**：工作区里还开着文件时，返回键和全面屏手势会先问一句——**继续编辑** / **保存后离开** / **直接离开**。直接离开是回主页，不是关应用；在主页再按返回才是退出。
+
 ### 方式二：从源码运行
 
 ```bash
@@ -364,9 +418,34 @@ by the Free Software Foundation, either version 3 of the License, or
 ---
 ---
 
-# PDF Privacy Masker
+<a id="pdf-privacy-masker"></a>
 
-[中文](#pdf-隐私打码工具) | **English**
+<p align="center">
+  <a href="#top-zh">简体中文</a> · <b>English</b>
+</p>
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/img/shot/hero-en-dark.webp">
+    <img src="docs/img/shot/hero-en-light.webp" width="100%" alt="PDF Privacy Masker: drop a PDF in and it masks itself">
+  </picture>
+</p>
+
+<p align="center">
+  A fully offline PDF redaction tool. Drop a PDF in and it detects phone numbers, ID numbers, bank cards, names and more, covering them with irreversible mosaic. Windows and Android share the same detection engine — nothing is uploaded, ever.
+</p>
+
+<p align="center">
+  <a href="https://github.com/neurotracee/pdf-privacy-masker/blob/main/LICENSE"><img alt="License AGPL-3.0" src="https://img.shields.io/badge/%E8%AE%B8%E5%8F%AF%E8%AF%81-AGPL--3.0-2563EB?style=flat-square&labelColor=1E293B"></a>
+  <a href="https://github.com/neurotracee/pdf-privacy-masker/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/neurotracee/pdf-privacy-masker?label=latest&color=2563EB&labelColor=1E293B&style=flat-square"></a>
+  <a href="https://github.com/neurotracee/pdf-privacy-masker/releases"><img alt="Downloads" src="https://img.shields.io/github/downloads/neurotracee/pdf-privacy-masker/total?label=downloads&color=2563EB&labelColor=1E293B&style=flat-square"></a>
+  <a href="https://github.com/neurotracee/pdf-privacy-masker/blob/main/requirements.txt"><img alt="Python 3.11+" src="https://img.shields.io/badge/Python-3.11%2B-2563EB?style=flat-square&logo=python&logoColor=white&labelColor=1E293B"></a>
+  <a href="https://github.com/neurotracee/pdf-privacy-masker/releases"><img alt="Platform Windows / Android" src="https://img.shields.io/badge/platform-Windows%20%7C%20Android-2563EB?style=flat-square&labelColor=1E293B"></a>
+  <a href="https://gitee.com/bio234/pdf-privacy-masker/releases/latest"><img alt="Gitee releases" src="https://img.shields.io/badge/Gitee-releases-C71D23?style=flat-square&labelColor=1E293B"></a>
+  <a href="https://github.com/neurotracee/pdf-privacy-masker/actions/workflows/ci.yml"><img alt="selfcheck" src="https://github.com/neurotracee/pdf-privacy-masker/actions/workflows/ci.yml/badge.svg"></a>
+</p>
+
+<br>
 
 > **This project was originally published on GitHub, and was first mirrored to Gitee (https://gitee.com/bio234/pdf-privacy-masker), the domestic open-source platform, on 7 November 2026.**
 >
@@ -418,31 +497,62 @@ Static comparison, if you want to zoom in on details:
 
 ---
 
-## Interface
 
-**Windows** (browser UI):
+<h3 align="center">Drop it in, every match is marked</h3>
 
-![Interface](docs/img/interface.png)
+<p align="center">The PDF is analyzed in place: detected items are listed one by one on the left, the preview on the right already shows the mosaic, and anything you'd rather keep is one checkbox away.</p>
 
-**Android** (framed mockup: left = home / file picker, right = work screen with the "Draw box / Eraser" switch; captured from a real UI render, not a drawing):
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/img/shot/win-work-en-dark.webp">
+    <img src="docs/img/shot/win-work-en-light.webp" width="100%" alt="Windows work screen: detection list on the left, document preview with mosaic on the right">
+  </picture>
+</p>
 
-![Android interface](docs/img/android-interface-framed.png)
+<br>
 
-> More Android screenshots (loupe, scanned-PDF recognition, in-app update) are in [the Android guide](docs/02-使用说明-安卓.md).
+<h3 align="center">The same engine, in your pocket</h3>
 
-When you click "Generate Redacted PDF", it first asks which folder to save to, with two checkboxes deciding whether to ask again:
+<p align="center">Pick a file on the home screen, draw boxes or erase them in the work screen, switch language and theme in Settings — detection rules are identical to the Windows build.</p>
 
-![Save location](docs/img/save-location.jpg)
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/img/shot/phone-feature-en-dark.webp">
+    <img src="docs/img/shot/phone-feature-en-light.webp" width="100%" alt="Android: home screen, work screen, settings">
+  </picture>
+</p>
 
-You can also change this anytime in the Settings panel in the top-right corner — no command line, no config file editing:
+<br>
 
-![Settings](docs/img/settings.png)
+<h3 align="center">Settings are checkboxes, not config files</h3>
 
-The same panel also has **Check for updates** and **Language (中文 / English)**:
+<p align="center">Save folder, update checking and UI language all live in one panel. Tick it and it takes effect — no commands, no JSON editing.</p>
 
-- **Check for updates**: one silent check at launch, offering an update only when a newer build exists; Settings can switch it to manual only. Offline, it is skipped silently and the app stays fully usable. On Android the installer is downloaded inside the app and handed to the system installer. Detailed notes for each version live on the release pages: [Gitee](https://gitee.com/bio234/pdf-privacy-masker/releases) · [GitHub](https://github.com/neurotracee/pdf-privacy-masker/releases).
-- **Language** switches the whole interface between Chinese and English instantly, no restart. The choice is remembered in `settings.json`.
-- **Back button / edge swipe (Android, since v1.4.5)**: while a file is open, both the back button and the full-screen gestures are caught and a small dialog offers **Keep editing** / **Save, then leave** (only once a result exists) / **Leave anyway**. Leaving returns to the app's home screen, not out of the app. Back from the home screen is what exits.
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/img/shot/win-settings-en-dark.webp">
+    <img src="docs/img/shot/win-settings-en-light.webp" width="100%" alt="Settings panel: save folder, language, update checking">
+  </picture>
+</p>
+
+<br>
+
+<h3 align="center">Chinese, and English too</h3>
+
+<p align="center">The entire interface has an English version, switched from Settings, applied instantly, remembered next time.</p>
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/img/shot/lang-en-dark.webp">
+    <img src="docs/img/shot/lang-en-light.webp" width="100%" alt="The same file in the Chinese and English interfaces">
+  </picture>
+</p>
+
+<br>
+
+<p align="center">
+  <sub>Captured from the real UI, not mock drawings. More Android shots (loupe, scanned-PDF recognition, in-app update) are in <a href="docs/02-使用说明-安卓.md">the Android guide</a>.</sub>
+</p>
 
 ---
 
@@ -586,6 +696,12 @@ First time you click "Generate Redacted PDF", it pops up a folder picker. Pick a
 You can change these anytime in the top-right "Settings". If nothing is set, dragged-in files go to the system "Downloads" folder, and double-clicked PDFs go next to the original file.
 
 The picker is the native Windows folder dialog; you can also paste a path directly. If the folder doesn't exist, the app creates it. The original PDF is always read-only, never modified or overwritten.
+
+### The switches in Settings
+
+- **Check for updates**: one silent check at launch, offering an update only when a newer build exists; Settings can switch it to manual only. Offline, it is skipped silently and the app stays fully usable. On Android the installer is downloaded inside the app and handed to the system installer. Detailed notes for each version live on the release pages: [Gitee](https://gitee.com/bio234/pdf-privacy-masker/releases) · [GitHub](https://github.com/neurotracee/pdf-privacy-masker/releases).
+- **Language** switches the whole interface between Chinese and English instantly, no restart. The choice is remembered in `settings.json`.
+- **Back button / edge swipe (Android, since v1.4.5)**: while a file is open, both the back button and the full-screen gestures are caught and a small dialog offers **Keep editing** / **Save, then leave** (only once a result exists) / **Leave anyway**. Leaving returns to the app's home screen, not out of the app. Back from the home screen is what exits.
 
 ### Option 2: Run from source
 
