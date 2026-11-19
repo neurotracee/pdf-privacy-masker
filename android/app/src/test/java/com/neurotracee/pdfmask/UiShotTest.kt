@@ -30,7 +30,9 @@ import com.neurotracee.pdfmask.core.Line
 import com.neurotracee.pdfmask.core.PageText
 import com.neurotracee.pdfmask.core.Rect
 import com.neurotracee.pdfmask.ui.FoldInfo
+import com.neurotracee.pdfmask.core.DraftStore
 import com.neurotracee.pdfmask.ui.HomeScreen
+import com.neurotracee.pdfmask.ui.LeaveConfirmContent
 import com.neurotracee.pdfmask.ui.JobPanel
 import androidx.compose.foundation.shape.RoundedCornerShape
 import com.neurotracee.pdfmask.ui.PdfMaskTheme
@@ -203,7 +205,8 @@ class UiShotTest {
         fold: FoldInfo,
         dark: Boolean = false,
         listOpen: Boolean = false,
-        testDragAt: androidx.compose.ui.geometry.Offset? = null
+        testDragAt: androidx.compose.ui.geometry.Offset? = null,
+        draft: DraftStore.Meta? = null
     ) {
         val vm = seedVm()
         render(name, dark) {
@@ -224,7 +227,10 @@ class UiShotTest {
                             testDragAt = testDragAt
                         )
                     } else {
-                        HomeScreen(loading = false, onPick = {}, fold = fold, expanded = expanded)
+                        HomeScreen(
+                            loading = false, onPick = {}, fold = fold, expanded = expanded,
+                            draft = draft, onResumeDraft = {}, onDiscardDraft = {}
+                        )
                     }
                 }
             }
@@ -353,10 +359,63 @@ class UiShotTest {
     @Config(qualifiers = "w360dp-h800dp-night-xxhdpi")
     fun work_phone_dark() = shootApp("12-work-phone-dark", true, false, noFold, dark = true)
 
+    /** 返回时的确认框：四个出口（继续编辑/临时保存/保存后离开/直接离开）不能挤成一团 */
+    @Test
+    @Config(qualifiers = "w360dp-h800dp-xxhdpi")
+    fun leave_dialog_ready() = shootPanel("18-leave-dialog-ready") {
+        LeaveConfirmContent(
+            stage = Stage.READY,
+            onStay = {}, onSaveAndLeave = null, onSaveDraft = {}, onLeave = {}
+        )
+    }
+
+    @Test
+    @Config(qualifiers = "w360dp-h800dp-xxhdpi")
+    fun leave_dialog_done() = shootPanel("19-leave-dialog-done") {
+        LeaveConfirmContent(
+            stage = Stage.DONE,
+            onStay = {}, onSaveAndLeave = {}, onSaveDraft = {}, onLeave = {}
+        )
+    }
+
+    /** 首页带「上次没编辑完」卡片：草稿存了就得看得见，否则等于没存 */
+    @Test
+    @Config(qualifiers = "w360dp-h800dp-xxhdpi")
+    fun home_with_draft() = shootApp(
+        "17-home-with-draft", false, false, noFold,
+        draft = DraftStore.Meta(
+            name = "病历复印件_2026.pdf",
+            savedAt = System.currentTimeMillis() - 8 * 60_000L,
+            pages = 5,
+            marks = 12,
+            current = 1
+        )
+    )
+
     /** 深色主题下的首页 */
     @Test
     @Config(qualifiers = "w360dp-h800dp-night-xxhdpi")
     fun home_phone_dark() = shootApp("13-home-phone-dark", false, false, noFold, dark = true)
+
+    /** 英文界面下的退出确认：英文按钮更长，最容易把一行撑爆 */
+    @Test
+    @Config(qualifiers = "w360dp-h800dp-xxhdpi")
+    fun leave_dialog_english() {
+        com.neurotracee.pdfmask.AppPrefs.init(
+            ApplicationProvider.getApplicationContext<android.app.Application>()
+        )
+        com.neurotracee.pdfmask.AppPrefs.updateLang("en")
+        try {
+            shootPanel("20-leave-dialog-english") {
+                LeaveConfirmContent(
+                    stage = Stage.DONE,
+                    onStay = {}, onSaveAndLeave = {}, onSaveDraft = {}, onLeave = {}
+                )
+            }
+        } finally {
+            com.neurotracee.pdfmask.AppPrefs.updateLang("zh")
+        }
+    }
 
     /** 英文界面（首页） */
     @Test

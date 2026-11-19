@@ -87,6 +87,10 @@ fun AppRoot(vm: AppViewModel = viewModel()) {
     var showLeaveAsk by remember { mutableStateOf(false) }
     // 「保存后离开」：保存成功后再回主页，用这个标记告诉回调该收尾了
     var leaveAfterSave by remember { mutableStateOf(false) }
+    // 这些文案要在 onClick 里用，而 T() 只能在 Composable 上下文调用，先算好
+    val draftSavedMsg = T("已临时保存，下次打开可以接着编辑", "Saved. Open the app later to continue.")
+    val draftFailMsg = T("临时保存失败，可能是存储空间不足", "Could not save the draft — storage may be full.")
+    val draftGoneMsg = T("草稿已丢弃", "Draft discarded")
 
     /**
      * 真的离开当前文件：正在打码就先中断，然后回主页。
@@ -161,6 +165,8 @@ fun AppRoot(vm: AppViewModel = viewModel()) {
 
     LaunchedEffect(vm) {
         ViewModelHolder.pending = { uri -> vm.load(uri) }
+        // 首页一进来就读一次草稿，别等用户点开什么才刷新
+        vm.refreshDraft()
     }
 
     LaunchedEffect(vm.message) {
@@ -183,7 +189,13 @@ fun AppRoot(vm: AppViewModel = viewModel()) {
                     loading = vm.stage == Stage.LOADING,
                     onPick = { picker.launch(arrayOf("application/pdf")) },
                     fold = fold,
-                    expanded = expanded
+                    expanded = expanded,
+                    draft = vm.draftMeta,
+                    onResumeDraft = { vm.resumeDraft() },
+                    onDiscardDraft = {
+                        vm.discardDraft()
+                        vm.toast(draftGoneMsg)
+                    }
                 )
 
                 else -> WorkScreen(
@@ -234,6 +246,16 @@ fun AppRoot(vm: AppViewModel = viewModel()) {
                     startSave()
                 }
             } else null,
+            onSaveDraft = if (vm.stage == Stage.MASKING) null else {
+                {
+                    if (vm.saveDraft()) {
+                        finishLeaving()
+                        vm.toast(draftSavedMsg)
+                    } else {
+                        vm.toast(draftFailMsg)
+                    }
+                }
+            },
             onLeave = { finishLeaving() }
         )
     }

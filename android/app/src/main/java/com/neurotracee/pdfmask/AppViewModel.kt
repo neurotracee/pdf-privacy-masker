@@ -15,6 +15,7 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.neurotracee.pdfmask.core.Detector
+import com.neurotracee.pdfmask.core.DraftStore
 import com.neurotracee.pdfmask.core.Finding
 import com.neurotracee.pdfmask.core.JobCancelled
 import com.neurotracee.pdfmask.core.JobControl
@@ -459,6 +460,95 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun goPage(page: Int) {
         current = page.coerceIn(0, (pages.size - 1).coerceAtLeast(0))
+    }
+
+    // ---------------------------------------------------------------- 临时保存
+    //
+    // 返回键给了三个出口：继续编辑 / 临时保存 / 直接离开。选「临时保存」时把
+    // 源 PDF 和当前编辑状态一起落到私有目录，下次在首页点「继续编辑」接上。
+    // 只留最近一份——这是临走前的收尾动作，不是多文档工作台。
+
+    /** 首页卡片用；null 表示没有待续的草稿 */
+    var draftMeta by mutableStateOf<DraftStore.Meta?>(null)
+        private set
+
+    fun refreshDraft() {
+        draftMeta = DraftStore.meta(getApplication())
+    }
+
+    /** @return 是否真的写成功——失败时界面要说「没存上」，不能假装成功 */
+    fun saveDraft(): Boolean {
+        val f = docFile ?: return false
+        val ctx = getApplication<Application>()
+        val ok = DraftStore.save(ctx, f, docName, pages.size, findings, selected, erasers, current)
+        refreshDraft()
+        return ok
+    }
+
+    fun discardDraft() {
+        DraftStore.clear(getApplication())
+        refreshDraft()
+    }
+
+    /**
+     * 恢复草稿。
+     *
+     * 只重新读文字层（`PdfTextExtractor`，纯解析、不跑 OCR），识别结果和编辑
+     * 状态全部用草稿里的：重新 detect 既慢又可能因为模型/规则版本差异把用户
+     * 手动删掉的框又冒出来，那就不叫「接着编辑」了。
+     */
+    fun resumeDraft() {
+        val ctx = getApplication<Application>()
+        val snap = DraftStore.load(ctx)
+        if (snap == null) {
+            toast(tr("草稿已失效", "This draft is no longer available"))
+            refreshDraft()
+            return
+        }
+        // 显式命名：smart-cast 进到协程 lambda 里会失效，直接写 snap.pdf 推断不出来
+        val draft: DraftStore.Snapshot = snap
+        stage = Stage.LOADING
+        progress = 0f
+        thumbs.clear()
+        erasers = emptyMap()
+        nextManualId = -1
+        beginJob(JobKind.SCAN, tr("正在恢复编辑", "Restoring"))
+        viewModelScope.launch {
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    val tmp = File(ctx.cacheDir, "src_" + System.currentTimeMillis() + ".pdf")
+                    draft.pdf.copyTo(tmp, overwrite = true)
+                    val pageText = PdfTextExtractor.extract(ctx, tmp) { pno, n ->
+                        reportProgress(0f, 1f, pno, 0f, n,
+                            tr("正在读取文字层", "Reading text layer"), "")
+                    }
+                    Triple(tmp, pageText, draft)
+                }
+            }.onSuccess { r ->
+                endJob()
+                val (tmp, pageText, s) = r
+                docName = s.name
+                docFile = tmp
+                pages = pageText
+                // 页数对不上（换了文件、或草稿里的页被删）只保留仍然落在页内的框
+                findings = s.findings.filter { it.page in pageText.indices }
+                selected = s.selected.filter { id -> findings.any { it.id == id } }.toSet()
+                erasers = s.erasers.filterKeys { it in pageText.indices }
+                // 手动框的 id 从 -1 往下走，接着草稿里最小的那个继续
+                nextManualId = ((findings.minOfOrNull { it.id } ?: 0).coerceAtMost(0)) - 1
+                current = s.current.coerceIn(0, (pageText.size - 1).coerceAtLeast(0))
+                summary = null
+                savedName = ""
+                docKey = "$docName|${tmp.length()}"
+                stage = Stage.READY
+                toast(tr("已恢复上次未完成的编辑", "Restored your unfinished edits"))
+            }.onFailure {
+                endJob()
+                stage = Stage.HOME
+                docKey = ""
+                toast(tr("恢复失败：", "Restore failed: ") + (it.message ?: tr("未知错误", "unknown error")))
+            }
+        }
     }
 
     fun reset() {
