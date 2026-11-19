@@ -19,7 +19,10 @@ Gitee 附件配额（1 GB / 整个仓库）与版本顺序规范
 旧版本附件不逐个删、不逐个改文字，留到 `--prune-old-assets` 一次性批量处理；
 禁止「从旧版开始删附件 → 加新附件 → 回头改旧版文字」的交错操作，因为 Gitee 的
 latest 是「最后创建的非预发布 Release」，不是版本号最大的那个。
-正常同步结束会自动跑一次 `--verify-order` 的同等校验。
+正常同步结束会自动跑一次 `--verify-order` 的同等校验，并且**自动清理第 3 个及
+更早版本的安装包**（正文保留、只补一段「去 GitHub 下载」说明）。这样「Gitee 只
+留最新两版附件」是发版动作自带的，不靠人记得手动跑清理；需要保留更多版本时用
+`--keep-recent N`，想跳过这一步用 `--no-prune`。
 
 为什么要 `--reorder`
 --------------------
@@ -353,8 +356,14 @@ def newest_tag(rels):
     return max((r["tag_name"] for r in rels), key=ver_key)
 
 
-def recent_tags(rels, n=KEEP_RECENT):
-    """Gitee 要保留的版本：按版本号取最近 n 个（最新版 + 上一版）。"""
+def recent_tags(rels, n=None):
+    """Gitee 要保留的版本：按版本号取最近 n 个（最新版 + 上一版）。
+
+    n 默认取模块级 KEEP_RECENT，不能用 def 默认值直接绑定，否则命令行改
+    --keep-recent 时这里还按旧数字算。
+    """
+    if n is None:
+        n = KEEP_RECENT
     return set(sorted((r["tag_name"] for r in rels), key=ver_key, reverse=True)[:n])
 
 
@@ -472,7 +481,7 @@ def audit(tok):
             ("%d 个" % len(files)) if files else "无", sz / 1048576))
     print("安装包合计：%.2f MB / %d MB（%.1f%%）" %
           (total / 1048576, GITEE_QUOTA // 1048576, total * 100.0 / GITEE_QUOTA))
-    print("保留规则：最近 %d 个版本（最新版 + 上一版）两端都留；更早的用 --prune-old-assets 一次性清理。" % KEEP_RECENT)
+    print("保留规则：最近 %d 个版本（最新版 + 上一版）两端都留；更早的附件在发版同步结束时会自动清理（正文保留）。" % KEEP_RECENT)
 
 
 def history_note_body(body, tag):
@@ -533,6 +542,7 @@ def prune_old_assets(tok, dry=False):
 
 
 def main():
+    global KEEP_RECENT
     ap = argparse.ArgumentParser()
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--tag", default="")
@@ -547,7 +557,14 @@ def main():
                     help="列出各版本创建时间、预发布标记、附件与 1GB 配额占用")
     ap.add_argument("--prune-old-assets", action="store_true",
                     help="一次性批量清理旧版附件并统一说明文字（独立任务，配 --dry-run 预览）")
+    ap.add_argument("--no-prune", action="store_true",
+                    help="正常同步结束后不做自动清理（默认会自动清掉第 3 个及更早版本的安装包）")
+    ap.add_argument("--keep-recent", type=int, default=KEEP_RECENT,
+                    help="Gitee 保留几个版本的安装包（默认 2：最新版 + 上一版）")
     a = ap.parse_args()
+
+    if a.keep_recent and a.keep_recent > 0:
+        KEEP_RECENT = a.keep_recent
 
     tok = token()
     if not tok and not a.dry_run and not a.verify_order:
@@ -667,6 +684,11 @@ def main():
 
     print("\n完成。")
     if not a.dry_run:
+        # 「Gitee 只留最新两版附件」是发版自带的一步：新版本刚传完再清理更早的，
+        # 顺序不能反——先删旧再建新，latest 会被旧版本顶掉（见文件头 4.4 节）。
+        if not a.no_prune:
+            print("\n=== 自动清理第 %d 个及更早版本的安装包（正文保留）===" % (KEEP_RECENT + 1))
+            prune_old_assets(tok)
         # 每次动过 Gitee 都必须确认「最新版」没有跑偏，这是 4.4 节的硬规矩
         ok, _ = verify_order(rels, tok, quiet=True)
         if not ok:
