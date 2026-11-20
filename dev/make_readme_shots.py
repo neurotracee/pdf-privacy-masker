@@ -589,18 +589,20 @@ def hero(lang):
     x = 140 + 96 + 28
     d.text((x, 162), "pdf-privacy-masker", font=font(40, en=True), fill=TH["brand"])
 
+    # 标题、说明、胶囊三块的行距参考 DSH Go：标题两行之间留出明显空隙，
+    # 块与块之间也拉开，整块读起来不挤。
     y = 300
     for line in HERO[lang]["title"]:
         d.text((140, y), line, font=font(108, bold=True, en=(lang == "en")),
                fill=TH["title"])
-        y += 128
-    y += 20
+        y += 156
+    y += 46
     for line in HERO[lang]["sub"]:
         d.text((140, y), line, font=font(40, en=(lang == "en")), fill=TH["sub"])
-        y += 60
-    d.rounded_rectangle([140, y + 32, 140 + 700, y + 32 + 76], radius=38,
+        y += 68
+    d.rounded_rectangle([140, y + 54, 140 + 700, y + 54 + 76], radius=38,
                         fill=TH["pill"], outline=TH["pill_edge"], width=2)
-    d.text((140 + 34, y + 32 + 19), HERO[lang]["pill"],
+    d.text((140 + 34, y + 54 + 19), HERO[lang]["pill"],
            font=font(33, en=(lang == "en")), fill=TH["pill_text"])
 
     # 左下角两行小字：第一行说明这张图是合成示意、并注明版式借鉴来源，
