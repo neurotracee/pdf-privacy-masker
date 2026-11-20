@@ -547,14 +547,16 @@ HERO = {
         sub=["自动认出手机号、身份证号、银行卡、姓名等敏感信息，",
              "用不可还原的马赛克盖掉，全程在本机完成。"],
         pill="Windows  ·  Android  ·  不联网也能用",
-        note="示意图为 AI 生成，仅供创意参考，具体以实际界面为准  ·  版式思路借鉴 DSH Go 项目"),
+        note="示意图为 AI 生成，仅供创意参考，具体以实际界面为准  ·  版式思路借鉴 DSH Go 项目",
+        repo="ccch1mneyyy/dsh-go"),
     "en": dict(
         title=["PDF Privacy", "Masker"],
         sub=["Detects phone numbers, ID numbers, bank cards,",
              "names and more — then covers them all with",
              "irreversible mosaic. Nothing leaves your device."],
         pill="Windows  ·  Android  ·  Works offline",
-        note="AI-generated illustration, for reference only — the actual UI may differ  ·  layout inspired by DSH Go"),
+        note="AI-generated illustration, for reference only — the actual UI may differ  ·  layout inspired by DSH Go",
+        repo="ccch1mneyyy/dsh-go"),
 }
 
 
@@ -596,10 +598,11 @@ def hero(lang):
     d.text((140 + 34, y + 32 + 19), HERO[lang]["pill"],
            font=font(33, en=(lang == "en")), fill=TH["pill_text"])
 
-    # 左下角小字：说明这张图是合成示意、不是截图原样，并注明版式借鉴来源。
-    # 放左边与标题块同一起始线，比右下角（被手机占着）更显眼。
+    # 左下角两行小字：第一行说明这张图是合成示意、并注明版式借鉴来源，
+    # 第二行只写仓库路径（不带 https，越短越好）。整块离底边留出约两厘米。
     fn = font(26, en=(lang == "en"))
-    d.text((140, H - 54), HERO[lang]["note"], font=fn, fill=TH["fine"])
+    d.text((140, H - 150), HERO[lang]["note"], font=fn, fill=TH["fine"])
+    d.text((140, H - 106), HERO[lang]["repo"], font=font(26, en=True), fill=TH["fine"])
     return cv
 
 
