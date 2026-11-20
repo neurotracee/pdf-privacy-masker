@@ -452,15 +452,15 @@ Runs entirely on your own machine. No network, no upload, original file untouche
 
 Available for **Windows** (single-file exe) and **Android** (arm64 apk). Both share the same detection engine, but **each platform has its own version number**.
 
-![Redaction demo: a divider sweeps across, and the area it passes is the redacted result](docs/img/demo-wipe.gif)
+![Redaction demo: a divider sweeps across, and the area it passes is the redacted result](docs/img/demo-wipe-en.gif)
 
-> This is not a mock-up: it is the same document, before and after, stacked on top of each other. Where the divider has passed, you are looking at the redacted page. Surnames are kept; given names and every number are covered by mosaic; meeting dates, amounts, license plates and tracking numbers are preserved.
+> This is not a mock-up: it is the same English form, before and after, stacked on top of each other. Where the divider has passed, you are looking at the redacted page. Phone numbers, emails and bank cards are covered by mosaic; ordinary info such as dates, job titles and addresses is preserved.
 
 Static comparison, if you want to zoom in on details:
 
-![Before / After comparison](docs/img/comparison.png)
+![Before / After comparison](docs/img/comparison-en.png)
 
-> Left is the original document, right is the redacted result. Full size is 2100x1182; pages shrink it to fit — **[open the full-size image](docs/img/comparison.png)** to zoom into details (on Gitee/GitHub you can also click the image above). Surnames are kept, given names and all numbers are covered by mosaic; meeting dates, amounts, license plates, tracking numbers and other ordinary info are preserved.
+> Left is the original form, right is the redacted result. Full size is 2064x1432; pages shrink it to fit — **[open the full-size image](docs/img/comparison-en.png)** to zoom into details (on Gitee/GitHub you can also click the image above). Phone numbers, emails and bank cards are masked; dates, job titles, addresses and other ordinary info stay readable.
 
 ---
 
@@ -591,6 +591,8 @@ Need closed-source commercial use? You must **both** get an exemption from the p
 If this project saved you some time, you can buy me a bubble tea 🧋
 
 ![WeChat Donate](docs/img/wechat-donate.png)
+
+> The caption inside that image is Chinese because it is WeChat's own donation poster, not something the app draws.
 
 > **A star beats a tip.** If you don't feel like paying anything, starring the repo is the best support — it helps others find the project. Both apps have a **Star it** button in the About window (v1.4.2).
 >

@@ -548,7 +548,7 @@ HERO = {
              "用不可还原的马赛克盖掉，全程在本机完成。"],
         pill="Windows  ·  Android  ·  不联网也能用",
         note="示意图为 AI 生成，仅供创意参考，具体以实际界面为准  ·  版式思路借鉴 DSH Go 项目",
-        repo="ccch1mneyyy/dsh-go"),
+        repo="详细见 GitHub：ccch1mneyyy/dsh-go"),
     "en": dict(
         title=["PDF Privacy", "Masker"],
         sub=["Detects phone numbers, ID numbers, bank cards,",
@@ -556,7 +556,7 @@ HERO = {
              "irreversible mosaic. Nothing leaves your device."],
         pill="Windows  ·  Android  ·  Works offline",
         note="AI-generated illustration, for reference only — the actual UI may differ  ·  layout inspired by DSH Go",
-        repo="ccch1mneyyy/dsh-go"),
+        repo="Details on GitHub: ccch1mneyyy/dsh-go"),
 }
 
 
@@ -602,7 +602,7 @@ def hero(lang):
     # 第二行只写仓库路径（不带 https，越短越好）。整块离底边留出约两厘米。
     fn = font(26, en=(lang == "en"))
     d.text((140, H - 150), HERO[lang]["note"], font=fn, fill=TH["fine"])
-    d.text((140, H - 106), HERO[lang]["repo"], font=font(26, en=True), fill=TH["fine"])
+    d.text((140, H - 106), HERO[lang]["repo"], font=font(26, en=(lang == "en")), fill=TH["fine"])
     return cv
 
 
