@@ -33,28 +33,6 @@
 
 ---
 
-> **安装之前，请看这三点。它们解释的不是 bug，而是这个项目现在的处境。**
-
-> **① 为什么会弹「开发者身份未验证」**
->
-> 2026 年 11 月起，OPPO、vivo、小米、荣耀四家对**侧载安装**的 apk 增加了开发者身份验证（ADV，四家结果互认）。要通过它，需要三样东西同时具备：**本人手持身份证、本人实名的银行卡（或企业对公账户）、人脸活体认证**。
->
-> **作者是未成年人，其中最关键的一项拿不到——没有本人实名的银行卡。** 而为了注册一个「给手机装自己写的软件」用的开发者账号，去向家长要身份证和银行卡，家长通常不明白这是在做什么，更容易直接当成诈骗（「帮我扫个脸」「借张卡」这类话术，正是反诈宣传反复提醒的）。所以这条路目前走不通，短期内也不会改变。
->
-> 因此：**这个提示会一直存在，但它只是提醒，不阻止安装。** 处理只有两步——勾选「已知悉应用风险」，再点「仍然安装」（个别机型还要输一次锁屏密码）。功能一点不受影响，每次更新会再提示一次。详见下文「[怎么用](#怎么用) → 安装 apk（安卓）」。
-
-> **② 为什么装的时候会说「信息将被第三方收集」**
->
-> 这句话来自**手机系统的安装器**（安全中心），不是本程序弹的，也不由本程序控制。它是系统对**所有非应用商店来源的安装包**都会显示的模板文案，与包是谁做的无关。
->
-> 本程序里**没有任何第三方 SDK**：没有统计、没有埋点、没有广告、没有崩溃上报，也不需要登录任何账号。代码全部公开，可以自己核对。
-
-> **③ 唯一的联网权限，只用于检查更新**
->
-> 程序只有一处联网：**检查更新**——启动时静默查一次，也可以在设置里改成只在手动点「检查更新」时联网。读到的只是公开发布的版本号与安装包本身，不传文件、不传文档内容、不传任何个人信息；断网就静默跳过，不弹窗、不报错，打码功能完全不依赖网络。
-
----
-
 本地离线运行的 PDF 隐私信息自动打码工具，不联网也能用，不用云端大模型。把 PDF 拖进去，自动认出手机号、身份证号、银行卡号、邮箱、姓名、座机、地址、出生日期、性别年龄，用**不可还原的马赛克**盖掉，同时把底层的文字层一并抹除，另存为一个新文件。
 
 自动认不出来的部分可以**框选手动打码**，一样是像素级不可还原。
@@ -206,6 +184,18 @@ https://gitee.com/bio234/pdf-privacy-masker      # mirror / 镜像（国内访�
 需要闭源商用？那必须**同时**取得本项目作者的豁免（回复可能需要等几周，请不要指望快速回应）
 **和** PyMuPDF 版权方 Artifex 的商业许可（见 [NOTICE.md](NOTICE.md)）。两条缺一不可。
 
+## 赞赏
+
+如果这个项目帮你省了时间，可以请我喝杯奶茶 🧋
+
+![微信赞赏码](docs/img/wechat-donate.png)
+
+> **点 Star 比打赏更有用。**不想花钱完全没问题：到仓库点一颗 Star 就是最好的支持，别人搜得到，我才更有动力维护。两端「关于」窗口里都有「去点 Star」按钮（v1.4.2 新增）。
+>
+> 国内用户也可以扫码请我喝杯奶茶——完全自愿，不打赏一样免费、功能不缺。
+>
+> 想把二维码存下来：Windows 端点「保存赞赏码」，安卓端长按二维码或点「保存赞赏码」。这是 v1.4.1 补上的（更早的版本写了「长按图片可保存」，其实没生效）。
+
 ---
 
 ## 能识别什么
@@ -338,6 +328,17 @@ pyinstaller pdfmask.spec --noconfirm --clean
 - **安卓端输出的是整页图片。** 打码时每页重绘为 JPEG 再组装成新 PDF，所以打码后的文件**不能搜索、不能复制文字**，体积通常也比原先大；Windows 版保留矢量版面，只抹掉命中处的文字层。这是为了「彻底抹除文字层」有意做的取舍（v1.4.4 起写进说明）。
 - **注释是整块处理的。** Windows 端会删掉含敏感内容的整条注释，安卓端会把该注释的矩形整块盖成马赛克；若一条注释里既有敏感内容又有要保留的说明，整条都会没，需要的话请另写一条干净的注释。
 
+## 装之前要知道的三件事
+
+> **① 「开发者身份未验证」——正常提示，不阻止安装。**
+> 2026 年 11 月起，OPPO / vivo / 小米 / 荣耀对侧载 apk 加了开发者实名校验（ADV，四家互认）。作者是未成年人，缺其中最关键的本人实名银行卡，这条路走不通，所以提示会一直存在。处理只有两步：勾选「已知悉应用风险」→「立即安装」（个别机型再输一次锁屏密码），功能不受影响；每次更新会再提示一次。
+
+> **② 「信息将被第三方收集」是手机系统的话，不是本程序的。**
+> 所有非应用商店来源的安装包都会显示这句模板文案，与包是谁做的无关。本程序里没有任何第三方 SDK——不统计、不埋点、不广告、不上报崩溃、不登录账号，代码全部公开可查。
+
+> **③ 唯一的联网只用于检查更新。**
+> 启动时静默读一次公开发布的版本号，设置里可以改成只手动查；下载的也只是你选择更新的安装包，不传文件、不传文档内容。断网就静默跳过，打码完全不依赖网络。
+
 ## 依赖与许可
 
 | 依赖                                                 | 版本     | 许可                          |
@@ -403,18 +404,6 @@ by the Free Software Foundation, either version 3 of the License, or
 - **提改进 / 提代码**：先看 [CONTRIBUTING.md](CONTRIBUTING.md)，里面有目录结构、怎么跑自检、以及提交时会被要求做什么。
 - **回复可能不快**：看到了会处理，没回不代表没看见，也不代表被否掉。
 
-## 赞赏
-
-如果这个项目帮你省了时间，可以请我喝杯奶茶 🧋
-
-![微信赞赏码](docs/img/wechat-donate.png)
-
-> **点 Star 比打赏更有用。**不想花钱完全没问题：到仓库点一颗 Star 就是最好的支持，别人搜得到，我才更有动力维护。两端「关于」窗口里都有「去点 Star」按钮（v1.4.2 新增）。
->
-> 国内用户也可以扫码请我喝杯奶茶——完全自愿，不打赏一样免费、功能不缺。
->
-> 想把二维码存下来：Windows 端点「保存赞赏码」，安卓端长按二维码或点「保存赞赏码」。这是 v1.4.1 补上的（更早的版本写了「长按图片可保存」，其实没生效）。
-
 ---
 ---
 
@@ -450,28 +439,6 @@ by the Free Software Foundation, either version 3 of the License, or
 > **This project was originally published on GitHub, and was first mirrored to Gitee (https://gitee.com/bio234/pdf-privacy-masker), the domestic open-source platform, on 7 November 2026.**
 >
 > Note: this GitHub repository and the Gitee repository above are owned by the same developer. The GitHub repository was created earlier — stating this here so nobody mistakes one for a copy of the other.
-
----
-
-> **Before installing, read these three notes. They explain the situation this project is in, not bugs.**
-
-> **① Why the installer says "unverified developer"**
->
-> Since November 2026, OPPO, vivo, Xiaomi and HONOR have added Android Developer Verification (ADV, mutually recognised across the four) for **sideloaded** apks. Passing it requires three things at once: **holding your own ID card in hand, a bank card registered in your own name (or a corporate account), and a live face check**.
->
-> **The author is a minor and cannot obtain the key one — there is no bank card registered in the author's own name.** Asking a parent for their ID card and bank card, only to register a developer account "so a phone can install software I wrote", is a request most parents cannot make sense of and will reasonably suspect of being a scam — and "scan this face for me" / "lend me your card" is exactly the script fraud warnings keep telling people to refuse. So that route is closed for now and will stay closed for a while.
->
-> Therefore: **the warning will always be there, but it is a warning, not a block.** Two steps: tick "I understand the risk", then tap "Install anyway" (some phones ask for your screen-lock PIN). Nothing about the app's functionality changes; it reappears on every update. See "How to use → Install the apk (Android)" below.
-
-> **② Why the installer says information may be collected by third parties**
->
-> That sentence comes from the **phone's own package installer** (security centre). This app does not display it and cannot change it. It is boilerplate shown for **every apk that does not come from an app store**, regardless of who built it.
->
-> The app bundles **no third-party SDKs**: no analytics, no tracking, no ads, no crash reporting, no account login. The source is fully public, so you can check.
-
-> **③ The only network permission, used only for update checks**
->
-> The app goes online for exactly one purpose: **checking for updates** — once silently at launch, or only when you tap "Check for updates" if you prefer. It reads the publicly released version number and, if you choose to update, the installer itself. Nothing is uploaded: no files, no document content, no personal information. Offline it is skipped silently — no dialog, no error, and redaction never depends on the network.
 
 ---
 
@@ -619,6 +586,20 @@ Need closed-source commercial use? You must **both** get an exemption from the p
 
 ---
 
+## Support
+
+If this project saved you some time, you can buy me a bubble tea 🧋
+
+![WeChat Donate](docs/img/wechat-donate.png)
+
+> **A star beats a tip.** If you don't feel like paying anything, starring the repo is the best support — it helps others find the project. Both apps have a **Star it** button in the About window (v1.4.2).
+>
+> Domestic users can also scan the QR code to buy me a milk tea — entirely optional; the app stays free and fully functional either way.
+>
+> Want to keep the QR? In the app, use **About → Save the tip QR** (Windows) or **long-press the QR code / tap Save the QR** (Android). Added in v1.4.1.
+
+---
+
 ## What it can detect
 
 | Type | Description | Redaction |
@@ -746,6 +727,18 @@ Android apk: JDK 17 + Android SDK 34 + Gradle 8.7, open the `android/` directory
 - **On Android the output is full-page images.** Each page is re-rendered as JPEG and assembled into a new PDF, so the redacted file **cannot be searched and its text cannot be copied**; it is usually larger too. The Windows build keeps the vector layout and only removes the text layer at the hits. This is a deliberate trade for wiping the text layer (spelled out since v1.4.4).
 - **Annotations are handled as a whole.** On Windows an annotation containing sensitive content is deleted entirely; on Android its whole rectangle is mosaicked. If one annotation holds both sensitive content and text worth keeping, all of it goes — write a separate clean note instead.
 
+## Three things to know before installing
+
+> **① "Unverified developer" — a normal warning, not a block.**
+> Since November 2026, OPPO / vivo / Xiaomi / HONOR have added Android Developer Verification (ADV, mutually recognised) for sideloaded apks. The author is a minor and cannot obtain the key requirement — a bank card registered in their own name — so this warning will stay. Two steps: tick "I understand the risk", then tap "Install anyway" (some phones ask for the screen-lock PIN). Nothing is blocked; it reappears on every update.
+
+> **② "Information may be collected by third parties" comes from the phone, not this app.**
+> That sentence is boilerplate shown for every apk installed outside an app store, whoever built it. This app bundles no third-party SDKs — no analytics, no tracking, no ads, no crash reporting, no account. The source is public.
+
+> **③ The only network access is the update check.**
+> One silent read of the public version number at launch, or manual only if you prefer; the only file ever downloaded is the installer you choose. Nothing is uploaded. Offline it is skipped silently and redaction never depends on the network.
+
+
 ## Dependencies & License
 
 | Dependency | Version | License |
@@ -809,14 +802,3 @@ This project is maintained by one person in their spare time, and the priorities
 - **Suggest a change or send code**: read [CONTRIBUTING.md](CONTRIBUTING.md) first — it covers the layout, how to run the self-check, and what a patch is expected to include.
 - **Replies may be slow**: if it is seen it gets handled. No reply does not mean it was ignored or rejected.
 
-## Support
-
-If this project saved you some time, you can buy me a bubble tea 🧋
-
-![WeChat Donate](docs/img/wechat-donate.png)
-
-> **A star beats a tip.** If you don't feel like paying anything, starring the repo is the best support — it helps others find the project. Both apps have a **Star it** button in the About window (v1.4.2).
->
-> Domestic users can also scan the QR code to buy me a milk tea — entirely optional; the app stays free and fully functional either way.
->
-> Want to keep the QR? In the app, use **About → Save the tip QR** (Windows) or **long-press the QR code / tap Save the QR** (Android). Added in v1.4.1.

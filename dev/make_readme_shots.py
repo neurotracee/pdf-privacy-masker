@@ -72,7 +72,7 @@ THEMES = {
         edge=(214, 218, 228), win_text=(40, 44, 54), win_btn=(72, 78, 92),
         title=(22, 26, 36), sub=(96, 102, 118), brand=(90, 96, 112),
         pill=(255, 255, 255, 210), pill_edge=(214, 220, 232, 255),
-        pill_text=(60, 66, 82),
+        pill_text=(60, 66, 82), fine=(148, 154, 168),
     ),
     "dark": dict(
         bg=(20, 23, 30), bg2=(9, 11, 16),
@@ -82,7 +82,7 @@ THEMES = {
         edge=(58, 63, 76), win_text=(224, 228, 237), win_btn=(196, 202, 216),
         title=(238, 241, 248), sub=(148, 156, 174), brand=(138, 146, 164),
         pill=(30, 34, 44, 220), pill_edge=(58, 64, 80, 255),
-        pill_text=(202, 210, 226),
+        pill_text=(202, 210, 226), fine=(118, 126, 144),
     ),
 }
 TH = THEMES["light"]
@@ -546,20 +546,22 @@ HERO = {
         title=["PDF 隐私打码", "拖进去就好"],
         sub=["自动认出手机号、身份证号、银行卡、姓名等敏感信息，",
              "用不可还原的马赛克盖掉，全程在本机完成。"],
-        pill="Windows  ·  Android  ·  不联网也能用"),
+        pill="Windows  ·  Android  ·  不联网也能用",
+        note="示意图为 AI 生成，仅供创意参考，具体以实际界面为准  ·  版式思路借鉴 DSH Go 项目"),
     "en": dict(
         title=["PDF Privacy", "Masker"],
         sub=["Detects phone numbers, ID numbers, bank cards,",
              "names and more — then covers them all with",
              "irreversible mosaic. Nothing leaves your device."],
-        pill="Windows  ·  Android  ·  Works offline"),
+        pill="Windows  ·  Android  ·  Works offline",
+        note="AI-generated illustration, for reference only — the actual UI may differ  ·  layout inspired by DSH Go"),
 }
 
 
 def hero(lang):
     # 左边留给文字（最宽约 1200），右侧整块放「窗口 + 两台手机」，
-    # 两者之间留出空档，手机不压字。
-    W, H = 2900, 1320
+    # 两者之间留出空档，手机不压字。底部多留一条空白放右下角小字。
+    W, H = 2900, 1480
     cv = canvas((W, H))
     win = frame_window(shot_window_png(lang, "work"), WIN_TITLE[lang])
     win = fit(win, max_w=1500)
@@ -569,9 +571,9 @@ def hero(lang):
 
     ph1 = fit(frame_phone(PHONE_SRC[("home", lang)]), max_h=730)
     ph2 = fit(frame_phone(PHONE_SRC[("work", lang)]), max_h=660)
-    drop_in(cv, ph1, (wx - 10, H - ph1.height - 30),
+    drop_in(cv, ph1, (wx - 10, H - ph1.height - 140),
             radius=int(ph1.width * 0.12), blur=50, alpha=80, offset=(0, 26))
-    drop_in(cv, ph2, (wx + win.width - ph2.width - 50, H - ph2.height - 20),
+    drop_in(cv, ph2, (wx + win.width - ph2.width - 50, H - ph2.height - 130),
             radius=int(ph2.width * 0.12), blur=50, alpha=80, offset=(0, 26))
 
     d = ImageDraw.Draw(cv)
@@ -593,6 +595,11 @@ def hero(lang):
                         fill=TH["pill"], outline=TH["pill_edge"], width=2)
     d.text((140 + 34, y + 32 + 19), HERO[lang]["pill"],
            font=font(33, en=(lang == "en")), fill=TH["pill_text"])
+
+    # 左下角小字：说明这张图是合成示意、不是截图原样，并注明版式借鉴来源。
+    # 放左边与标题块同一起始线，比右下角（被手机占着）更显眼。
+    fn = font(26, en=(lang == "en"))
+    d.text((140, H - 54), HERO[lang]["note"], font=fn, fill=TH["fine"])
     return cv
 
 
