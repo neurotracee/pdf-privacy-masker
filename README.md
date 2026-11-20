@@ -121,83 +121,6 @@
 - **开源协议：GNU AGPL-3.0-or-later。** 详见 [LICENSE](LICENSE)，另附 [ADDITIONAL-TERMS.md](ADDITIONAL-TERMS.md)。
 - **维护方式**：个人业余时间维护，代码全部公开，欢迎任何人 fork 自行改进，不必询问。具体节奏与反馈渠道见文末「[维护节奏与反馈](#维护节奏与反馈)」。
 
-## 关于署名（二次开发或商用前请先看这一段）
-
-本项目**允许商用，也允许二次开发**，不需要付钱、不需要申请、不需要等作者批准
-（作者大约一两个月查看一次项目，回复可能很慢）。
-
-但下面**三条是硬要求**，属于 [ADDITIONAL-TERMS.md](ADDITIONAL-TERMS.md) 中
-依据 AGPL-3.0 第 7 条 (b) 项声明的附加条款，删掉任何一条都不合规：
-
-### ① 保留作者署名
-
-继续注明这两句，原文保留，不要替换成别人的名字：
-
-```
-指导作者：项目创作时为初中生
-由 腾讯 WorkBuddy × DeepSeek-V4.1-Flash 开发
-
-说明：常用、惯用、主要是 DeepSeek-V4.1-Flash——大多数场景和功能维护升级都由它作核心骨架；偶尔也会用其他模型，如 GLM 5.3 Flash、Hy4 Flash。
-
-Note: DeepSeek-V4.1-Flash is the model we usually and mainly rely on - the core backbone for most scenarios and maintenance; other models such as GLM 5.3 Flash and Hy4 Flash are used occasionally.
-```
-
-依据 AGPL-3.0 第 5 条（保留版权声明）；第 7 条 (b) 项明确允许版权方要求保留作者署名。
-
-### ② 在程序里标注原项目地址
-
-```
-https://github.com/neurotracee/pdf-privacy-masker
-https://gitee.com/bio234/pdf-privacy-masker      # mirror / 镜像（国内访问更快）
-```
-
-**必须让使用者看得见**——「关于」窗口、首页页脚、帮助菜单、`--about` 输出，
-任选一处即可。只写在 `LICENSE` 文件或几百行开外的源码注释里**不算数**，
-因为使用者正常操作时看不到。
-
-本项目的做法（可以直接照搬）：
-
-| 位置 | 内容 |
-| --- | --- |
-| 首页页脚 | `原项目地址：https://github.com/neurotracee/pdf-privacy-masker` + `Gitee: gitee.com/bio234/pdf-privacy-masker`（两行都可点，点了复制） |
-| 「关于」窗口 | `原项目地址` 与 `镜像地址（Gitee）` 两行，蓝色虚线可点 |
-| 命令行 | `python pdfmask.py --about` 会打印署名与地址 |
-
-### ③ 改过的版本必须说明改过
-
-只要你不是拿原版原样分发，就在程序里显著注明：
-
-> 本程序基于 https://github.com/neurotracee/pdf-privacy-masker
-> （镜像：https://gitee.com/bio234/pdf-privacy-masker）修改，非原作者发布。
-
-这一条是为了不让人误以为改动后的版本出自原作者——尤其是你的版本有 bug、
-有隐私风险、或者开始收费的时候。
-
-### 除此之外，AGPL-3.0 本身还要求
-
-- **一并开放源代码**：分发 exe（或 apk）时提供可构建出该产物的完整源码（第 4–6 条）。
-- **网络服务也要给源码**：把修改版做成网站让别人用，必须向这些使用者提供源码获取方式（第 13 条）。
-- **不要加更严的限制**：不能改成「禁止商用」「禁止修改」，那与 AGPL-3.0 冲突，写了也不生效。
-- **换个名字**：程序名「PDF 隐私打码工具」与图标不在授权范围内（第 7 条 (e) 项），
-  fork 请改名换图标，避免别人误认。
-
-需要闭源商用？那必须**同时**取得本项目作者的豁免（回复可能需要等几周，请不要指望快速回应）
-**和** PyMuPDF 版权方 Artifex 的商业许可（见 [NOTICE.md](NOTICE.md)）。两条缺一不可。
-
-## 赞赏
-
-如果这个项目帮你省了时间，可以请我喝杯奶茶 🧋
-
-![微信赞赏码](docs/img/wechat-donate.png)
-
-> **点 Star 比打赏更有用。**不想花钱完全没问题：到仓库点一颗 Star 就是最好的支持，别人搜得到，我才更有动力维护。两端「关于」窗口里都有「去点 Star」按钮（v1.4.2 新增）。
->
-> 国内用户也可以扫码请我喝杯奶茶——完全自愿，不打赏一样免费、功能不缺。
->
-> 想把二维码存下来：Windows 端点「保存赞赏码」，安卓端长按二维码或点「保存赞赏码」。这是 v1.4.1 补上的（更早的版本写了「长按图片可保存」，其实没生效）。
-
----
-
 ## 能识别什么
 
 | 类型      | 说明                            | 打码后  |
@@ -301,6 +224,85 @@ python pdfmask.py --cli 输入.pdf 输出.pdf
 ```
 
 会打印一份 JSON，列出每处识别结果所在的页与坐标。
+
+---
+
+## 关于署名（二次开发或商用前请先看这一段）
+
+本项目**允许商用，也允许二次开发**，不需要付钱、不需要申请、不需要等作者批准
+（作者大约一两个月查看一次项目，回复可能很慢）。
+
+但下面**三条是硬要求**，属于 [ADDITIONAL-TERMS.md](ADDITIONAL-TERMS.md) 中
+依据 AGPL-3.0 第 7 条 (b) 项声明的附加条款，删掉任何一条都不合规：
+
+### ① 保留作者署名
+
+继续注明这两句，原文保留，不要替换成别人的名字：
+
+```
+指导作者：项目创作时为初中生
+由 腾讯 WorkBuddy × DeepSeek-V4.1-Flash 开发
+
+说明：常用、惯用、主要是 DeepSeek-V4.1-Flash——大多数场景和功能维护升级都由它作核心骨架；偶尔也会用其他模型，如 GLM 5.3 Flash、Hy4 Flash。
+
+Note: DeepSeek-V4.1-Flash is the model we usually and mainly rely on - the core backbone for most scenarios and maintenance; other models such as GLM 5.3 Flash and Hy4 Flash are used occasionally.
+```
+
+依据 AGPL-3.0 第 5 条（保留版权声明）；第 7 条 (b) 项明确允许版权方要求保留作者署名。
+
+### ② 在程序里标注原项目地址
+
+```
+https://github.com/neurotracee/pdf-privacy-masker
+https://gitee.com/bio234/pdf-privacy-masker      # mirror / 镜像（国内访问更快）
+```
+
+**必须让使用者看得见**——「关于」窗口、首页页脚、帮助菜单、`--about` 输出，
+任选一处即可。只写在 `LICENSE` 文件或几百行开外的源码注释里**不算数**，
+因为使用者正常操作时看不到。
+
+本项目的做法（可以直接照搬）：
+
+| 位置 | 内容 |
+| --- | --- |
+| 首页页脚 | `原项目地址：https://github.com/neurotracee/pdf-privacy-masker` + `Gitee: gitee.com/bio234/pdf-privacy-masker`（两行都可点，点了复制） |
+| 「关于」窗口 | `原项目地址` 与 `镜像地址（Gitee）` 两行，蓝色虚线可点 |
+| 命令行 | `python pdfmask.py --about` 会打印署名与地址 |
+
+### ③ 改过的版本必须说明改过
+
+只要你不是拿原版原样分发，就在程序里显著注明：
+
+> 本程序基于 https://github.com/neurotracee/pdf-privacy-masker
+> （镜像：https://gitee.com/bio234/pdf-privacy-masker）修改，非原作者发布。
+
+这一条是为了不让人误以为改动后的版本出自原作者——尤其是你的版本有 bug、
+有隐私风险、或者开始收费的时候。
+
+### 除此之外，AGPL-3.0 本身还要求
+
+- **一并开放源代码**：分发 exe（或 apk）时提供可构建出该产物的完整源码（第 4–6 条）。
+- **网络服务也要给源码**：把修改版做成网站让别人用，必须向这些使用者提供源码获取方式（第 13 条）。
+- **不要加更严的限制**：不能改成「禁止商用」「禁止修改」，那与 AGPL-3.0 冲突，写了也不生效。
+- **换个名字**：程序名「PDF 隐私打码工具」与图标不在授权范围内（第 7 条 (e) 项），
+  fork 请改名换图标，避免别人误认。
+
+需要闭源商用？那必须**同时**取得本项目作者的豁免（回复可能需要等几周，请不要指望快速回应）
+**和** PyMuPDF 版权方 Artifex 的商业许可（见 [NOTICE.md](NOTICE.md)）。两条缺一不可。
+
+## 赞赏
+
+如果这个项目帮你省了时间，可以请我喝杯奶茶 🧋
+
+![微信赞赏码](docs/img/wechat-donate.png)
+
+> **点 Star 比打赏更有用。**不想花钱完全没问题：到仓库点一颗 Star 就是最好的支持，别人搜得到，我才更有动力维护。两端「关于」窗口里都有「去点 Star」按钮（v1.4.2 新增）。
+>
+> 国内用户也可以扫码请我喝杯奶茶——完全自愿，不打赏一样免费、功能不缺。
+>
+> 想把二维码存下来：Windows 端点「保存赞赏码」，安卓端长按二维码或点「保存赞赏码」。这是 v1.4.1 补上的（更早的版本写了「长按图片可保存」，其实没生效）。
+
+---
 
 ## 自己打包
 
@@ -530,78 +532,6 @@ Static comparison, if you want to zoom in on details:
 - **License: GNU AGPL-3.0-or-later.** See [LICENSE](LICENSE), and [ADDITIONAL-TERMS.md](ADDITIONAL-TERMS.md) for extra terms.
 - **Maintained** in spare time by one person. The code is fully open — fork and improve it whenever you like, no need to ask. See [Maintenance & feedback](#maintenance--feedback) at the end for details.
 
-## About attribution (read this before forking or commercial use)
-
-This project **allows commercial use and forks**, no payment, no application, no approval needed (the author checks the project roughly once every 1–2 months, so responses may be slow).
-
-But the **three hard requirements below** are part of [ADDITIONAL-TERMS.md](ADDITIONAL-TERMS.md) declared under AGPL-3.0 Section 7(b). Removing any of them is non-compliant:
-
-### ① Keep the author attribution
-
-Keep these two lines verbatim, don't replace with someone else's name:
-
-```
-Lead author: was a junior high school student when this project was created
-Developed by Tencent WorkBuddy × DeepSeek-V4.1-Flash
-
-Note: DeepSeek-V4.1-Flash is the model we usually and mainly rely on - the core backbone for most scenarios and maintenance; other models such as GLM 5.3 Flash and Hy4 Flash are used occasionally.
-```
-
-This is based on AGPL-3.0 Section 5 (preserve copyright notices); Section 7(b) explicitly allows the copyright holder to require attribution.
-
-### ② Show the original project URL in the program
-
-```
-https://github.com/neurotracee/pdf-privacy-masker
-https://gitee.com/bio234/pdf-privacy-masker      # mirror / 镜像（国内访问更快）
-```
-
-**Must be visible to users** — in the About window, footer, help menu, or `--about` output, pick any one. Writing it only in `LICENSE` or a source comment hundreds of lines away **doesn't count**, because users won't see it during normal operation.
-
-How this project does it (you can copy it directly):
-
-| Location | Content |
-| --- | --- |
-| Footer | `Original project: https://github.com/neurotracee/pdf-privacy-masker` + `Gitee: gitee.com/bio234/pdf-privacy-masker` (both click to copy) |
-| About window | `Original project` and `Mirror (Gitee)` lines, blue dashed clickable |
-| CLI | `python pdfmask.py --about` prints attribution and URL |
-
-### ③ State clearly if your version is modified
-
-Unless you're distributing the original unmodified, add a prominent notice in the program:
-
-> This program is based on https://github.com/neurotracee/pdf-privacy-masker
-> (mirror: https://gitee.com/bio234/pdf-privacy-masker), modified, not released by the original author.
-
-This prevents people from mistaking a modified version as the original author's — especially when your version has bugs, privacy risks, or starts charging.
-
-### Beyond AGPL-3.0 itself
-
-- **Open source alongside distribution**: when distributing the exe (or apk), provide the complete source code that builds it (Sections 4–6).
-- **Network services also need source**: if you make a modified version into a website for others, you must give those users a way to get the source (Section 13).
-- **Don't add stricter restrictions**: you can't change it to "no commercial use" or "no modification" — that conflicts with AGPL-3.0 and won't take effect.
-- **Rename it**: the program name "PDF Privacy Masker" and icon are not covered by the license (Section 7(e)). Forks must rename and rebrand to avoid confusion.
-
-Need closed-source commercial use? You must **both** get an exemption from the project author (response may take weeks, so don't count on it) **and** a commercial license from Artifex, the PyMuPDF copyright holder (see [NOTICE.md](NOTICE.md)). Both are required.
-
----
-
-## Support
-
-If this project saved you some time, you can buy me a bubble tea 🧋
-
-![WeChat Donate](docs/img/wechat-donate.png)
-
-> The caption inside that image is Chinese because it is WeChat's own donation poster, not something the app draws.
-
-> **A star beats a tip.** If you don't feel like paying anything, starring the repo is the best support — it helps others find the project. Both apps have a **Star it** button in the About window (v1.4.2).
->
-> Domestic users can also scan the QR code to buy me a milk tea — entirely optional; the app stays free and fully functional either way.
->
-> Want to keep the QR? In the app, use **About → Save the tip QR** (Windows) or **long-press the QR code / tap Save the QR** (Android). Added in v1.4.1.
-
----
-
 ## What it can detect
 
 | Type | Description | Redaction |
@@ -702,6 +632,80 @@ python pdfmask.py --cli input.pdf output.pdf
 ```
 
 Prints a JSON listing every detection result's page and coordinates.
+
+---
+
+## About attribution (read this before forking or commercial use)
+
+This project **allows commercial use and forks**, no payment, no application, no approval needed (the author checks the project roughly once every 1–2 months, so responses may be slow).
+
+But the **three hard requirements below** are part of [ADDITIONAL-TERMS.md](ADDITIONAL-TERMS.md) declared under AGPL-3.0 Section 7(b). Removing any of them is non-compliant:
+
+### ① Keep the author attribution
+
+Keep these two lines verbatim, don't replace with someone else's name:
+
+```
+Lead author: was a junior high school student when this project was created
+Developed by Tencent WorkBuddy × DeepSeek-V4.1-Flash
+
+Note: DeepSeek-V4.1-Flash is the model we usually and mainly rely on - the core backbone for most scenarios and maintenance; other models such as GLM 5.3 Flash and Hy4 Flash are used occasionally.
+```
+
+This is based on AGPL-3.0 Section 5 (preserve copyright notices); Section 7(b) explicitly allows the copyright holder to require attribution.
+
+### ② Show the original project URL in the program
+
+```
+https://github.com/neurotracee/pdf-privacy-masker
+https://gitee.com/bio234/pdf-privacy-masker      # mirror / 镜像（国内访问更快）
+```
+
+**Must be visible to users** — in the About window, footer, help menu, or `--about` output, pick any one. Writing it only in `LICENSE` or a source comment hundreds of lines away **doesn't count**, because users won't see it during normal operation.
+
+How this project does it (you can copy it directly):
+
+| Location | Content |
+| --- | --- |
+| Footer | `Original project: https://github.com/neurotracee/pdf-privacy-masker` + `Gitee: gitee.com/bio234/pdf-privacy-masker` (both click to copy) |
+| About window | `Original project` and `Mirror (Gitee)` lines, blue dashed clickable |
+| CLI | `python pdfmask.py --about` prints attribution and URL |
+
+### ③ State clearly if your version is modified
+
+Unless you're distributing the original unmodified, add a prominent notice in the program:
+
+> This program is based on https://github.com/neurotracee/pdf-privacy-masker
+> (mirror: https://gitee.com/bio234/pdf-privacy-masker), modified, not released by the original author.
+
+This prevents people from mistaking a modified version as the original author's — especially when your version has bugs, privacy risks, or starts charging.
+
+### Beyond AGPL-3.0 itself
+
+- **Open source alongside distribution**: when distributing the exe (or apk), provide the complete source code that builds it (Sections 4–6).
+- **Network services also need source**: if you make a modified version into a website for others, you must give those users a way to get the source (Section 13).
+- **Don't add stricter restrictions**: you can't change it to "no commercial use" or "no modification" — that conflicts with AGPL-3.0 and won't take effect.
+- **Rename it**: the program name "PDF Privacy Masker" and icon are not covered by the license (Section 7(e)). Forks must rename and rebrand to avoid confusion.
+
+Need closed-source commercial use? You must **both** get an exemption from the project author (response may take weeks, so don't count on it) **and** a commercial license from Artifex, the PyMuPDF copyright holder (see [NOTICE.md](NOTICE.md)). Both are required.
+
+---
+
+## Support
+
+If this project saved you some time, you can buy me a bubble tea 🧋
+
+![WeChat Donate](docs/img/wechat-donate.png)
+
+> The caption inside that image is Chinese because it is WeChat's own donation poster, not something the app draws.
+
+> **A star beats a tip.** If you don't feel like paying anything, starring the repo is the best support — it helps others find the project. Both apps have a **Star it** button in the About window (v1.4.2).
+>
+> Domestic users can also scan the QR code to buy me a milk tea — entirely optional; the app stays free and fully functional either way.
+>
+> Want to keep the QR? In the app, use **About → Save the tip QR** (Windows) or **long-press the QR code / tap Save the QR** (Android). Added in v1.4.1.
+
+---
 
 ## Build your own
 
