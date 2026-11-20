@@ -19,6 +19,7 @@ import argparse
 import io
 import json
 import os
+import re
 import subprocess
 import sys
 import time
@@ -99,6 +100,46 @@ def upload_asset(rid, path, tok):
     return code in (200, 201), out[:160]
 
 
+def read_version(path, pattern):
+    p = os.path.join(ROOT, path)
+    if not os.path.exists(p):
+        return ""
+    txt = io.open(p, encoding="utf-8", errors="replace").read()
+    m = re.search(pattern, txt)
+    return m.group(1) if m else ""
+
+
+def check_version(tag, files):
+    """发版前对账：tag、三处源码版本号、安装包文件名必须指向同一个版本。
+
+    这一关专门防「发布页上版本号是最新的，里面的东西其实不是」——最常见的是
+    代码改了、版本号没动，于是新包的 tag 还是旧版本号；或者包是老早打的，只是
+    换了个名字。任何一处对不上就直接退出，不让人自己发现。
+    """
+    ver = tag[1:] if tag[:1] in ("v", "V") else tag
+    want = [
+        ("pdfmask.py", r'VERSION\s*=\s*"([^"]+)"'),
+        ("version_info.txt", r"'FileVersion',\s*'([^']+)'"),
+        ("android/app/build.gradle.kts", r'appVersionName\s*=\s*"([^"]+)"'),
+    ]
+    bad = []
+    for path, pat in want:
+        got = read_version(path, pat)
+        if got != ver:
+            bad.append("%s 里是 %s" % (path, got or "(读不到)"))
+    for f in files:
+        name = os.path.basename(f)
+        if name.lower().endswith((".exe", ".apk")) and ver not in name:
+            bad.append("附件 %s 的文件名里没有版本号 %s" % (name, ver))
+    if bad:
+        print("版本号对不上，先别发：")
+        for b in bad:
+            print("  - " + b)
+        print("改完版本号并重新打包（旧包不能只改名），再推代码、再发 Release。")
+        return False
+    return True
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--tag", required=True)
@@ -106,6 +147,7 @@ def main():
     ap.add_argument("--only", choices=["exe", "apk", "both"], default="both",
                     help="只传某一端的安装包（只改一端时用，避免另一个平台的同名包/旧包被误传）")
     ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--force", action="store_true", help="跳过版本号对账（不推荐）")
     a = ap.parse_args()
 
     d = os.path.join(ROOT, "release", a.tag)
@@ -129,6 +171,8 @@ def main():
             return 1
         files = [f for f in files if not f.lower().endswith(other)]
         print("只发 %s：跳过 %s 包" % (a.only, other))
+    if not a.force and not check_version(a.tag, files):
+        return 1
     print("标题: %s | 正文 %d 字符 | 附件 %d 个" % (title, len(body), len(files)))
 
     tok = token()

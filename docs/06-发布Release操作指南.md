@@ -16,6 +16,8 @@
 
 `RELEASE-NOTES.md` 不要上传，它是给你复制正文用的。
 
+**发布前先对账（脚本自动做）**：用 `dev/publish_github_release.py` 发版时，脚本会先核对 tag、`pdfmask.py` 的 `VERSION`、`version_info.txt` 的 `FileVersion`、`android/app/build.gradle.kts` 的 `appVersionName` 四处，以及两个安装包的文件名——必须全都指向同一个版本号，否则直接拒绝发布。这条规则专治「发布页上版本号是最新的，里面的东西其实不是」：改了代码却没动版本号、或者拿旧包改个文件名充数，都会在这里被拦下。真需要跳过用 `--force`，但别这么干。
+
 **上传前至少核对这四项**：exe 的文件属性版本与产品版本都等于本次版本号；两个包的 SHA256 与 `SHA256SUMS.txt` 逐字一致；拿真实文件名试跑版本解析，两个包都能正确读出本次版本号；apk 的签名 SHA1 与上一版一致（不一致就不能覆盖安装）。
 
 ---

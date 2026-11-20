@@ -368,13 +368,21 @@ def recent_tags(rels, n=None):
 
 
 def ge_latest_tag():
-    """直接问 Gitee 的 /releases/latest 落在哪个 tag，不靠列表猜。"""
-    r = subprocess.run(["curl", "-s", "--noproxy", "*", "--max-time", "30",
-                        "-o", os.devnull, "-w", "%{redirect_url}", GE_LATEST_URL],
+    """直接问 Gitee 的 /releases/latest 落在哪个 tag，不靠列表猜。
+
+    用 HEAD 读 Location 头，而不是 %{redirect_url}：本机走代理时，第一跳是
+    「Connection Established」，%{redirect_url} 会拿到空值，导致明明正确也报
+    「取不到」。用户点网页链接看到的就是这个 302 的落点，所以以它为准。
+    """
+    r = subprocess.run(["curl", "-sI", "--max-time", "30", GE_LATEST_URL],
                        capture_output=True, text=True)
-    out = (r.stdout or "").strip()
-    m = re.search(r"/tag/([^/?#]+)", out)
-    return m.group(1) if m else ""
+    out = r.stdout or ""
+    for line in out.splitlines():
+        if line.lower().startswith("location:"):
+            m = re.search(r"/tag/([^/?#\s]+)", line.split(":", 1)[1])
+            if m:
+                return m.group(1)
+    return ""
 
 
 def ge_attach_files(rid, tok):
