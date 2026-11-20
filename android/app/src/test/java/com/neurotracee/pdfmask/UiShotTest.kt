@@ -66,6 +66,35 @@ class UiShotTest {
 
     // ---------- 假数据 ----------
 
+    /** 英文截图用同一套版式的英文表单，避免英文 README 里手机屏还是中文 */
+    private fun demoPageEn(index: Int = 0): PageText {
+        val texts = listOf(
+            "EMPLOYEE INFORMATION FORM",
+            "Full name: Jonathan Reyes",
+            "Job title: Senior Analyst",
+            "Phone: 13800138000",
+            "Mobile: +86 139 0013 9000",
+            "Email: j.reyes@example.com",
+            "Backup email: jonathan.reyes@mail.com",
+            "Bank card: 6222 0212 3456 7890",
+            "Address: Room 1203, Building 5, 88 Jianguo Road"
+        )
+        var y = 90f
+        val lines = texts.map { t ->
+            val cs = ArrayList<CharBox?>()
+            var x = 56f
+            for (ch in t) {
+                val w = if (ch.code < 128) 6.2f else 13.0f
+                cs.add(CharBox(ch, Rect(x, y - 11f, x + w, y + 3f)))
+                x += w
+            }
+            val line = Line(t, cs)
+            y += 26f
+            line
+        }
+        return PageText(index, 595f, 842f, lines)
+    }
+
     private fun demoPage(index: Int = 0): PageText {
         val texts = listOf(
             "员工信息登记表",
@@ -107,6 +136,24 @@ class UiShotTest {
         return r
     }
 
+    private fun demoFindingsEn(): List<Finding> {
+        val pg = demoPageEn()
+        val raw = listOf(
+            Triple(Kind.NAME, 1, "Jonathan Reyes"),
+            Triple(Kind.PHONE, 3, "13800138000"),
+            Triple(Kind.PHONE, 4, "139 0013 9000"),
+            Triple(Kind.EMAIL, 5, "j.reyes@example.com"),
+            Triple(Kind.EMAIL, 6, "jonathan.reyes@mail.com"),
+            Triple(Kind.BANKCARD, 7, "6222 0212 3456 7890")
+        )
+        val auto = raw.mapIndexedNotNull { i, (k, li, t) ->
+            val r = boxOf(pg, li, t) ?: return@mapIndexedNotNull null
+            Finding(0, k, t, r, note = "", suspect = i == 0, id = i)
+        }
+        val manual1 = Finding(0, Kind.MANUAL, "", Rect(56f, 88f, 300f, 112f), note = "Manual box", id = -1)
+        return auto + manual1
+    }
+
     private fun demoFindings(): List<Finding> {
         val pg = demoPage()
         val raw = listOf(
@@ -131,7 +178,7 @@ class UiShotTest {
         return auto + manual1 + manual2
     }
 
-    private fun demoThumb(): Bitmap {
+    private fun demoThumb(en: Boolean = false): Bitmap {
         val w = 900
         val h = 1273
         val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
@@ -171,21 +218,21 @@ class UiShotTest {
             textSize = 15f
             isAntiAlias = true
         }
-        for (line in demoPage().lines) {
+        for (line in (if (en) demoPageEn() else demoPage()).lines) {
             val first = line.chars.firstOrNull { it?.rect != null }?.rect ?: continue
             c.drawText(line.text, first.x0, first.y1 - 3f, p)
         }
         return bmp
     }
 
-    private fun seedVm(): AppViewModel {
+    private fun seedVm(en: Boolean = false): AppViewModel {
         val app = ApplicationProvider.getApplicationContext<android.app.Application>()
         val vm = AppViewModel(app)
-        val fs = demoFindings()
-        val thumb = demoThumb()
+        val fs = if (en) demoFindingsEn() else demoFindings()
+        val thumb = demoThumb(en)
         vm.seedForPreview(
-            name = "员工信息登记表.pdf",
-            pageTexts = listOf(demoPage(0), demoPage(1)),
+            name = if (en) "employee-records.pdf" else "员工信息登记表.pdf",
+            pageTexts = if (en) listOf(demoPageEn(0), demoPageEn(1)) else listOf(demoPage(0), demoPage(1)),
             found = fs,
             sel = fs.filter { !it.suspect }.map { it.id }.toSet(),
             thumbBitmaps = mapOf(0 to thumb, 1 to thumb)
@@ -233,9 +280,10 @@ class UiShotTest {
         dark: Boolean = false,
         listOpen: Boolean = false,
         testDragAt: androidx.compose.ui.geometry.Offset? = null,
-        draft: DraftStore.Meta? = null
+        draft: DraftStore.Meta? = null,
+        en: Boolean = false
     ) {
-        val vm = seedVm()
+        val vm = seedVm(en)
         render(name, dark) {
             Scaffold(
                 containerColor = MaterialTheme.colorScheme.background,
@@ -453,7 +501,7 @@ class UiShotTest {
         )
         com.neurotracee.pdfmask.AppPrefs.updateLang("en")
         try {
-            shootApp("14-home-english", false, false, noFold)
+            shootApp("14-home-english", false, false, noFold, en = true)
         } finally {
             com.neurotracee.pdfmask.AppPrefs.updateLang("zh")
         }
@@ -468,7 +516,7 @@ class UiShotTest {
         )
         com.neurotracee.pdfmask.AppPrefs.updateLang("en")
         try {
-            shootApp("15-work-english", true, false, noFold)
+            shootApp("15-work-english", true, false, noFold, en = true)
         } finally {
             com.neurotracee.pdfmask.AppPrefs.updateLang("zh")
         }

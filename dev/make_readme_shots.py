@@ -55,6 +55,8 @@ EDGE = [
 ]
 
 SAMPLE_PDF = os.path.join(ROOT, "test", "测试文档_含隐私.pdf")
+# 英文版截图用英文文档，否则英文 README 里那张「主界面」的正文还是中文
+EN_SAMPLE = os.path.join(ROOT, "dev", "fixtures", "en_sample.pdf")
 
 # 视觉基调：仿 DSH Go 那种「极浅冷紫 → 极浅暖白」的斜向渐变
 BG_TOP = (245, 246, 251)
@@ -131,7 +133,8 @@ def _doc_payload(lang):
     import pdfengine
     import pdfmask
 
-    doc = pdfengine.open_doc(SAMPLE_PDF)
+    src = SAMPLE_PDF if lang == "zh" else EN_SAMPLE
+    doc = pdfengine.open_doc(src)
     findings = pdfmask.detect(doc, use_ocr=False)
     pages = []
     for i in range(len(doc)):
@@ -150,7 +153,7 @@ def _doc_payload(lang):
                       "note": f.get("note") or "", "suspect": False})
         stats[label] = stats.get(label, 0) + 1
     name = "员工信息登记表.pdf" if lang == "zh" else "employee-records.pdf"
-    docj = {"docId": "t1", "name": name, "size": os.path.getsize(SAMPLE_PDF),
+    docj = {"docId": "t1", "name": name, "size": os.path.getsize(src),
             "pages": pages, "findings": items, "scanned": [],
             "outDir": "D:\\\\HugoMoveData\\\\User\\\\YB\\\\Downloads",
             "stats": stats}
