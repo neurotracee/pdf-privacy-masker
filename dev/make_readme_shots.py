@@ -567,15 +567,17 @@ def hero(lang):
     cv = canvas((W, H))
     win = frame_window(shot_window_png(lang, "work"), WIN_TITLE[lang])
     win = fit(win, max_w=1500)
-    wx = W - win.width - 60
+    wx = W - win.width - 150          # 整块往左压一点，右边不留太空
     wy = 180
     drop_in(cv, win, (wx, wy), radius=26, blur=60, alpha=70, offset=(0, 34))
 
-    ph1 = fit(frame_phone(PHONE_SRC[("home", lang)]), max_h=730)
-    ph2 = fit(frame_phone(PHONE_SRC[("work", lang)]), max_h=660)
-    drop_in(cv, ph1, (wx - 10, H - ph1.height - 140),
+    # 两台手机必须等高、同一个 y：高度不同就会一高一低，看着像没摆正
+    ph1 = fit(frame_phone(PHONE_SRC[("home", lang)]), max_h=700)
+    ph2 = fit(frame_phone(PHONE_SRC[("work", lang)]), max_h=700)
+    py = H - max(ph1.height, ph2.height) - 150
+    drop_in(cv, ph1, (wx - 20, py),
             radius=int(ph1.width * 0.12), blur=50, alpha=80, offset=(0, 26))
-    drop_in(cv, ph2, (wx + win.width - ph2.width - 50, H - ph2.height - 130),
+    drop_in(cv, ph2, (wx + win.width - ph2.width - 60, py),
             radius=int(ph2.width * 0.12), blur=50, alpha=80, offset=(0, 26))
 
     d = ImageDraw.Draw(cv)
