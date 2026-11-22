@@ -16,10 +16,14 @@ version: '1.0'
 name: appimage
 displayName: Linux AppImage（国内主机组构建并上传 Gitee）
 
-# 手动触发：推到仓库后在 Gitee Go 网页点「运行」。脚本自己取最新 tag，
-# 避免依赖 Gitee Go  undocumented 的 tag 触发字段（写错就不跑）。
+# 触发：保留 tag 推送自动触发（这是 Gitee Go 能识别的写法），
+# 也可以随时在网页点「运行」手动跑。脚本自己取最新 tag。
 triggers:
-  trigger: manual
+  trigger: auto
+  push:
+    tags:
+      include:
+        - v*
 
 stages:
   - name: build-upload
