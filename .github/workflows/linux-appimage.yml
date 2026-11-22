@@ -120,15 +120,6 @@ jobs:
           gh release upload "$TAG" dist/*.AppImage dist/SHA256SUMS-linux.txt --clobber --repo "$GITHUB_REPOSITORY"
           echo "已上传：https://github.com/$GITHUB_REPOSITORY/releases/tag/$TAG"
 
-      - name: 直接推到 Gitee（不经本机，配额没满就传）
-        # AppImage 在 CI 上构建，包就在 dist/，直接推 Gitee。不要走「本机从
-        # GitHub 下载 88 MB 再上传」那条路——绕远且慢。脚本会自己查配额：
-        # 已用 + 本包 <= 1 GB 就传，超了才跳过并说明；同名附件已存在就跳过。
-        if: github.event_name == 'release' || inputs.tag != ''
-        env:
-          GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          TAG="${{ steps.tag.outputs.tag }}"
-          python dev/push_appimage_gitee.py "$TAG" dist/*.AppImage dist/SHA256SUMS-linux.txt
-          echo "Gitee 发布页：https://gitee.com/bio234/pdf-privacy-masker/releases/tag/$TAG"
+      # 不在这里直传 Gitee：实测 GitHub（美国）→ Gitee 传 88 MB 附件会
+      # 30 分钟超时且收到 0 字节，小文件却秒传，白等半小时。
+      # Gitee 侧统一由本机一键脚本 dev/publish_all.py 同步，见 docs/05-构建与发布.md。
