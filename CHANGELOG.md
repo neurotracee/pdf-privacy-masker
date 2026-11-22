@@ -1,3 +1,20 @@
+# 未发布
+
+**中文** | [English](#unreleased)
+
+## 新增
+
+- **Linux 版（AppImage）**。新增 `pdfmask-linux.spec`（onedir）与 `dev/build_linux_appimage.sh`，由 `.github/workflows/linux-appimage.yml` 在 ubuntu-22.04 上构建：每次有 tag 的 Release 发布后自动跑，把 `PDFPrivacyMasker-<版本>-x86_64.AppImage` 挂到该 Release。Linux 二进制只能在 Linux 上打，所以这条链路全在 CI 里，本机不参与。
+- **CI 冒烟三关**：`--about` 能打印署名、`--ocr-check` 能定位到包内 OCR 模型、`PDFMASK_NO_OPEN=1` 启动后首页返回 HTTP 200；任一不过就不传包。
+
+## 内部
+
+- `pdfmask.py`：打开文件/文件夹抽成 `_open_path()`（Windows `os.startfile`，Linux `xdg-open`）；`_fatal` 在非 Windows 下打到 stderr；选文件夹在 Linux 上借 `zenity` / `kdialog`，都没有则回落到页面手填；启动提示加 `flush=True`，否则输出重定向时地址会卡在缓冲区。
+- `pdfmask_update.py`：`UPDATE_ASSET_SUFFIX` 按平台取 `.exe` / `.AppImage`；`PLATFORM_SUFFIXES` 增加 `.appimage`，防止把一个平台的包当成另一个平台的更新。
+- 构建脚本与 spec 在流水线里始终取默认分支（tag 只决定「要构建哪份代码」）：给旧版本补 Linux 包时，不会因为那个 tag 里还没有这些脚本而失败。
+
+---
+
 # 1.4.9.0（2026-11-19）
 
 **中文** | [English](#1490)

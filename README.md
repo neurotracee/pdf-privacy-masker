@@ -20,7 +20,7 @@
   <a href="https://github.com/neurotracee/pdf-privacy-masker/releases/latest"><img alt="最新版本" src="https://img.shields.io/github/v/release/neurotracee/pdf-privacy-masker?label=%E6%9C%80%E6%96%B0%E7%89%88%E6%9C%AC&color=2563EB&labelColor=1E293B&style=flat-square"></a>
   <a href="https://github.com/neurotracee/pdf-privacy-masker/releases"><img alt="总下载量" src="https://img.shields.io/github/downloads/neurotracee/pdf-privacy-masker/total?label=%E4%B8%8B%E8%BD%BD&color=2563EB&labelColor=1E293B&style=flat-square"></a>
   <a href="https://github.com/neurotracee/pdf-privacy-masker/blob/main/requirements.txt"><img alt="Python 3.11+" src="https://img.shields.io/badge/Python-3.11%2B-2563EB?style=flat-square&logo=python&logoColor=white&labelColor=1E293B"></a>
-  <a href="https://github.com/neurotracee/pdf-privacy-masker/releases"><img alt="平台 Windows / Android" src="https://img.shields.io/badge/%E5%B9%B3%E5%8F%B0-Windows%20%7C%20Android-2563EB?style=flat-square&labelColor=1E293B"></a>
+  <a href="https://github.com/neurotracee/pdf-privacy-masker/releases"><img alt="平台 Windows / Android / Linux" src="https://img.shields.io/badge/%E5%B9%B3%E5%8F%B0-Windows%20%7C%20Android%20%7C%20Linux-2563EB?style=flat-square&labelColor=1E293B"></a>
   <a href="https://gitee.com/bio234/pdf-privacy-masker/releases/latest"><img alt="Gitee 发布页" src="https://img.shields.io/badge/Gitee-%E5%8F%91%E5%B8%83%E9%A1%B5-C71D23?style=flat-square&labelColor=1E293B"></a>
   <a href="https://github.com/neurotracee/pdf-privacy-masker/actions/workflows/ci.yml"><img alt="selfcheck" src="https://github.com/neurotracee/pdf-privacy-masker/actions/workflows/ci.yml/badge.svg"></a>
 </p>
@@ -41,7 +41,7 @@
 
 全程在你自己的电脑上跑，不上传任何内容，原文件不动。打码后的文件存到哪个文件夹由你决定，不硬塞进某个固定位置。
 
-目前有 **Windows 版**（单文件 exe）和**安卓版**（arm64 apk），两端共用同一套识别内核，**版本号各自独立**。
+目前有 **Windows 版**（单文件 exe）、**安卓版**（arm64 apk）和 **Linux 版**（x86_64 AppImage），三端共用同一套识别内核，**版本号各自独立**。
 
 ![打码效果演示：一条竖线推过去，推过的地方就是打码后的样子](docs/img/demo-wipe.gif)
 
@@ -158,7 +158,7 @@
 
 | 情况 | Gitee（国内，推荐） | GitHub |
 | --- | --- | --- |
-| **最新版**（Windows + 安卓） | [releases/latest](https://gitee.com/bio234/pdf-privacy-masker/releases/latest) 附件区：`PDFPrivacyMasker-<版本号>.exe`、`.apk`、`SHA256SUMS.txt` **都在** | 同一版本，附件齐全 |
+| **最新版**（Windows + 安卓） | [releases/latest](https://gitee.com/bio234/pdf-privacy-masker/releases/latest) 附件区：`PDFPrivacyMasker-<版本号>.exe`、`.apk`、`SHA256SUMS.txt` **都在** | 同一版本，附件齐全，**Linux 的 AppImage 只在这里** |
 | **上一版**（Windows + 安卓） | 同样保留两端安装包，从 [releases](https://gitee.com/bio234/pdf-privacy-masker/releases) 进入对应 tag | 同一版本，附件齐全 |
 | **更早的版本** | 只留更新说明，**没有安装包**——只能到 GitHub 查看和下载 | [全部历史版本](https://github.com/neurotracee/pdf-privacy-masker/releases)；指定版本：`https://github.com/neurotracee/pdf-privacy-masker/releases/tag/v<版本号>` |
 
@@ -188,6 +188,24 @@
 > **装的时候也可能看到「信息将被第三方收集」这类提示。** 这句话同样来自手机系统的安装器，是所有非应用商店安装包都会显示的模板文案，不是本程序弹的；本程序没有任何第三方 SDK，不上传任何内容（详见本文开头第 ② 点）。
 
 > **装的时候弹「开发者身份未验证」是正常的，不是包坏了。** 2026 年 11 月起，OPPO / vivo / 小米 / 荣耀对侧载安装的 apk 增加了一道开发者实名校验（ADV），本项目从 Gitee / GitHub 直接分发、没有在国内应用商店上架，所以会被标成「未验证」。处理办法：**勾选「已知悉应用风险」→ 点「仍然安装」**（部分机型还要再输一次锁屏密码），功能一点不受影响。国内这套目前只提醒、不拦截，也不需要像海外 Google 那套等 24 小时；每次装新版本都会再提示一次，属正常现象。若按钮一直是灰的，先确认勾选框已勾上，再检查「设置 → 应用 → 特殊应用权限 → 安装未知应用」里，打开 apk 的那个浏览器或文件管理是否被允许。
+
+权限两个，都只服务于更新：`INTERNET` 用来读公开的版本号、下载安装包；`REQUEST_INSTALL_PACKAGES`（「安装应用」）只把安装包交给系统安装器，系统还会再问你一次。没有存储权限，选文件走系统文件选择器，打码全程本地完成。
+
+### 方式一之三：Linux（AppImage，免安装）
+
+1. 到 [GitHub 发布页](https://github.com/neurotracee/pdf-privacy-masker/releases/latest) 下载 `PDFPrivacyMasker-<版本号>-x86_64.AppImage`（约 88 MB）。**Linux 包只挂在 GitHub**：Gitee 的附件额度要优先保证 Windows 和安卓，AppImage 体积大，放不下。
+2. 给它执行权限再运行，或者直接在文件管理器里双击：
+
+   ```bash
+   chmod +x PDFPrivacyMasker-<版本号>-x86_64.AppImage
+   ./PDFPrivacyMasker-<版本号>-x86_64.AppImage
+   ```
+
+3. 程序会在 `127.0.0.1` 起一个本地服务并打开默认浏览器，用完后关掉页面或按 `Ctrl+C` 即可。
+4. 选保存文件夹时，装了 `zenity` 或 `kdialog` 会弹系统对话框；两个都没有就在页面上直接输入路径，一样能用。
+5. 首次启动会慢一点（AppImage 要先把自身解包到临时目录），之后会快。基线是 Ubuntu 22.04（glibc 2.35），更新的发行版都没问题；更老的（如 Ubuntu 20.04）可能跑不起来。
+
+> 不想用 AppImage 也可以直接从源码跑：`python3 -m pip install -r requirements.txt && python3 pdfmask.py`。
 
 权限两个，都只服务于更新：`INTERNET` 用来读公开的版本号、下载安装包；`REQUEST_INSTALL_PACKAGES`（「安装应用」）只把安装包交给系统安装器，系统还会再问你一次。没有存储权限，选文件走系统文件选择器，打码全程本地完成。
 
@@ -431,7 +449,7 @@ by the Free Software Foundation, either version 3 of the License, or
   <a href="https://github.com/neurotracee/pdf-privacy-masker/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/neurotracee/pdf-privacy-masker?label=latest&color=2563EB&labelColor=1E293B&style=flat-square"></a>
   <a href="https://github.com/neurotracee/pdf-privacy-masker/releases"><img alt="Downloads" src="https://img.shields.io/github/downloads/neurotracee/pdf-privacy-masker/total?label=downloads&color=2563EB&labelColor=1E293B&style=flat-square"></a>
   <a href="https://github.com/neurotracee/pdf-privacy-masker/blob/main/requirements.txt"><img alt="Python 3.11+" src="https://img.shields.io/badge/Python-3.11%2B-2563EB?style=flat-square&logo=python&logoColor=white&labelColor=1E293B"></a>
-  <a href="https://github.com/neurotracee/pdf-privacy-masker/releases"><img alt="Platform Windows / Android" src="https://img.shields.io/badge/platform-Windows%20%7C%20Android-2563EB?style=flat-square&labelColor=1E293B"></a>
+  <a href="https://github.com/neurotracee/pdf-privacy-masker/releases"><img alt="Platform Windows / Android / Linux" src="https://img.shields.io/badge/platform-Windows%20%7C%20Android%20%7C%20Linux-2563EB?style=flat-square&labelColor=1E293B"></a>
   <a href="https://gitee.com/bio234/pdf-privacy-masker/releases/latest"><img alt="Gitee releases" src="https://img.shields.io/badge/Gitee-releases-C71D23?style=flat-square&labelColor=1E293B"></a>
   <a href="https://github.com/neurotracee/pdf-privacy-masker/actions/workflows/ci.yml"><img alt="selfcheck" src="https://github.com/neurotracee/pdf-privacy-masker/actions/workflows/ci.yml/badge.svg"></a>
 </p>
@@ -452,7 +470,7 @@ Parts it can't auto-detect can be manually boxed and redacted, also pixel-level 
 
 Runs entirely on your own machine. No network, no upload, original file untouched. You choose where the redacted file is saved.
 
-Available for **Windows** (single-file exe) and **Android** (arm64 apk). Both share the same detection engine, but **each platform has its own version number**.
+Available for **Windows** (single-file exe), **Android** (arm64 apk) and **Linux** (x86_64 AppImage). All three share the same detection engine, but **each platform has its own version number**.
 
 ![Redaction demo: a divider sweeps across, and the area it passes is the redacted result](docs/img/demo-wipe-en.gif)
 
@@ -598,6 +616,22 @@ The UI opens automatically in your browser at a random `127.0.0.1` port. Close t
 > **An "unverified developer" warning during install is expected — your download is not broken.** Since November 2026, OPPO / vivo / Xiaomi / HONOR run an Android Developer Verification (ADV) check on sideloaded apks. This project ships straight from Gitee / GitHub and is not listed on the Chinese app stores, so it is flagged as unverified. To proceed: **tick "I understand the risk" and tap "Install anyway"** (some models then ask for your screen-lock PIN). Nothing else changes. On the mainland this is a warning, not a block, and there is no 24-hour wait like Google's flow abroad; the prompt reappears on every update, which is normal. If "Install anyway" stays greyed out, make sure the risk checkbox is ticked, then check Settings → Apps → Special app access → Install unknown apps and allow the browser or file manager you opened the apk with.
 
 Two permissions, both only for updates: `INTERNET` reads the public version number and downloads the installer; `REQUEST_INSTALL_PACKAGES` hands the installer to the system installer, which asks you once more. No storage permission — files are picked through the system file picker, and all masking happens on device.
+
+### Option 1c: Linux (AppImage, no installation)
+
+1. Download `PDFPrivacyMasker-<version>-x86_64.AppImage` (about 88 MB) from the [GitHub releases page](https://github.com/neurotracee/pdf-privacy-masker/releases/latest). **The Linux build is only on GitHub** — the Gitee attachment quota has to cover Windows and Android first, and the AppImage is too big to fit there too.
+2. Make it executable and run it, or just double-click it in your file manager:
+
+   ```bash
+   chmod +x PDFPrivacyMasker-<version>-x86_64.AppImage
+   ./PDFPrivacyMasker-<version>-x86_64.AppImage
+   ```
+
+3. It starts a local server on `127.0.0.1` and opens your default browser. Close the page or press `Ctrl+C` when you are done.
+4. When choosing an output folder, a native dialog appears if `zenity` or `kdialog` is installed; otherwise type the path into the page — either works.
+5. First launch is slower (the AppImage unpacks itself into a temp directory), later launches are faster. The baseline is Ubuntu 22.04 (glibc 2.35); newer distros are fine, older ones (e.g. Ubuntu 20.04) may not run.
+
+> Prefer not to use the AppImage? Run from source: `python3 -m pip install -r requirements.txt && python3 pdfmask.py`.
 
 ### Where are the redacted files saved
 

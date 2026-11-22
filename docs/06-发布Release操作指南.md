@@ -18,6 +18,8 @@
 
 **发布前先对账（脚本自动做）**：用 `dev/publish_github_release.py` 发版时，脚本会先核对 tag、`pdfmask.py` 的 `VERSION`、`version_info.txt` 的 `FileVersion`、`android/app/build.gradle.kts` 的 `appVersionName` 四处，以及两个安装包的文件名——必须全都指向同一个版本号，否则直接拒绝发布。这条规则专治「发布页上版本号是最新的，里面的东西其实不是」：改了代码却没动版本号、或者拿旧包改个文件名充数，都会在这里被拦下。真需要跳过用 `--force`，但别这么干。
 
+**Linux 包由 CI 补挂，不用手动传**：Release 发布后，`linux-appimage` 工作流会自动在 ubuntu-22.04 上构建 `PDFPrivacyMasker-<版本>-x86_64.AppImage` 并挂到同一个 Release，通常 3–5 分钟。**不要自己在本机打一个传上去**——glibc 基线不对，别人机器会报 `GLIBC_2.xx not found`。发布完到 Actions 看一眼那次是不是绿的；红了点进去看哪一关冒烟没过（`--about` / `--ocr-check` / 首页 HTTP 200）。
+
 **上传前至少核对这四项**：exe 的文件属性版本与产品版本都等于本次版本号；两个包的 SHA256 与 `SHA256SUMS.txt` 逐字一致；拿真实文件名试跑版本解析，两个包都能正确读出本次版本号；apk 的签名 SHA1 与上一版一致（不一致就不能覆盖安装）。
 
 ---
@@ -191,7 +193,7 @@ https://api.github.com/repos/neurotracee/pdf-privacy-masker/releases
 2. 那个文件名是当初分享出去的，可能已经有人在用直链下载；改名会让旧链接 404。
 3. 它在页面上留着反而是历史记录，v1.3.0 的正文里也写着这个文件名。
 
-以后每一版都按 `PDFPrivacyMasker-<版本>.exe` / `PDFPrivacyMasker-<版本>-arm64.apk` 命名就不会再出现这个问题。规则已写进 `docs/05-构建与发布.md` 第 4.1 节。
+以后每一版都按 `PDFPrivacyMasker-<版本>.exe` / `PDFPrivacyMasker-<版本>-arm64.apk` 命名就不会再出现这个问题。规则已写进 `docs/05-构建与发布.md` 第 5.1 节。
 
 ---
 
@@ -236,7 +238,7 @@ https://api.github.com/repos/neurotracee/pdf-privacy-masker/releases
 
 ## 九、Gitee 那边的配额与版本顺序（网页操作同样适用）
 
-GitHub 的 Release 附件没有这个烦恼，**Gitee 有**：整个仓库所有历史版本的附件加起来只有 **1 GB**。所以 Gitee 这边统一按下面几条办，完整规则见 [05-构建与发布.md 4.4 节](05-构建与发布.md#44-gitee-附件配额与版本顺序规范必须照做)。
+GitHub 的 Release 附件没有这个烦恼，**Gitee 有**：整个仓库所有历史版本的附件加起来只有 **1 GB**。所以 Gitee 这边统一按下面几条办，完整规则见 [05-构建与发布.md 5.4 节](05-构建与发布.md#54-gitee-附件配额与版本顺序规范必须照做)。
 
 1. **最新版和上一版的两端包都留在 Gitee**。发新版时，Gitee 上最新版要有 Windows exe + 安卓 apk + SHA256SUMS；上一版同样保留两端包。**不要写「Windows 只发 GitHub」**——Windows 最新版就在 Gitee 附件区。更早版本的附件**由发版脚本自动清理**：正常跑一次 `python dev/sync_gitee_releases.py`，新版附件传完后它会自动删掉第 3 个及更早版本的安装包、正文保留并补一段「去 GitHub 下载」说明。单独补清可用 `--prune-old-assets`（先加 `--dry-run` 看清单），要临时多留几版用 `--keep-recent N`。
 2. **别交错操作**。绝对不要「从旧版本开始删附件 → 再给新版本加附件 → 回头改旧版本文字」。Gitee 的「最新版」是**最后创建的那个非预发布 Release**，不是版本号最大的那个；中间夹一次历史版本补建，页面上的最新版就会变成旧版本。2026-11-15 已经因此把 latest 顶成过 v1.4.1。
