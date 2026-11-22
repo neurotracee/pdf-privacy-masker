@@ -61,7 +61,7 @@ jobs:
         run: |
           git fetch --depth=1 origin main
           git checkout FETCH_HEAD -- pdfmask-linux.spec dev/build_linux_appimage.sh \
-                                    dev/make_linux_icon.py dev/appimage
+                                    dev/make_linux_icon.py dev/push_appimage_gitee.py dev/appimage
           ls -l pdfmask-linux.spec dev/build_linux_appimage.sh
 
       - uses: actions/setup-python@v5
