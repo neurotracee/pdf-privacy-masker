@@ -34,8 +34,14 @@ OUT="dist/PDFPrivacyMasker-${VER}-x86_64.AppImage"
 smoke() {
   local img="$1"
   echo "== 冒烟 $img =="
-  "$img" --appimage-extract-and-run --about | head -3
-  "$img" --appimage-extract-and-run --ocr-check | head -3
+  # 不要写成 `... | head -3`：head 提前关掉管道会让程序收到 SIGPIPE 并报
+  # BrokenPipeError，在 set -e 下被当成冒烟失败。先落盘再取前几行。
+  "$img" --appimage-extract-and-run --about > build/about.txt 2>&1 || {
+    echo "冒烟失败：--about 退出码非 0"; cat build/about.txt; return 1; }
+  head -3 build/about.txt
+  "$img" --appimage-extract-and-run --ocr-check > build/ocr.txt 2>&1 || {
+    echo "冒烟失败：--ocr-check 退出码非 0"; cat build/ocr.txt; return 1; }
+  head -3 build/ocr.txt
 
   PDFMASK_NO_OPEN=1 "$img" --appimage-extract-and-run > build/smoke.log 2>&1 &
   local pid=$!
