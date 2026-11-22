@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Name=PDF Privacy Masker
+Name[zh_CN]=PDF 隐私打码工具
+GenericName=PDF Privacy Redaction
+Comment=Redact phone numbers, ID numbers, bank cards and names in PDFs, entirely offline
+Comment[zh_CN]=把 PDF 里的手机号、身份证号、银行卡、姓名等敏感信息在本机打码，不联网
+Exec=pdfmask
+Icon=pdfmask
+Terminal=false
+Categories=Office;Utility;
+Keywords=pdf;privacy;redact;mask;offline;
+StartupNotify=false

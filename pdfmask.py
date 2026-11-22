@@ -89,7 +89,7 @@ PROJECT_URL = "https://github.com/neurotracee/pdf-privacy-masker"
 # 通道顺序与证书校验在 pdfmask_update.py：简体中文环境优先 Gitee、其次 GitHub。
 GITEE_URL = "https://gitee.com/bio234/pdf-privacy-masker"
 RELEASES_URL = PROJECT_URL + "/releases/latest"   # 兜底：GitHub 发布页
-UPDATE_ASSET_SUFFIX = ".exe"          # 这个平台看 .exe 资产
+UPDATE_ASSET_SUFFIX = ".exe" if os.name == "nt" else ".AppImage"   # 这个平台看哪种资产
 
 CREDIT_LINE = "指导作者：%s · 由 %s 开发 · %s 开源" % (
     AUTHOR, DEVELOPER, LICENSE_NAME)
@@ -2691,12 +2691,43 @@ def _settings_payload(src_path=None):
 # Windows 原生「选择文件夹」对话框（ctypes 调 IFileDialog，零额外依赖）
 # ---------------------------------------------------------------------------
 
+def _pick_directory_posix(title, initial):
+    """Linux 上的文件夹选择：借 zenity / kdialog，两个都没有就交回界面让用户手填。
+
+    返回 (路径, 状态)，状态与 Windows 版一致："ok" / "cancel" / "error"。
+    """
+    import subprocess
+    home = os.path.expanduser("~")
+    start = initial or home
+    cmds = [
+        ["zenity", "--file-selection", "--directory", "--title", title,
+         "--filename", start.rstrip("/") + "/"],
+        ["kdialog", "--getexistingdirectory", start, "--title", title],
+    ]
+    for cmd in cmds:
+        try:
+            r = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
+        except FileNotFoundError:
+            continue
+        except Exception:
+            continue
+        if r.returncode == 0 and (r.stdout or "").strip():
+            return r.stdout.strip(), "ok"
+        if r.returncode == 1:          # 用户按了取消
+            return "", "cancel"
+        return "", "error"
+    return "", "error"
+
+
 def _pick_directory(title="选择保存位置", initial=""):
     """弹出系统原生的文件夹选择框。
 
     返回 (路径, 状态)：状态 "ok" / "cancel" / "error"。
     实现在 ctypes 里手搓 COM 调用，避免引入 tkinter（单文件 exe 会因此胖 10MB）。
+    Linux 没有这条 COM 路径，改走 zenity / kdialog。
     """
+    if os.name != "nt":
+        return _pick_directory_posix(title, initial)
     try:
         import ctypes
         from ctypes import wintypes as wt
@@ -3238,7 +3269,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 if not p or not os.path.exists(p):
                     return self._err("文件不存在", 404)
                 target = p if u.path == "/api/openfile" else os.path.dirname(p)
-                os.startfile(target)  # noqa: S606  (Windows 本地打开)
+                _open_path(target)
                 return self._json({"ok": True})
             if u.path == "/api/quit":
                 self._json({"ok": True})
@@ -3311,10 +3342,33 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
 
 
+def _open_path(target):
+    """用系统默认程序打开文件或文件夹（Windows 用关联程序，Linux 用 xdg-open）。"""
+    if os.name == "nt":
+        os.startfile(target)  # noqa: S606  (Windows 本地打开)
+        return
+    import subprocess
+    for cmd in (["xdg-open", target], ["gio", "open", target]):
+        try:
+            subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            return
+        except Exception:
+            continue
+    raise RuntimeError("找不到 xdg-open / gio，无法打开：%s" % target)
+
+
 def _fatal(msg):
+    """致命错误的最后一道提示：Windows 弹系统对话框，其他平台打到 stderr。"""
+    if os.name == "nt":
+        try:
+            import ctypes
+            ctypes.windll.user32.MessageBoxW(None, str(msg), APP_NAME, 0x10)
+            return
+        except Exception:
+            pass
     try:
-        import ctypes
-        ctypes.windll.user32.MessageBoxW(None, str(msg), APP_NAME, 0x10)
+        sys.stderr.write("%s: %s\n" % (APP_NAME, msg))
+        sys.stderr.flush()
     except Exception:
         pass
 
@@ -3362,7 +3416,7 @@ def _open_browser(url):
         webbrowser.open(url)
     except Exception:
         try:
-            os.startfile(url)
+            _open_path(url)
         except Exception:
             _fatal("请手动用浏览器打开：%s" % url)
 
@@ -3376,7 +3430,7 @@ def _browser_open(url):
     except Exception:
         pass
     try:
-        os.startfile(url)  # noqa: S606  (Windows 本地打开链接)
+        _open_path(url)  # noqa: S606  (交给系统默认浏览器)
         return True
     except Exception as e:
         raise RuntimeError(_L("打不开默认浏览器：%s", "Could not launch a browser: %s") % e)

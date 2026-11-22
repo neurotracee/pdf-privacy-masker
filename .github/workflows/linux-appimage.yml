@@ -1,0 +1,111 @@
+# 构建 Linux 版（AppImage）并挂到 Release 上。
+#
+# 为什么放在 CI 而不是本机：Linux 二进制只能在 Linux 上打（glibc、.so 依赖都是
+# 绑平台的），本机是 Windows，打不出来。这里用 ubuntu-22.04 而不是 latest，
+# 是为了把 glibc 钉在 2.35——在 24.04 上打出来的包，22.04 及更老的发行版跑不起来。
+#
+# 触发方式：
+#   - 每次在有 tag 的 Release 发布后自动跑，构建完把 AppImage 直接挂到该 Release；
+#   - 也可以手动触发（workflow_dispatch），用于调试，默认取最新 Release。
+#
+# 冒烟的三件事：--about 能打印署名、--ocr-check 能读到 OCR 模型、本地服务能起来并
+# 返回 200。任何一步不过就让流水线红掉，不把坏包传上去。
+name: linux-appimage
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "要构建的 tag（留空 = 取最新 Release）"
+        required: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: linux-appimage-${{ github.event.release.tag_name || inputs.tag || github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHONUTF8: "1"
+  PYTHONIOENCODING: "utf-8"
+
+jobs:
+  build:
+    name: ubuntu-22.04 / AppImage
+    runs-on: ubuntu-22.04
+    steps:
+      - name: 解析 tag
+        id: tag
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ github.event.release.tag_name || inputs.tag }}"
+          if [ -z "$TAG" ]; then
+            TAG="$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName -q .tagName)"
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
+          echo "本次构建：$TAG"
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.tag.outputs.tag }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: 安装系统依赖
+        run: |
+          sudo apt-get update
+          # fonts-noto-cjk：程序用系统字体渲染中文，缺了会退回内置字体、版面失真
+          # libfuse2：AppImage 正常运行需要；CI 里虽用 extract-and-run，留着不影响
+          # libgomp1：onnxruntime 的 OpenMP 运行时
+          sudo apt-get install -y --no-install-recommends \
+            fonts-noto-cjk libfuse2 libgomp1
+
+      - name: 安装 Python 依赖
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt pyinstaller
+
+      - name: 版本号必须与 tag 一致
+        # 和 dev/publish_github_release.py 的对账逻辑同一个目的：别让「tag 说是
+        # 新版本、包里其实是旧代码」这种事从另一条路溜进来。
+        run: |
+          VER="${{ steps.tag.outputs.version }}"
+          SRC="$(python -c "import io,re;print(re.search(r'VERSION\s*=\s*\"([^\"]+)\"', io.open('pdfmask.py',encoding='utf-8').read()).group(1))")"
+          echo "tag=$VER  代码=$SRC"
+          [ "$VER" = "$SRC" ] || { echo "版本号对不上，先改代码再发 tag"; exit 1; }
+
+      - name: 构建 AppImage
+        run: bash dev/build_linux_appimage.sh
+
+      - name: 冒烟（能启动、能读模型、服务返回 200）
+        run: bash dev/build_linux_appimage.sh --smoke-only
+
+      - name: 列出产物
+        run: |
+          ls -lh dist/*.AppImage
+          cat dist/SHA256SUMS-linux.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: appimage-${{ steps.tag.outputs.version }}
+          path: |
+            dist/*.AppImage
+            dist/SHA256SUMS-linux.txt
+          if-no-files-found: error
+
+      - name: 挂到 Release
+        if: github.event_name == 'release' || inputs.tag != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ steps.tag.outputs.tag }}"
+          gh release upload "$TAG" dist/*.AppImage dist/SHA256SUMS-linux.txt --clobber --repo "$GITHUB_REPOSITORY"
+          echo "已上传：https://github.com/$GITHUB_REPOSITORY/releases/tag/$TAG"

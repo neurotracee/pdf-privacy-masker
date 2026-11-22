@@ -110,7 +110,7 @@ VER_SEG = 4
 
 # 两个平台各自的安装包后缀。用来判断「这一版到底给谁发了包」：只发了一端时，
 # 另一端不该看到更新提示（Windows 与安卓的版本号是各自独立的，允许不同步）。
-PLATFORM_SUFFIXES = (".exe", ".apk")
+PLATFORM_SUFFIXES = (".exe", ".apk", ".appimage")
 
 
 def ver_tuple(text):

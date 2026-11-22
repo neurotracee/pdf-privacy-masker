@@ -1,0 +1,5 @@
+#!/bin/sh
+# AppImage 入口。真正的可执行文件在 usr/bin/pdfmask/ 里，
+# 参数（比如别人 `./xxx.AppImage --about`）原样传下去。
+HERE="$(dirname "$(readlink -f "$0")")"
+exec "$HERE/usr/bin/pdfmask/pdfmask" "$@"
