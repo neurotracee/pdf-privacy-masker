@@ -22,6 +22,7 @@ import subprocess
 import sys
 import time
 import urllib.error
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import urllib.parse
 import urllib.request
 
@@ -76,17 +77,29 @@ def _json(raw):
     return raw
 
 
+def _release_bytes(rid):
+    c, files = call(GE_API + "/releases/%s/attach_files" % rid, tok=GE_TOK)
+    if c == 200 and isinstance(files, list):
+        return sum(int(f.get("size") or 0) for f in files)
+    return 0
+
+
 def used_bytes():
-    """Gitee 全仓库附件占用。"""
+    """Gitee 全仓库附件占用。
+
+    24 个版本逐个串行查，CI 上要等很久；并发查（限 4 路，别把 Gitee 打限流）。
+    """
     c, rels = call(GE_API + "/releases?per_page=100", tok=GE_TOK)
     if c != 200 or not isinstance(rels, list):
         print("  取 Gitee 版本列表失败（HTTP %s），配额按 0 计" % c)
         return 0
+    ids = [r.get("id") for r in rels if r.get("id")]
+    print("  并发统计 %d 个版本的附件占用..." % len(ids), flush=True)
     total = 0
-    for r in rels:
-        c2, files = call(GE_API + "/releases/%s/attach_files" % r.get("id"), tok=GE_TOK)
-        if c2 == 200 and isinstance(files, list):
-            total += sum(int(f.get("size") or 0) for f in files)
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        futures = {pool.submit(_release_bytes, rid): rid for rid in ids}
+        for fut in as_completed(futures):
+            total += fut.result()
     return total
 
 
@@ -170,7 +183,7 @@ def main():
             print("     腾出空间后重跑本脚本会自动补传。")
             fail += 1
             continue
-        print("  上传 %s（%.1f MB）..." % (name, size / 1048576))
+        print("  上传 %s（%.1f MB）..." % (name, size / 1048576), flush=True)
         ok, info = upload(rid, f)
         print("   -> %s %s" % ("成功" if ok else "失败", info[:120]))
         if ok:
