@@ -113,7 +113,7 @@ def ensure_release(tag):
     rel = find_release(tag)
     if rel:
         return rel
-    print("  Gitee 还没有 %s，从 GitHub 取正文创建" % tag)
+    print("  Gitee 还没有 %s，从 GitHub 取正文创建" % tag, flush=True)
     c, g = call(GH_API + "/releases/tags/" + urllib.parse.quote(tag), tok=GH_TOK)
     if c != 200 or not isinstance(g, dict):
         print("  取 GitHub Release 失败（HTTP %s），无法创建" % c)
@@ -134,15 +134,20 @@ def ensure_release(tag):
 
 
 def upload(rid, path):
-    cmd = ["curl", "-sSL", "--max-time", "900", "-X", "POST",
+    # 大文件从 GitHub 服务器传 Gitee，可能比小文件慢很多；给足时间，并且把
+    # curl 的退出码/stderr 留下来，失败时才知道是超时还是服务端拒收。
+    cmd = ["curl", "-sSL", "--max-time", "1800", "-X", "POST",
            "-F", "access_token=" + GE_TOK,
            "-F", "file=@" + path,
            "%s/releases/%s/attach_files" % (GE_API, rid)]
-    out = subprocess.run(cmd, capture_output=True, text=True).stdout.strip()
+    r = subprocess.run(cmd, capture_output=True, text=True)
+    out = (r.stdout or "").strip()
     d = _json(out)
     if isinstance(d, dict) and d.get("browser_download_url"):
         return True, d["browser_download_url"]
-    return False, (out or "(空响应)")[:200]
+    err = (r.stderr or "").strip()
+    return False, "curl=%s stderr=%s body=%s" % (
+        r.returncode, err[:160] or "(空)", out[:160] or "(空)")
 
 
 def main():
@@ -168,7 +173,7 @@ def main():
 
     used = used_bytes()
     print("Gitee 附件已用 %.1f MB / 1024 MB，剩余 %.1f MB" %
-          (used / 1048576, (QUOTA - used) / 1048576))
+          (used / 1048576, (QUOTA - used) / 1048576), flush=True)
 
     fail = 0
     for f in files:
@@ -185,7 +190,7 @@ def main():
             continue
         print("  上传 %s（%.1f MB）..." % (name, size / 1048576), flush=True)
         ok, info = upload(rid, f)
-        print("   -> %s %s" % ("成功" if ok else "失败", info[:120]))
+        print("   -> %s %s" % ("成功" if ok else "失败", info[:200]), flush=True)
         if ok:
             used += size
         else:
