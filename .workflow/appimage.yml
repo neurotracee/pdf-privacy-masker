@@ -1,0 +1,98 @@
+# Gitee Go 流水线：在国内专用主机组上构建 Linux AppImage，并直接传到 Gitee Release。
+#
+# 为什么放 Gitee Go：AppImage 只能在 Linux 上打，本机 Windows 打不出来；
+# GitHub Actions 在美国，把 88MB 的包传回国内 Gitee 会超时。这台国内沙箱
+# 从 git clone 到上传全在国内，没有跨国链路，也不经过本机中转。
+#
+# 主机组：专用（hostGroupID）
+# 主机：vefaas-...-sandbox（hostID）
+# 触发：给仓库推 tag（v*）时自动跑；也可在 Gitee Go 网页手动跑。
+#
+# 需要在 Gitee Go「变量设置」里配一个私有变量 GITEE_TOKEN（有 release 写权限的私人令牌）。
+# script 里的 $GITEE_TOKEN 由 Gitee Go 注入，yml 中不存明文。
+
+version: '1.0'
+name: appimage
+displayName: Linux AppImage（国内主机组构建并上传 Gitee）
+
+# 手动触发：推到仓库后在 Gitee Go 网页点「运行」。脚本自己取最新 tag，
+# 避免依赖 Gitee Go  undocumented 的 tag 触发字段（写错就不跑）。
+triggers:
+  trigger: manual
+
+stages:
+  - name: build-upload
+    displayName: 构建 AppImage 并上传 Gitee
+    strategy: naturally
+    trigger: auto
+    steps:
+      - step: deploy@agent
+        name: build_appimage_gitee
+        displayName: 国内沙箱构建上传
+        hostGroupID:
+          ID: 专用
+          hostID:
+            - a93c1126-d0c9-4f1f-891c-062a81e2a71d
+        script: |
+          set -euo pipefail
+          export PYTHONUTF8=1 PYTHONIOENCODING=utf-8
+
+          echo "== 环境 =="
+          uname -a
+          python3 --version || true
+          git --version || true
+          command -v curl || true
+
+          WORK="$HOME/gitee-go-appimage"
+          REPO="https://gitee.com/bio234/pdf-privacy-masker.git"
+
+          echo "== 拉取代码 =="
+          rm -rf "$WORK"
+          git clone --depth 1 "$REPO" "$WORK"
+          cd "$WORK"
+
+          # 目标 tag：优先用触发的 tag，手动跑时取 Gitee 最新 tag
+          TAG="${GITEE_PUSH_TAG:-}"
+          if [ -z "$TAG" ]; then
+            TAG="$(git describe --tags --abbrev=0 2>/dev/null || true)"
+          fi
+          if [ -n "$TAG" ]; then
+            echo "== 切到 tag $TAG =="
+            git fetch --depth 1 origin "refs/tags/$TAG:refs/tags/$TAG" || true
+            git checkout -q "$TAG" || true
+          fi
+          echo "本次目标 tag: ${TAG:-最新}"
+
+          echo "== 系统依赖 =="
+          # 中文字体、AppImage 运行库、onnxruntime 的 OpenMP；失败不致命，尽量装
+          (sudo -n apt-get update -qq && sudo -n apt-get install -y -qq --no-install-recommends \
+             fonts-noto-cjk libfuse2 libgomp1) || \
+          (apt-get update -qq && apt-get install -y -qq --no-install-recommends \
+             fonts-noto-cjk libfuse2 libgomp1) || echo "apt 装依赖失败，继续（可能已装）"
+
+          echo "== Python 依赖 =="
+          python3 -m pip install --quiet --upgrade pip
+          python3 -m pip install --quiet -r requirements.txt pyinstaller
+
+          echo "== 构建 AppImage =="
+          bash dev/build_linux_appimage.sh
+
+          echo "== 产物 =="
+          ls -lh dist/*.AppImage
+          cat dist/SHA256SUMS-linux.txt
+
+          echo "== 上传 Gitee Release =="
+          if [ -z "${GITEE_TOKEN:-}" ]; then
+            echo "缺少 GITEE_TOKEN 变量，无法上传"; exit 1
+          fi
+          if [ -n "$TAG" ]; then
+            python3 dev/push_appimage_gitee.py "$TAG" dist/*.AppImage dist/SHA256SUMS-linux.txt
+          else
+            echo "没有可确定的 tag，跳过上传"; exit 1
+          fi
+
+          echo "== 完成：https://gitee.com/bio234/pdf-privacy-masker/releases =="
+
+notify: []
+strategy:
+  retry: '0'
