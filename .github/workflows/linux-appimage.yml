@@ -54,6 +54,16 @@ jobs:
         with:
           ref: ${{ steps.tag.outputs.tag }}
 
+      - name: 取构建脚本（始终用默认分支的最新版）
+        # 要构建的代码必须是 tag 里那份（和发布出去的一致），但打包脚本、spec、
+        # AppRun 这些「工具」不该被冻结在旧 tag 里——否则给几天前的版本补一个
+        # Linux 包，会因为那年还没有这个脚本而直接失败。
+        run: |
+          git fetch --depth=1 origin main
+          git checkout FETCH_HEAD -- pdfmask-linux.spec dev/build_linux_appimage.sh \
+                                    dev/make_linux_icon.py dev/appimage
+          ls -l pdfmask-linux.spec dev/build_linux_appimage.sh
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
