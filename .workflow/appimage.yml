@@ -8,8 +8,9 @@
 # 主机：vefaas-...-sandbox（hostID）
 # 触发：给仓库推 tag（v*）时自动跑；也可在 Gitee Go 网页手动跑。
 #
-# 需要在 Gitee Go「变量设置」里配一个私有变量 GITEE_TOKEN（有 release 写权限的私人令牌）。
-# script 里的 $GITEE_TOKEN 由 Gitee Go 注入，yml 中不存明文。
+# 需要在 Gitee Go「通用变量」里配一个密文变量 PDFMASK_GE_TOKEN（有 release 写权限的私人令牌）。
+# Gitee Go 不允许变量名以 GITEE_ 开头，所以用这个名字；script 里再映射成
+# push_appimage_gitee.py 需要的 GITEE_TOKEN。yml 中不存明文。
 
 version: '1.0'
 name: appimage
@@ -82,8 +83,11 @@ stages:
           cat dist/SHA256SUMS-linux.txt
 
           echo "== 上传 Gitee Release =="
-          if [ -z "${GITEE_TOKEN:-}" ]; then
-            echo "缺少 GITEE_TOKEN 变量，无法上传"; exit 1
+          # Gitee Go 变量名不能以 GITEE_ 开头，通用变量存的是 PDFMASK_GE_TOKEN，
+          # 这里映射成上传脚本要的 GITEE_TOKEN。
+          export GITEE_TOKEN="${PDFMASK_GE_TOKEN:-}"
+          if [ -z "$GITEE_TOKEN" ]; then
+            echo "缺少 PDFMASK_GE_TOKEN 变量，无法上传"; exit 1
           fi
           if [ -n "$TAG" ]; then
             python3 dev/push_appimage_gitee.py "$TAG" dist/*.AppImage dist/SHA256SUMS-linux.txt
