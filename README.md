@@ -158,11 +158,11 @@
 
 | 情况 | Gitee（国内，推荐） | GitHub |
 | --- | --- | --- |
-| **最新版**（Windows + 安卓） | [releases/latest](https://gitee.com/bio234/pdf-privacy-masker/releases/latest) 附件区：`PDFPrivacyMasker-<版本号>.exe`、`.apk`、`SHA256SUMS.txt` **都在** | 同一版本，附件齐全，**Linux 的 AppImage 只在这里** |
-| **上一版**（Windows + 安卓） | 同样保留两端安装包，从 [releases](https://gitee.com/bio234/pdf-privacy-masker/releases) 进入对应 tag | 同一版本，附件齐全 |
+| **最新版**（Windows + 安卓 + Linux） | [releases/latest](https://gitee.com/bio234/pdf-privacy-masker/releases/latest) 附件区：`PDFPrivacyMasker-<版本号>.exe`、`.apk`、`-x86_64.AppImage`、`SHA256SUMS.txt` **都在** | 同一版本，附件齐全 |
+| **上一版**（三端） | 同样保留三端安装包，从 [releases](https://gitee.com/bio234/pdf-privacy-masker/releases) 进入对应 tag | 同一版本，附件齐全 |
 | **更早的版本** | 只留更新说明，**没有安装包**——只能到 GitHub 查看和下载 | [全部历史版本](https://github.com/neurotracee/pdf-privacy-masker/releases)；指定版本：`https://github.com/neurotracee/pdf-privacy-masker/releases/tag/v<版本号>` |
 
-> **为什么要这样分**：Gitee 仓库的 Release 附件总额度只有 **1 GB（按所有历史版本累计）**，装不下十几个版本的 exe + apk。所以 Gitee **只保留最新版和上一版的两端安装包**，更早版本的附件统一清理——这一步确属无奈，需要旧版本的用户只能到 GitHub 发布页查看和下载，链接如下。**Windows 最新版并没有被挪到 GitHub**，exe 和安卓 apk 一样都在 Gitee 附件区。
+> **为什么要这样分**：Gitee 仓库的 Release 附件总额度只有 **1 GB（按所有历史版本累计）**，装不下十几个版本的三端安装包。所以 Gitee **只保留最新版和上一版的三端安装包**（exe + apk + AppImage，**额度没满就一起传，不做平台取舍**），更早版本的附件才统一清理——清理时**每一版的更新说明一个字都不动**，只是安装包去 GitHub 取。**最新版三端都没有被挪到 GitHub**，exe、apk 和 AppImage 一样都在 Gitee 附件区。
 >
 > - 最新版：https://gitee.com/bio234/pdf-privacy-masker/releases/latest
 > - 全部历史版本（GitHub）：https://github.com/neurotracee/pdf-privacy-masker/releases
@@ -193,7 +193,7 @@
 
 ### 方式一之三：Linux（AppImage，免安装）
 
-1. 到 [GitHub 发布页](https://github.com/neurotracee/pdf-privacy-masker/releases/latest) 下载 `PDFPrivacyMasker-<版本号>-x86_64.AppImage`（约 88 MB）。**Linux 包只挂在 GitHub**：Gitee 的附件额度要优先保证 Windows 和安卓，AppImage 体积大，放不下。
+1. 下载 `PDFPrivacyMasker-<版本号>-x86_64.AppImage`（约 88 MB）：[Gitee 发布页](https://gitee.com/bio234/pdf-privacy-masker/releases/latest) · [GitHub 发布页](https://github.com/neurotracee/pdf-privacy-masker/releases/latest)。**最新版和上一版的 AppImage 两边都有**，就近选一个下。
 2. 给它执行权限再运行，或者直接在文件管理器里双击：
 
    ```bash
@@ -583,12 +583,12 @@ Static comparison, if you want to zoom in on details:
 
 | Case | Gitee (China, recommended) | GitHub |
 | --- | --- | --- |
-| **Latest release** (Windows + Android) | [releases/latest](https://gitee.com/bio234/pdf-privacy-masker/releases/latest) — `PDFPrivacyMasker-<version>.exe`, `.apk` and `SHA256SUMS.txt` are **all there** | Same release, all assets |
-| **Previous release** (Windows + Android) | Both installers are kept too; open [releases](https://gitee.com/bio234/pdf-privacy-masker/releases) and pick its tag | Same release, all assets |
+| **Latest release** (Windows + Android + Linux) | [releases/latest](https://gitee.com/bio234/pdf-privacy-masker/releases/latest) — `PDFPrivacyMasker-<version>.exe`, `.apk`, `-x86_64.AppImage` and `SHA256SUMS.txt` are **all there** | Same release, all assets |
+| **Previous release** (all three) | All three installers are kept too; open [releases](https://gitee.com/bio234/pdf-privacy-masker/releases) and pick its tag | Same release, all assets |
 | **Older releases** | Release notes only, **no installers** — you have to check GitHub for them | [All releases](https://github.com/neurotracee/pdf-privacy-masker/releases); a specific one: `https://github.com/neurotracee/pdf-privacy-masker/releases/tag/v<version>` |
 
-> **Why**: Gitee allows only **1 GB of release attachments per repository** (across all versions), which cannot hold a dozen exe + apk pairs. So Gitee keeps installers for **the latest and the previous release only**; older attachments are removed in one batch. Older versions are therefore unavoidable GitHub-only — sorry about that.
-> The **Windows installer of the latest release is not GitHub-only**: the exe sits in the Gitee assets area next to the apk.
+> **Why**: Gitee allows only **1 GB of release attachments per repository** (across all versions), which cannot hold a dozen installers across three platforms. So Gitee keeps installers for **the latest and the previous release only** — exe, apk and AppImage together, **as long as the quota allows, with no platform left behind**; only older attachments are removed in one batch, and **their release notes are left untouched**. Older versions are therefore unavoidable GitHub-only — sorry about that.
+> **No platform of the latest release is GitHub-only**: the exe, the apk and the AppImage all sit in the Gitee assets area.
 >
 > - Latest: https://gitee.com/bio234/pdf-privacy-masker/releases/latest
 > - All history (GitHub): https://github.com/neurotracee/pdf-privacy-masker/releases
@@ -619,7 +619,7 @@ Two permissions, both only for updates: `INTERNET` reads the public version numb
 
 ### Option 1c: Linux (AppImage, no installation)
 
-1. Download `PDFPrivacyMasker-<version>-x86_64.AppImage` (about 88 MB) from the [GitHub releases page](https://github.com/neurotracee/pdf-privacy-masker/releases/latest). **The Linux build is only on GitHub** — the Gitee attachment quota has to cover Windows and Android first, and the AppImage is too big to fit there too.
+1. Download `PDFPrivacyMasker-<version>-x86_64.AppImage` (about 88 MB): [Gitee releases](https://gitee.com/bio234/pdf-privacy-masker/releases/latest) · [GitHub releases](https://github.com/neurotracee/pdf-privacy-masker/releases/latest). **The AppImage for the latest and the previous release is available on both**, so pick the closer one.
 2. Make it executable and run it, or just double-click it in your file manager:
 
    ```bash

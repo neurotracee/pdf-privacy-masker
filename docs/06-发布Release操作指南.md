@@ -240,7 +240,7 @@ https://api.github.com/repos/neurotracee/pdf-privacy-masker/releases
 
 GitHub 的 Release 附件没有这个烦恼，**Gitee 有**：整个仓库所有历史版本的附件加起来只有 **1 GB**。所以 Gitee 这边统一按下面几条办，完整规则见 [05-构建与发布.md 5.4 节](05-构建与发布.md#54-gitee-附件配额与版本顺序规范必须照做)。
 
-1. **最新版和上一版的两端包都留在 Gitee**。发新版时，Gitee 上最新版要有 Windows exe + 安卓 apk + SHA256SUMS；上一版同样保留两端包。**不要写「Windows 只发 GitHub」**——Windows 最新版就在 Gitee 附件区。更早版本的附件**由发版脚本自动清理**：正常跑一次 `python dev/sync_gitee_releases.py`，新版附件传完后它会自动删掉第 3 个及更早版本的安装包、正文保留并补一段「去 GitHub 下载」说明。单独补清可用 `--prune-old-assets`（先加 `--dry-run` 看清单），要临时多留几版用 `--keep-recent N`。
+1. **最新版和上一版的三端包都留在 Gitee**。发新版时，Gitee 上最新版要有 Windows exe + 安卓 apk + Linux AppImage + SHA256SUMS；上一版同样保留三端包。**不要写「Windows 只发 GitHub」或「Linux 只发 GitHub」**——**只要配额没满（已用 + 本包 ≤ 1 GB）就三端都传**，脚本会自己判断并在跳过时说明原因，不要预先替用户砍平台。更早版本的附件**由发版脚本自动清理**：正常跑一次 `python dev/sync_gitee_releases.py`，新版附件传完后它会自动删掉第 3 个及更早版本的安装包、正文保留并补一段「去 GitHub 下载」说明。单独补清可用 `--prune-old-assets`（先加 `--dry-run` 看清单），要临时多留几版用 `--keep-recent N`。
 2. **别交错操作**。绝对不要「从旧版本开始删附件 → 再给新版本加附件 → 回头改旧版本文字」。Gitee 的「最新版」是**最后创建的那个非预发布 Release**，不是版本号最大的那个；中间夹一次历史版本补建，页面上的最新版就会变成旧版本。2026-11-15 已经因此把 latest 顶成过 v1.4.1。
 3. **固定顺序**：先推代码 → GitHub 建 Release 传全部附件 → Gitee 建最新版 Release（必须最后创建）→ 传附件 → 跑 `python dev/sync_gitee_releases.py`（自动清旧版附件 + 自动校验） → 打开 `https://gitee.com/bio234/pdf-privacy-masker/releases/latest` 确认落在本次 tag。
 4. **配额不够时**：先用 `--prune-old-assets` 批量清掉**更早版本**的附件腾地方，保证保留的两个版本两端包齐全；不要为了腾地方临时删某个旧版本，更不要把 Windows 最新版推给 GitHub。GitHub 那一侧始终有全部版本。

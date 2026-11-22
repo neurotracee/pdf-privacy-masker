@@ -14,8 +14,14 @@
 Gitee 附件配额（1 GB / 整个仓库）与版本顺序规范
 ------------------------------------------------
 见 docs/05-构建与发布.md 的 5.4 节。要点：Gitee **同时保留最新版与上一版**
-两个版本的两端安装包（Windows exe + 安卓 apk + SHA256SUMS）；再往前的版本
-附件统一清理、只留更新说明，用户只能到 GitHub 发布页查看和下载旧版本。
+两个版本的全部安装包（Windows exe + 安卓 apk + Linux AppImage + SHA256SUMS）；
+再往前的版本附件统一清理、**正文（更新说明）一个字都不能少**，用户仍能在
+Gitee 看到每一版改了什么，安装包则去 GitHub 发布页下载。
+
+**配额没满就照传**：AppImage 不再因为「体积大」被跳过，上传前会先算一遍
+已占用多少，只有真的装不下（已用 + 本包 > 1 GB）才跳过并说明原因；
+想无视预检硬传用 `--force-quota`。
+
 旧版本附件不逐个删、不逐个改文字，留到 `--prune-old-assets` 一次性批量处理；
 禁止「从旧版开始删附件 → 加新附件 → 回头改旧版文字」的交错操作，因为 Gitee 的
 latest 是「最后创建的非预发布 Release」，不是版本号最大的那个。
@@ -278,8 +284,16 @@ def create_release(rel, tok, dry):
     return resp
 
 
-def upload_all(rel, rid, tok, dry):
+def upload_all(rel, rid, tok, dry, force_quota=False):
     tag = rel["tag_name"]
+    used = 0
+    quota_known = False
+    if tok:
+        try:
+            used = gitee_used_bytes(tok)
+            quota_known = True
+        except Exception:
+            pass
     for asset in (rel.get("assets") or []):
         an = asset["name"]
         expect = int(asset.get("size") or 0)
@@ -298,12 +312,21 @@ def upload_all(rel, rid, tok, dry):
         if expect and os.path.getsize(path) != expect:
             print("  附件 %s 大小校验失败，拒绝上传" % an)
             continue
-        if dry:
-            print("  [dry-run] 将上传 %s（%.2f MB）" % (an, os.path.getsize(path) / 1048576))
+        size = os.path.getsize(path)
+        if quota_known and not force_quota and used + size > GITEE_QUOTA:
+            print("  跳过 %s：配额不够（已用 %.1f MB + 本包 %.1f MB > %d MB）"
+                  % (an, used / 1048576, size / 1048576, GITEE_QUOTA // 1048576))
             continue
-        print("  上传 %s（%.2f MB）..." % (an, os.path.getsize(path) / 1048576))
+        if dry:
+            print("  [dry-run] 将上传 %s（%.2f MB）" % (an, size / 1048576))
+            if quota_known:
+                used += size
+            continue
+        print("  上传 %s（%.2f MB）..." % (an, size / 1048576))
         ok, info = upload_asset(rid, path, tok)
         print("  -> %s %s" % ("成功" if ok else "失败", info))
+        if ok and quota_known:
+            used += size
 
 
 def reorder(rels, tok, dry):
@@ -341,10 +364,15 @@ def reorder(rels, tok, dry):
 GH_RELEASES_URL = "https://github.com/neurotracee/pdf-privacy-masker/releases"
 GE_LATEST_URL = "https://gitee.com/bio234/pdf-privacy-masker/releases/latest"
 GITEE_QUOTA = 1024 ** 3          # 整个仓库所有历史版本附件累计，1 GB
-KEEP_RECENT = 2                  # Gitee 保留最近两个版本（最新版 + 上一版），两端都留
+KEEP_RECENT = 2                  # Gitee 保留最近两个版本（最新版 + 上一版），各端都留
 
-HISTORY_NOTE_TEMPLATE = """> **本页是历史版本，安装包已从 Gitee 移除。** Gitee 仓库的 Release 附件总额度只有 1 GB，只保留**最新版与上一版**两个版本的安装包（Windows exe 和安卓 apk 都留在本站）；更早版本的附件已统一清理，只能麻烦你到 GitHub 发布页查看和下载。
-> 这一版的发布页（Windows / 安卓安装包都在 Assets 区）：
+# 我们**主动上传**的安装包后缀（Gitee 自带的源码 zip / tar.gz 不算，别删）。
+# 三端一起同步：Windows exe、安卓 apk、Linux AppImage。
+# 只要配额没满就都传——不按「哪个平台小就砍哪个」做减法，那是用户该决定的事。
+ASSET_SUFFIXES = (".exe", ".apk", ".appimage")
+
+HISTORY_NOTE_TEMPLATE = """> **本页是历史版本，安装包已从 Gitee 移除（下面这一版的更新说明完整保留）。** Gitee 仓库的 Release 附件总额度只有 1 GB，只保留**最新版与上一版**两个版本的全部安装包（Windows exe、安卓 apk、Linux AppImage 都留在本站，额度够就会一起传）；更早版本的附件已统一清理，只能麻烦你到 GitHub 发布页查看和下载。
+> 这一版的发布页（三端安装包都在 Assets 区）：
 > https://github.com/neurotracee/pdf-privacy-masker/releases/tag/{tag}
 > 全部历史版本：https://github.com/neurotracee/pdf-privacy-masker/releases
 > 只想装软件用的话，直接下最新版：https://gitee.com/bio234/pdf-privacy-masker/releases/latest
@@ -391,7 +419,36 @@ def ge_attach_files(rid, tok):
 
 
 def install_assets(files):
-    return [a for a in files if (a.get("name") or "").lower().endswith((".exe", ".apk"))]
+    """我们上传的安装包（exe / apk / AppImage）。
+
+    排除 Gitee 自动附带的源码包（`v1.4.9.1.zip`、`.tar.gz`）——它们不在
+    attach_files 里，但判断时统一用后缀，避免误伤。
+    """
+    return [a for a in files
+            if (a.get("name") or "").lower().endswith(ASSET_SUFFIXES)]
+
+
+def gitee_used_bytes(tok, rels=None, deep=False):
+    """整个仓库所有 Release 附件已占用的字节数。
+
+    默认只统计**最近的 KEEP_RECENT+1 个版本**：更早版本的附件本来就会被发版
+    流程清空，为了一个预检把 24 个版本全查一遍（单次 3~4 秒，串行 90 秒以上，
+    并发还会被 Gitee 限流拖死）不值得。要逐版本核对用 `--full-quota` 走 deep。
+    """
+    rels = rels if rels is not None else gitee_releases()
+    picked = rels if deep else sorted(
+        rels, key=lambda r: ver_key(r.get("tag_name") or ""),
+        reverse=True)[:KEEP_RECENT + 1]
+    total = 0
+    for r in picked:
+        rid = r.get("id")
+        if rid is None:
+            continue
+        try:
+            total += sum(int(a.get("size") or 0) for a in ge_attach_files(rid, tok))
+        except Exception as e:
+            print("  配额明细取不到（%s）：按 0 计入" % str(e)[:80])
+    return total
 
 
 def verify_order(rels=None, tok=None, quiet=False):
@@ -426,8 +483,8 @@ def verify_order(rels=None, tok=None, quiet=False):
         expect = {a["name"]: int(a.get("size") or 0) for a in (ghr.get("assets") or [])}
         have = {a["name"]: int(a.get("size") or 0) for a in ge_attach_files(cur["id"], tok)}
         for n, sz in expect.items():
-            if n.lower().endswith((".exe", ".apk")) and n not in have:
-                problems.append("最新版缺少安装包 %s（Gitee 必须两端都留）" % n)
+            if n.lower().endswith(ASSET_SUFFIXES) and n not in have:
+                problems.append("最新版缺少安装包 %s（Gitee 必须各端都留）" % n)
             elif n in have and have[n] != sz:
                 problems.append("附件 %s 大小不符：Gitee %s / GitHub %s" % (n, have[n], sz))
 
@@ -440,8 +497,16 @@ def verify_order(rels=None, tok=None, quiet=False):
             continue
         have = {a["name"] for a in ge_attach_files(r["id"], tok)}
         for n in ((next((x for x in rels if x["tag_name"] == tag), {}) or {}).get("assets") or []):
-            if n["name"].lower().endswith((".exe", ".apk")) and n["name"] not in have:
+            if n["name"].lower().endswith(ASSET_SUFFIXES) and n["name"] not in have:
                 missing_prev.append("%s/%s" % (tag, n["name"]))
+
+    # 历代更新说明必须都在：附件可以清、正文不能丢。哪怕旧版只剩一段说明，
+    # 用户点进去也要能看到「这一版改了什么、去哪下」。
+    empty_body = [r.get("tag_name") for r in ges
+                  if len((r.get("body") or "").strip()) < 80]
+    if empty_body:
+        problems.append("这些版本的更新说明缺失或过短（正文必须保留）：%s"
+                        % ", ".join(sorted(empty_body, key=ver_key)))
 
     # 保留版本之外的旧版还有多少附件：不是错误（留待一次性批量清理），但必须看得见
     old_with_assets = []
@@ -456,7 +521,7 @@ def verify_order(rels=None, tok=None, quiet=False):
         print("  最大版本：%s" % want)
         print("  Gitee /releases/latest：%s" % (got or "(取不到)"))
         print("  Gitee 列表第一条：%s" % (top or "(取不到)"))
-        print("  Gitee 保留版本：%s（两端安装包）" % ", ".join(sorted(keep, key=ver_key, reverse=True)))
+        print("  Gitee 保留版本：%s（各端安装包）" % ", ".join(sorted(keep, key=ver_key, reverse=True)))
         if missing_prev and not quiet:
             print("  上一版缺附件（提示，不算失败）：%s" % ", ".join(missing_prev))
         print("  仍带附件的更早版本：%d 个%s（按策略留待一次性批量清理，不是错误）" % (
@@ -567,6 +632,10 @@ def main():
                     help="一次性批量清理旧版附件并统一说明文字（独立任务，配 --dry-run 预览）")
     ap.add_argument("--no-prune", action="store_true",
                     help="正常同步结束后不做自动清理（默认会自动清掉第 3 个及更早版本的安装包）")
+    ap.add_argument("--force-quota", action="store_true",
+                    help="无视 1GB 配额预检硬上传（默认只在配额够时才传，不够会跳过并说明）")
+    ap.add_argument("--full-quota", action="store_true",
+                    help="配额预检时把全部历史版本都查一遍（默认只查最近几个，快得多）")
     ap.add_argument("--keep-recent", type=int, default=KEEP_RECENT,
                     help="Gitee 保留几个版本的安装包（默认 2：最新版 + 上一版）")
     a = ap.parse_args()
@@ -600,6 +669,19 @@ def main():
 
     existing = {r.get("tag_name"): r for r in gitee_releases()}
     print("Gitee 现有 %d 个：%s\n" % (len(existing), ", ".join(existing) or "无"))
+
+    # 配额先摸一遍：只要没到上限就照传，不预先替用户砍平台。
+    used = 0
+    quota_known = False
+    if tok:
+        try:
+            used = gitee_used_bytes(tok, list(existing.values()), deep=a.full_quota)
+            quota_known = True
+            print("Gitee 附件已占用 %.2f MB / %d MB（%.1f%%），剩余 %.2f MB\n" % (
+                used / 1048576, GITEE_QUOTA // 1048576, used * 100.0 / GITEE_QUOTA,
+                (GITEE_QUOTA - used) / 1048576))
+        except Exception as e:
+            print("读取配额占用失败（仍继续上传，单个包超限时接口会报错）：%s\n" % e)
 
     for r in sorted(rels, key=lambda x: ver_key(x["tag_name"])):
         tag = r["tag_name"]
@@ -683,12 +765,22 @@ def main():
             if expect and os.path.getsize(path) != expect:
                 print("  附件 %s 大小校验失败，拒绝上传" % an)
                 continue
-            if a.dry_run:
-                print("  [dry-run] 将上传 %s（%.2f MB）" % (an, os.path.getsize(path) / 1048576))
+            size = os.path.getsize(path)
+            if quota_known and not a.force_quota and used + size > GITEE_QUOTA:
+                print("  跳过 %s：配额不够（已用 %.1f MB + 本包 %.1f MB > %d MB）。"
+                      % (an, used / 1048576, size / 1048576, GITEE_QUOTA // 1048576))
+                print("     腾出空间后重跑本脚本会自动补传；确实要硬传用 --force-quota。")
                 continue
-            print("  上传 %s（%.2f MB）..." % (an, os.path.getsize(path) / 1048576))
+            if a.dry_run:
+                print("  [dry-run] 将上传 %s（%.2f MB）" % (an, size / 1048576))
+                if quota_known:
+                    used += size
+                continue
+            print("  上传 %s（%.2f MB）..." % (an, size / 1048576))
             ok, info = upload_asset(rid, path, tok)
             print("  -> %s %s" % ("成功" if ok else "失败", info))
+            if ok and quota_known:
+                used += size
 
     print("\n完成。")
     if not a.dry_run:
