@@ -3400,8 +3400,10 @@ def main():
     threading.Thread(target=_watchdog, daemon=True).start()
     if os.environ.get("PDFMASK_NO_OPEN") != "1":
         threading.Timer(0.5, lambda: _open_browser(url)).start()
-    print("%s v%s 运行于 %s" % (APP_NAME, VERSION, url))
-    print("  " + CREDIT_LINE + " · " + PROJECT_URL)
+    # flush：输出重定向到文件/管道时是块缓冲，不刷的话地址要等进程退出才出现，
+    # 自动化脚本（CI 冒烟、外部启动器）就没法立刻拿到端口
+    print("%s v%s 运行于 %s" % (APP_NAME, VERSION, url), flush=True)
+    print("  " + CREDIT_LINE + " · " + PROJECT_URL, flush=True)
     try:
         srv.serve_forever()
     except KeyboardInterrupt:

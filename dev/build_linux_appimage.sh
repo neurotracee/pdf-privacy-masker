@@ -43,11 +43,17 @@ smoke() {
     echo "冒烟失败：--ocr-check 退出码非 0"; cat build/ocr.txt; return 1; }
   head -3 build/ocr.txt
 
-  PDFMASK_NO_OPEN=1 "$img" --appimage-extract-and-run > build/smoke.log 2>&1 &
+  PDFMASK_NO_OPEN=1 PYTHONUNBUFFERED=1 "$img" --appimage-extract-and-run > build/smoke.log 2>&1 &
   local pid=$!
   local url=""
   for _ in $(seq 1 40); do
     url="$(grep -oE 'http://127\.0\.0\.1:[0-9]+' build/smoke.log | head -1 || true)"
+    if [ -z "$url" ]; then
+      # 老版本的程序没有 flush，地址可能还卡在缓冲区里；直接从监听端口反查，
+      # 这样冒烟不依赖被测程序把话打出来。
+      port="$(ss -ltnp 2>/dev/null | awk '/pdfmask/ {print $4}' | head -1 | sed 's/.*://')"
+      [ -n "${port:-}" ] && url="http://127.0.0.1:$port"
+    fi
     [ -n "$url" ] && break
     sleep 1
   done
