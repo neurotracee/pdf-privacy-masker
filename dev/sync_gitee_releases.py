@@ -22,9 +22,10 @@ Gitee 看到每一版改了什么，安装包则去 GitHub 发布页下载。
 已占用多少，只有真的装不下（已用 + 本包 > 1 GB）才跳过并说明原因；
 想无视预检硬传用 `--force-quota`。
 
-**AppImage 不归这个脚本管**：用户的习惯是 GitHub 上手动下载、再手动传到
-Gitee，脚本默认跳过它（`--with-appimage` 才代劳），校验时也只提示「等你搬」，
-不算失败。
+**分工**：GitHub 那一侧（代码、tag、Release 正文、exe/apk、等 CI 产出 AppImage
+并挂到 Release）全部由 AI 做完，不交给用户。只有「Gitee 上的 AppImage」由用户
+决定：要么本人从 GitHub 下载后手动传，要么把文件路径/文件给 AI 代传。所以本脚本
+默认跳过 `.appimage`（`--with-appimage` 才代劳），校验时只提示「待处理」，不算失败。
 
 旧版本附件不逐个删、不逐个改文字，留到 `--prune-old-assets` 一次性批量处理；
 禁止「从旧版开始删附件 → 加新附件 → 回头改旧版文字」的交错操作，因为 Gitee 的
@@ -435,9 +436,9 @@ KEEP_RECENT = 2                  # Gitee 保留最近两个版本（最新版 + 
 # 只要配额没满就都传——不按「哪个平台小就砍哪个」做减法，那是用户该决定的事。
 ASSET_SUFFIXES = (".exe", ".apk", ".appimage")
 
-# AppImage 由本人手动搬运（GitHub 下载 → Gitee 上传），脚本默认不碰它。
-# 这是用户在 2026-11-24 明确要求的：自动取回再传一次多花十分钟，
-# 手动反而更快、更可控。确实想让脚本代劳时加 --with-appimage。
+# AppImage 的 Gitee 那一步由用户决定：本人手动搬，或把文件路径/文件交给 AI 代传。
+# 这是用户在 2026-11-24 明确要求的。GitHub 端的构建与挂包仍由 AI 全权负责，
+# 不因为这个规则而有任何减少。确实要让脚本自己取回远端的 AppImage 时加 --with-appimage。
 MANUAL_SUFFIXES = (".appimage",)
 
 HISTORY_NOTE_TEMPLATE = """> **本页是历史版本，安装包已从 Gitee 移除（下面这一版的更新说明完整保留）。** Gitee 仓库的 Release 附件总额度只有 1 GB，只保留**最新版与上一版**两个版本的全部安装包（Windows exe、安卓 apk、Linux AppImage 都留在本站，额度够就会一起传）；更早版本的附件已统一清理，只能麻烦你到 GitHub 发布页查看和下载。
@@ -718,7 +719,7 @@ def main():
     ap.add_argument("--keep-recent", type=int, default=KEEP_RECENT,
                     help="Gitee 保留几个版本的安装包（默认 2：最新版 + 上一版）")
     ap.add_argument("--with-appimage", action="store_true",
-                    help="连 AppImage 也自动传（默认不传：AppImage 由本人从 GitHub 下载后手动上传）")
+                    help="连 AppImage 也自动传（默认不传：Gitee 端 AppImage 由用户手动上传或交文件给我代传）")
     a = ap.parse_args()
 
     if a.keep_recent and a.keep_recent > 0:
@@ -834,7 +835,7 @@ def main():
                 print("  附件 %s 已存在，跳过" % an)
                 continue
             if an.lower().endswith(MANUAL_SUFFIXES) and not a.with_appimage:
-                print("  跳过 %s：AppImage 按约定留给你手动搬（GitHub 下载 → Gitee 上传）" % an)
+                print("  跳过 %s：Gitee 端 AppImage 由你决定（手动上传，或把文件交给我代传）" % an)
                 continue
             expect = int(asset.get("size") or 0)
             path = None
