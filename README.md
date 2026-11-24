@@ -1,33 +1,34 @@
 <a id="top-zh"></a>
 
-<p align="center">
-  <b>简体中文</b> · <a href="#pdf-privacy-masker">English</a>
+<p align="center">  
+  <b>简体中文</b> · <a href="#pdf-privacy-masker">English</a>  
 </p>
 
-<p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/img/shot/hero-zh-dark.webp">
-    <img src="docs/img/shot/hero-zh-light.webp" width="100%" alt="PDF 隐私打码工具：把 PDF 拖进去，自动打上马赛克">
-  </picture>
+<p align="center">  
+  <picture>  
+    <source media="(prefers-color-scheme: dark)" srcset="docs/img/shot/hero-zh-dark.webp">  
+    <img src="docs/img/shot/hero-zh-light.webp" width="100%" alt="PDF 隐私打码工具：把 PDF 拖进去，自动打上马赛克">  
+  </picture>  
 </p>
 
-<p align="center">
-  本地离线运行的 PDF 隐私打码工具。把 PDF 拖进去，自动认出手机号、身份证号、银行卡、姓名等敏感信息，用不可还原的马赛克盖掉；三端用同一套识别规则，全程不联网、不上传。
+<p align="center">  
+  本地离线运行的 PDF 隐私打码工具。把 PDF 拖进去，自动认出手机号、身份证号、银行卡、姓名等敏感信息，用不可还原的马赛克盖掉；三端用同一套识别规则，全程不联网、不上传。  
 </p>
 
-<p align="center">
-  <a href="https://github.com/neurotracee/pdf-privacy-masker/blob/main/LICENSE"><img alt="许可证 AGPL-3.0" src="https://img.shields.io/badge/%E8%AE%B8%E5%8F%AF%E8%AF%81-AGPL--3.0-2563EB?style=flat-square&labelColor=1E293B"></a>
-  <a href="https://github.com/neurotracee/pdf-privacy-masker/releases/latest"><img alt="最新版本" src="https://img.shields.io/github/v/release/neurotracee/pdf-privacy-masker?label=%E6%9C%80%E6%96%B0%E7%89%88%E6%9C%AC&color=2563EB&labelColor=1E293B&style=flat-square"></a>
-  <a href="https://github.com/neurotracee/pdf-privacy-masker/releases"><img alt="总下载量" src="https://img.shields.io/github/downloads/neurotracee/pdf-privacy-masker/total?label=%E4%B8%8B%E8%BD%BD&color=2563EB&labelColor=1E293B&style=flat-square"></a>
-  <a href="https://github.com/neurotracee/pdf-privacy-masker/blob/main/requirements.txt"><img alt="Python 3.11+" src="https://img.shields.io/badge/Python-3.11%2B-2563EB?style=flat-square&logo=python&logoColor=white&labelColor=1E293B"></a>
-  <a href="https://github.com/neurotracee/pdf-privacy-masker/releases"><img alt="平台 Windows / Android / Linux" src="https://img.shields.io/badge/%E5%B9%B3%E5%8F%B0-Windows%20%7C%20Android%20%7C%20Linux-2563EB?style=flat-square&labelColor=1E293B"></a>
-  <a href="https://gitee.com/bio234/pdf-privacy-masker/releases/latest"><img alt="Gitee 发布页" src="https://img.shields.io/badge/Gitee-%E5%8F%91%E5%B8%83%E9%A1%B5-C71D23?style=flat-square&labelColor=1E293B"></a>
-  <a href="https://github.com/neurotracee/pdf-privacy-masker/actions/workflows/ci.yml"><img alt="selfcheck" src="https://github.com/neurotracee/pdf-privacy-masker/actions/workflows/ci.yml/badge.svg"></a>
+<p align="center">  
+  <a href="https://github.com/neurotracee/pdf-privacy-masker/blob/main/LICENSE"><img alt="许可证 AGPL-3.0" src="https://img.shields.io/badge/%E8%AE%B8%E5%8F%AF%E8%AF%81-AGPL--3.0-2563EB?style=flat-square\&labelColor=1E293B"></a>  
+  <a href="https://github.com/neurotracee/pdf-privacy-masker/releases/latest"><img alt="最新版本" src="https://img.shields.io/github/v/release/neurotracee/pdf-privacy-masker?label=%E6%9C%80%E6%96%B0%E7%89%88%E6%9C%AC\&color=2563EB\&labelColor=1E293B\&style=flat-square"></a>  
+  <a href="https://github.com/neurotracee/pdf-privacy-masker/releases"><img alt="总下载量" src="https://img.shields.io/github/downloads/neurotracee/pdf-privacy-masker/total?label=%E4%B8%8B%E8%BD%BD\&color=2563EB\&labelColor=1E293B\&style=flat-square"></a>  
+  <a href="https://github.com/neurotracee/pdf-privacy-masker/blob/main/requirements.txt"><img alt="Python 3.11+" src="https://img.shields.io/badge/Python-3.11%2B-2563EB?style=flat-square\&logo=python\&logoColor=white\&labelColor=1E293B"></a>  
+  <a href="https://github.com/neurotracee/pdf-privacy-masker/releases"><img alt="平台 Windows / Android / Linux" src="https://img.shields.io/badge/%E5%B9%B3%E5%8F%B0-Windows%20%7C%20Android%20%7C%20Linux-2563EB?style=flat-square\&labelColor=1E293B"></a>  
+  <a href="https://gitee.com/bio234/pdf-privacy-masker/releases/latest"><img alt="Gitee 发布页" src="https://img.shields.io/badge/Gitee-%E5%8F%91%E5%B8%83%E9%A1%B5-C71D23?style=flat-square\&labelColor=1E293B"></a>  
+  <a href="https://github.com/neurotracee/pdf-privacy-masker/actions/workflows/ci.yml"><img alt="selfcheck" src="https://github.com/neurotracee/pdf-privacy-masker/actions/workflows/ci.yml/badge.svg"></a>  
 </p>
 
-<br>
+  
 
-> **本项目此前已在 GitHub 发布，后于 2026 年 11 月 7 日首次同步至国内开源平台 Gitee（https://gitee.com/bio234/pdf-privacy-masker）**
+
+> **本项目此前已在 GitHub 发布，后于 2026 年 11 月 7 日首次同步至国内开源平台 Gitee（<https://gitee.com/bio234/pdf-privacy-masker）>**
 >
 > 注：GitHub 和 Gitee 这两个仓库都由同一名开发者维护，GitHub 建得更早。写这句是为了避免有人误以为其中一个是抄来的副本。
 
@@ -49,56 +50,60 @@
 
 <p align="center">打开 PDF 就地分析：左边逐条列出识别到的敏感信息，右边预览里已经盖好马赛克，不想涂的取消勾选就行。</p>
 
-<p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/img/shot/win-work-zh-dark.webp">
-    <img src="docs/img/shot/win-work-zh-light.webp" width="100%" alt="Windows 工作区：左侧识别结果列表，右侧文档预览与马赛克">
-  </picture>
+<p align="center">  
+  <picture>  
+    <source media="(prefers-color-scheme: dark)" srcset="docs/img/shot/win-work-zh-dark.webp">  
+    <img src="docs/img/shot/win-work-zh-light.webp" width="100%" alt="Windows 工作区：左侧识别结果列表，右侧文档预览与马赛克">  
+  </picture>  
 </p>
 
-<br>
+  
 
-<h3 align="center">安卓端，功能没缩水</h3>
+
+<h3 align="center">安卓端，该有的都有</h3>
 
 <p align="center">首页选文件、工作区手动框选与橡皮擦、设置里切换语言与主题；识别规则与电脑端逐条对齐——同一份测试文档在两端跑，452 条识别结果全部一致。</p>
 
-<p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/img/shot/phone-feature-zh-dark.webp">
-    <img src="docs/img/shot/phone-feature-zh-light.webp" width="100%" alt="安卓端：首页选文件、工作区、设置">
-  </picture>
+<p align="center">  
+  <picture>  
+    <source media="(prefers-color-scheme: dark)" srcset="docs/img/shot/phone-feature-zh-dark.webp">  
+    <img src="docs/img/shot/phone-feature-zh-light.webp" width="100%" alt="安卓端：首页选文件、工作区、设置">  
+  </picture>  
 </p>
 
-<br>
+  
+
 
 <h3 align="center">设置是勾选框，不是配置文件</h3>
 
 <p align="center">保存位置、更新检查方式、界面语言都在同一个面板里，勾完立即生效，不用记命令、不用改 JSON。</p>
 
-<p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/img/shot/win-settings-zh-dark.webp">
-    <img src="docs/img/shot/win-settings-zh-light.webp" width="100%" alt="设置面板：保存位置、界面语言、更新检查方式">
-  </picture>
+<p align="center">  
+  <picture>  
+    <source media="(prefers-color-scheme: dark)" srcset="docs/img/shot/win-settings-zh-dark.webp">  
+    <img src="docs/img/shot/win-settings-zh-light.webp" width="100%" alt="设置面板：保存位置、界面语言、更新检查方式">  
+  </picture>  
 </p>
 
-<br>
+  
+
 
 <h3 align="center">中文，也说 English</h3>
 
 <p align="center">全部界面支持英文，设置里一键切换，立即生效不用重启，下次打开还是你选的那个。</p>
 
-<p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/img/shot/lang-zh-dark.webp">
-    <img src="docs/img/shot/lang-zh-light.webp" width="100%" alt="同一份文件的中文界面与英文界面">
-  </picture>
+<p align="center">  
+  <picture>  
+    <source media="(prefers-color-scheme: dark)" srcset="docs/img/shot/lang-zh-dark.webp">  
+    <img src="docs/img/shot/lang-zh-light.webp" width="100%" alt="同一份文件的中文界面与英文界面">  
+  </picture>  
 </p>
 
-<br>
+  
 
-<p align="center">
-  <sub>截图取自程序真实渲染，非示意图。安卓端的放大镜、扫描件识别、应用内更新实拍图见 <a href="docs/02-使用说明-安卓.md">使用说明 · 安卓</a>。</sub>
+
+<p align="center">  
+  <sub>截图取自程序真实渲染，非示意图。安卓端的放大镜、扫描件识别、应用内更新实拍图见 <a href="docs/02-使用说明-安卓.md">使用说明 · 安卓</a>。</sub>  
 </p>
 
 ---
@@ -114,6 +119,8 @@
 ![打码前后对比](docs/img/comparison.png)
 
 > 左侧是原始文档，右侧是打码后的结果。原图 2100×1182，网页里会被缩小显示——**[点这里打开原图放大看细节](docs/img/comparison.png)**（Gitee / GitHub 页面里也可以直接点上面的图放大）。
+
+
 
 ---
 
@@ -146,30 +153,30 @@
 
 ## 自动之外，还能手动作
 
-| 功能        | 说明                                                       |
-| --------- | -------------------------------------------------------- |
-| 框选手动打码    | 点工具栏「框选手动打码」，在页面上按住鼠标拉一个框，松手即成。适合 OCR 没认出的扫描件、文字层 PDF 里嵌的图片、程序保守放过的地方。安卓端用手指拖，手指右上方会自动浮出 **2.8 倍放大镜**，你正在拉的虚线框也一起放大显示 |
-| 双击取消打码    | 在页面上**双击任意一个方框**（自动认的红框、手画的蓝虚线框都算），这一处打码立刻取消、框变灰；再双击恢复。顶部有一条提示条写明这个操作 |
-| 逐条确认      | 每条识别结果都有勾选框，不想打的取消勾选即可；点一条会跳到对应页面并高亮                      |
-| 自定义保存位置   | 点「生成」时先弹窗问你存到哪个文件夹，可勾「下次默认此路径」「不再询问」                     |
-| 设置里随时改    | 右上角「设置」用勾选的方式改：默认保存位置、是否每次都问。不用改配置文件，也没有命令行参数            |
-| 原文件零改动    | 只读取原 PDF，另存为新文件；同名自动加序号，不覆盖                                    |
+| 功能      | 说明                                                                                                                    |
+| ------- | --------------------------------------------------------------------------------------------------------------------- |
+| 框选手动打码  | 点工具栏「框选手动打码」，在页面上按住鼠标拉一个框，松手即成。适合 OCR 没认出的扫描件、文字层 PDF 里嵌的图片、程序保守放过的地方。安卓端用手指拖，手指右上方会自动浮出 **2.8 倍放大镜**，你正在拉的虚线框也一起放大显示 |
+| 双击取消打码  | 在页面上**双击任意一个方框**（自动认的红框、手画的蓝虚线框都算），这一处打码立刻取消、框变灰；再双击恢复。顶部有一条提示条写明这个操作                                                 |
+| 逐条确认    | 每条识别结果都有勾选框，不想打的取消勾选即可；点一条会跳到对应页面并高亮                                                                                  |
+| 自定义保存位置 | 点「生成」时先弹窗问你存到哪个文件夹，可勾「下次默认此路径」「不再询问」                                                                                  |
+| 设置里随时改  | 右上角「设置」用勾选的方式改：默认保存位置、是否每次都问。不用改配置文件，也没有命令行参数                                                                         |
+| 原文件零改动  | 只读取原 PDF，另存为新文件；同名自动加序号，不覆盖                                                                                           |
 
 ## 怎么用
 
 ### 安装包下载与版本保留规则（先看这一段）
 
-| 情况 | Gitee（国内，推荐） | GitHub |
-| --- | --- | --- |
-| **最新版**（Windows + 安卓 + Linux） | [releases/latest](https://gitee.com/bio234/pdf-privacy-masker/releases/latest) 附件区：`PDFPrivacyMasker-<版本号>.exe`、`.apk`、`-x86_64.AppImage`、`SHA256SUMS.txt` **都在** | 同一版本，附件齐全 |
-| **上一版**（三端） | 同样保留三端安装包，从 [releases](https://gitee.com/bio234/pdf-privacy-masker/releases) 进入对应 tag | 同一版本，附件齐全 |
-| **更早的版本** | 只留更新说明，**没有安装包**——只能到 GitHub 查看和下载 | [全部历史版本](https://github.com/neurotracee/pdf-privacy-masker/releases)；指定版本：`https://github.com/neurotracee/pdf-privacy-masker/releases/tag/v<版本号>` |
+| 情况                            | Gitee（国内，推荐）                                                                                                                                                      | GitHub                                                                                                                                            |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **最新版**（Windows + 安卓 + Linux） | [releases/latest](https://gitee.com/bio234/pdf-privacy-masker/releases/latest) 附件区：`PDFPrivacyMasker-<版本号>.exe`、`.apk`、`-x86_64.AppImage`、`SHA256SUMS.txt` **都在** | 同一版本，附件齐全                                                                                                                                         |
+| **上一版**（三端）                   | 同样保留三端安装包，从 [releases](https://gitee.com/bio234/pdf-privacy-masker/releases) 进入对应 tag                                                                             | 同一版本，附件齐全                                                                                                                                         |
+| **更早的版本**                     | 只留更新说明，**没有安装包**——只能到 GitHub 查看和下载                                                                                                                                | [全部历史版本](https://github.com/neurotracee/pdf-privacy-masker/releases)；指定版本：`https://github.com/neurotracee/pdf-privacy-masker/releases/tag/v<版本号>` |
 
 > **为什么要这样分**：Gitee 仓库的 Release 附件总额度只有 **1 GB（按所有历史版本累计）**，装不下十几个版本的三端安装包。所以 Gitee **只保留最新版和上一版的三端安装包**（exe + apk + AppImage，**额度没满就一起传，不做平台取舍**），更早版本的附件才统一清理——清理时**每一版的更新说明一个字都不动**，只是安装包去 GitHub 取。**最新版三端都没有被挪到 GitHub**，exe、apk 和 AppImage 一样都在 Gitee 附件区。
 >
-> - 最新版：https://gitee.com/bio234/pdf-privacy-masker/releases/latest
-> - 全部历史版本（GitHub）：https://github.com/neurotracee/pdf-privacy-masker/releases
-> - 指定旧版本：https://github.com/neurotracee/pdf-privacy-masker/releases/tag/v`<版本号>`（把 `<版本号>` 换成具体版本，例如 `v1.4.2`）
+> - 最新版：<https://gitee.com/bio234/pdf-privacy-masker/releases/latest>
+> - 全部历史版本（GitHub）：<https://github.com/neurotracee/pdf-privacy-masker/releases>
+> - 指定旧版本：<https://github.com/neurotracee/pdf-privacy-masker/releases/tag/v\`><版本号>`（把 `<版本号>`换成具体版本，例如`v1.4.2\`）
 
 ### 方式一：直接用打包好的 exe（Windows，推荐）
 
@@ -198,12 +205,10 @@
 
 1. 下载 `PDFPrivacyMasker-<版本号>-x86_64.AppImage`（约 88 MB）：[Gitee 发布页](https://gitee.com/bio234/pdf-privacy-masker/releases/latest) · [GitHub 发布页](https://github.com/neurotracee/pdf-privacy-masker/releases/latest)。**最新版和上一版的 AppImage 两边都有**，就近选一个下。
 2. 给它执行权限再运行，或者直接在文件管理器里双击：
-
    ```bash
    chmod +x PDFPrivacyMasker-<版本号>-x86_64.AppImage
    ./PDFPrivacyMasker-<版本号>-x86_64.AppImage
    ```
-
 3. 程序会在 `127.0.0.1` 起一个本地服务并打开默认浏览器，用完后关掉页面或按 `Ctrl+C` 即可。
 4. 选保存文件夹时，装了 `zenity` 或 `kdialog` 会弹系统对话框；两个都没有就在页面上直接输入路径，一样能用。
 5. 首次启动会慢一点（AppImage 要先把自身解包到临时目录），之后会快。基线是 Ubuntu 22.04（glibc 2.35），更新的发行版都没问题；更老的（如 Ubuntu 20.04）可能跑不起来。
@@ -211,6 +216,7 @@
 > 不想用 AppImage 也可以直接从源码跑：`python3 -m pip install -r requirements.txt && python3 pdfmask.py`。
 
 权限两个，都只服务于更新：`INTERNET` 用来读公开的版本号、下载安装包；`REQUEST_INSTALL_PACKAGES`（「安装应用」）只把安装包交给系统安装器，系统还会再问你一次。没有存储权限，选文件走系统文件选择器，打码全程本地完成。
+
 
 ### 打码后的文件存在哪
 
@@ -419,6 +425,7 @@ by the Free Software Foundation, either version 3 of the License, or
 
 安卓端没有单独的 README：两端的能力、许可、署名共用一套说法，写两份必然一头改了一头忘。
 
+
 ## 维护节奏与反馈
 
 这个项目由个人在业余时间维护，取舍很直白：**识别准不准、文件会不会坏、隐私有没有漏**这类问题优先处理；界面润色、锦上添花的功能可以慢慢来。代码全部公开，任何人不经询问就可以 fork 自行改进，不必等作者回复。
@@ -490,7 +497,7 @@ Available for **Windows** (single-file exe), **Android** (arm64 apk) and **Linux
 
 <br>
 
-<h3 align="center">On Android, nothing is cut down</h3>
+<h3 align="center">On Android, everything is there</h3>
 
 <p align="center">Pick a file on the home screen, draw boxes or erase them in the work screen, switch language and theme in Settings — the detection rules line up with the desktop build: the same test document, run on both sides, yields the same 452 results.</p>
 
