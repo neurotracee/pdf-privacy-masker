@@ -12,7 +12,7 @@
 </p>
 
 <p align="center">
-  本地离线运行的 PDF 隐私打码工具。把 PDF 拖进去，自动认出手机号、身份证号、银行卡、姓名等敏感信息，用不可还原的马赛克盖掉；Windows 与 Android 共用同一套识别内核，全程不联网、不上传。
+  本地离线运行的 PDF 隐私打码工具。把 PDF 拖进去，自动认出手机号、身份证号、银行卡、姓名等敏感信息，用不可还原的马赛克盖掉；三端用同一套识别规则，全程不联网、不上传。
 </p>
 
 <p align="center">
@@ -41,7 +41,7 @@
 
 全程在你自己的电脑上跑，不上传任何内容，原文件不动。打码后的文件存到哪个文件夹由你决定，不硬塞进某个固定位置。
 
-目前有 **Windows 版**（单文件 exe）、**安卓版**（arm64 apk）和 **Linux 版**（x86_64 AppImage），三端共用同一套识别内核，**版本号各自独立**。
+目前有 **Windows 版**（单文件 exe）、**安卓版**（arm64 apk）和 **Linux 版**（x86_64 AppImage），三端用同一套识别规则：Windows 与 Linux 是同一份代码，安卓端按同一套规则原生重写，并有跨端一致性测试守着两边不许跑偏。**版本号各自独立**。
 
 ![打码效果演示：一条竖线推过去，推过的地方就是打码后的样子](docs/img/demo-wipe.gif)
 
@@ -69,9 +69,9 @@
 
 <br>
 
-<h3 align="center">安卓端，同一个内核装进口袋</h3>
+<h3 align="center">安卓端，换个地方跑，规则还是那套</h3>
 
-<p align="center">首页选文件、工作区手动框选与橡皮擦、设置里切换语言与主题；识别规则与电脑端完全一致。</p>
+<p align="center">首页选文件、工作区手动框选与橡皮擦、设置里切换语言与主题；识别规则与电脑端逐条对齐——同一份测试文档在两端跑，452 条识别结果全部一致。</p>
 
 <p align="center">
   <picture>
@@ -441,7 +441,7 @@ by the Free Software Foundation, either version 3 of the License, or
 </p>
 
 <p align="center">
-  A fully offline PDF redaction tool. Drop a PDF in and it detects phone numbers, ID numbers, bank cards, names and more, covering them with irreversible mosaic. Windows and Android share the same detection engine — nothing is uploaded, ever.
+  A fully offline PDF redaction tool. Drop a PDF in and it detects phone numbers, ID numbers, bank cards, names and more, covering them with irreversible mosaic. All three platforms apply the same detection rules — nothing is uploaded, ever.
 </p>
 
 <p align="center">
@@ -470,7 +470,7 @@ Parts it can't auto-detect can be manually boxed and redacted, also pixel-level 
 
 Runs entirely on your own machine. No network, no upload, original file untouched. You choose where the redacted file is saved.
 
-Available for **Windows** (single-file exe), **Android** (arm64 apk) and **Linux** (x86_64 AppImage). All three share the same detection engine, but **each platform has its own version number**.
+Available for **Windows** (single-file exe), **Android** (arm64 apk) and **Linux** (x86_64 AppImage). All three apply the same detection rules: Windows and Linux run the same code, while Android is a native rewrite of those rules, kept in step by a cross-platform parity test. **Each platform still has its own version number.**
 
 ![Redaction demo: a divider sweeps across, and the area it passes is the redacted result](docs/img/demo-wipe-en.gif)
 
@@ -498,9 +498,9 @@ Static comparison, if you want to zoom in on details:
 
 <br>
 
-<h3 align="center">The same engine, in your pocket</h3>
+<h3 align="center">Same rules, just on your phone</h3>
 
-<p align="center">Pick a file on the home screen, draw boxes or erase them in the work screen, switch language and theme in Settings — detection rules are identical to the Windows build.</p>
+<p align="center">Pick a file on the home screen, draw boxes or erase them in the work screen, switch language and theme in Settings — the detection rules line up with the desktop build: the same test document, run on both sides, yields the same 452 results.</p>
 
 <p align="center">
   <picture>
