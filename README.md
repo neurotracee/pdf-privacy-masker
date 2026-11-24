@@ -45,21 +45,6 @@
 
 ---
 
-<h3 align="center">先看效果，打码前后</h3>
-
-<p align="center">一条竖线从左推到右，推过的地方就是打完码的样子。下面那张静态对比图可以放大看细节。</p>
-
-![打码效果演示：一条竖线推过去，推过的地方就是打码后的样子](docs/img/demo-wipe.gif)
-
-> 这段动图不是画的界面，是把同一份文档打码前后的两页真实结果叠在一起，竖线推过去的地方就是打码后的样子。姓氏保留，名字与所有号码被马赛克盖住；会议日期、金额、车牌、快递单号等普通信息原样保留。
-
-![打码前后对比](docs/img/comparison.png)
-
-> 左侧是原始文档，右侧是打码后的结果。原图 2100×1182，网页里会被缩小显示——**[点这里打开原图放大看细节](docs/img/comparison.png)**（Gitee / GitHub 页面里也可以直接点上面的图放大）。
-
----
-
-
 <h3 align="center">拖进去，自动标出每一处</h3>
 
 <p align="center">打开 PDF 就地分析：左边逐条列出识别到的敏感信息，右边预览里已经盖好马赛克，不想涂的取消勾选就行。</p>
@@ -115,6 +100,20 @@
 <p align="center">
   <sub>截图取自程序真实渲染，非示意图。安卓端的放大镜、扫描件识别、应用内更新实拍图见 <a href="docs/02-使用说明-安卓.md">使用说明 · 安卓</a>。</sub>
 </p>
+
+---
+
+<h3 align="center">处理效果，打码前后</h3>
+
+<p align="center">同一条竖线从左推到右，推过的地方就是打完码的样子；下面那张静态对比图可以放大看细节。</p>
+
+![打码效果演示：一条竖线推过去，推过的地方就是打码后的样子](docs/img/demo-wipe.gif)
+
+> 这段动图不是画的界面，是把同一份文档打码前后的两页真实结果叠在一起，竖线推过去的地方就是打码后的样子。姓氏保留，名字与所有号码被马赛克盖住；会议日期、金额、车牌、快递单号等普通信息原样保留。
+
+![打码前后对比](docs/img/comparison.png)
+
+> 左侧是原始文档，右侧是打码后的结果。原图 2100×1182，网页里会被缩小显示——**[点这里打开原图放大看细节](docs/img/comparison.png)**（Gitee / GitHub 页面里也可以直接点上面的图放大）。
 
 ---
 
@@ -478,21 +477,6 @@ Available for **Windows** (single-file exe), **Android** (arm64 apk) and **Linux
 
 ---
 
-<h3 align="center">See the result first: before and after</h3>
-
-<p align="center">A divider sweeps from left to right — wherever it has passed, you are looking at the redacted page. The static comparison below is the one to open if you want to zoom in on details.</p>
-
-![Redaction demo: a divider sweeps across, and the area it passes is the redacted result](docs/img/demo-wipe-en.gif)
-
-> This is not a mock-up: it is the same English form, before and after, stacked on top of each other. Where the divider has passed, you are looking at the redacted page. Phone numbers, emails and bank cards are covered by mosaic; ordinary info such as dates, job titles and addresses is preserved.
-
-![Before / After comparison](docs/img/comparison-en.png)
-
-> Left is the original form, right is the redacted result. Full size is 2064x1432; pages shrink it to fit — **[open the full-size image](docs/img/comparison-en.png)** to zoom into details (on Gitee/GitHub you can also click the image above). Phone numbers, emails and bank cards are masked; dates, job titles, addresses and other ordinary info stay readable.
-
----
-
-
 <h3 align="center">Drop it in, every match is marked</h3>
 
 <p align="center">The PDF is analyzed in place: detected items are listed one by one on the left, the preview on the right already shows the mosaic, and anything you'd rather keep is one checkbox away.</p>
@@ -548,6 +532,20 @@ Available for **Windows** (single-file exe), **Android** (arm64 apk) and **Linux
 <p align="center">
   <sub>Captured from the real UI, not mock drawings. More Android shots (loupe, scanned-PDF recognition, in-app update) are in <a href="docs/02-使用说明-安卓.md">the Android guide</a>.</sub>
 </p>
+
+---
+
+<h3 align="center">The result: before and after</h3>
+
+<p align="center">The same divider sweeping left to right — wherever it has passed, you are looking at the redacted page. The static comparison below is the one to zoom into.</p>
+
+![Redaction demo: a divider sweeps across, and the area it passes is the redacted result](docs/img/demo-wipe-en.gif)
+
+> This is not a mock-up: it is the same English form, before and after, stacked on top of each other. Where the divider has passed, you are looking at the redacted page. Phone numbers, emails and bank cards are covered by mosaic; ordinary info such as dates, job titles and addresses is preserved.
+
+![Before / After comparison](docs/img/comparison-en.png)
+
+> Left is the original form, right is the redacted result. Full size is 2064x1432; pages shrink it to fit — **[open the full-size image](docs/img/comparison-en.png)** to zoom into details (on Gitee/GitHub you can also click the image above). Phone numbers, emails and bank cards are masked; dates, job titles, addresses and other ordinary info stay readable.
 
 ---
 
