@@ -56,13 +56,13 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 @Composable
-fun AppInfoDialog(onClose: () -> Unit) {
+fun AppInfoDialog(onClose: () -> Unit, onShowLogs: () -> Unit = {}) {
     Dialog(onDismissRequest = onClose) {
         Surface(
             shape = RoundedCornerShape(18.dp),
             color = MaterialTheme.colorScheme.surface
         ) {
-            AboutPanel(onClose)
+            AboutPanel(onClose, onShowLogs = onShowLogs)
         }
     }
 }
@@ -73,7 +73,8 @@ fun AboutPanel(
     onClose: () -> Unit,
     maxHeight: androidx.compose.ui.unit.Dp = 580.dp,
     /** 仅供测试注入：不为 null 时长按赞赏码只回调整，不真的写文件 */
-    thanksOnLongPress: (() -> Unit)? = null
+    thanksOnLongPress: (() -> Unit)? = null,
+    onShowLogs: () -> Unit = {}
 ) {
     val dark = isSystemInDarkTheme()
     Column(
@@ -218,7 +219,15 @@ fun AboutPanel(
         ThanksBlock(thanksOnLongPress)
 
         Spacer(Modifier.height(18.dp))
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.End,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            TextButton(onClick = onShowLogs) {
+                Text(T("查看运行日志", "View logs"), fontSize = 12.5.sp)
+            }
+            Spacer(Modifier.width(6.dp))
             Button(
                 onClick = onClose,
                 shape = RoundedCornerShape(10.dp),

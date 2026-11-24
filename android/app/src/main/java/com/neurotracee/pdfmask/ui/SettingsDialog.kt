@@ -62,14 +62,15 @@ import kotlinx.coroutines.withContext
 fun SettingsDialog(
     onClose: () -> Unit,
     onPickSaveDir: () -> Unit,
-    onShowAbout: () -> Unit
+    onShowAbout: () -> Unit,
+    onShowLogs: () -> Unit
 ) {
     Dialog(onDismissRequest = onClose) {
         Surface(
             shape = RoundedCornerShape(18.dp),
             color = MaterialTheme.colorScheme.surface
         ) {
-            SettingsPanel(onClose, onPickSaveDir, onShowAbout)
+            SettingsPanel(onClose, onPickSaveDir, onShowAbout, onShowLogs)
         }
     }
 }
@@ -79,7 +80,8 @@ fun SettingsDialog(
 fun SettingsPanel(
     onClose: () -> Unit,
     onPickSaveDir: () -> Unit,
-    onShowAbout: () -> Unit
+    onShowAbout: () -> Unit,
+    onShowLogs: () -> Unit
 ) {
     // 内容比早先多了「版本与更新」，按屏高给个上限，常见机型一屏能看全，小屏仍可滚动
     val maxH = (LocalConfiguration.current.screenHeightDp * 0.88f).dp
@@ -228,6 +230,26 @@ fun SettingsPanel(
         Spacer(Modifier.height(18.dp))
         Divider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
         Spacer(Modifier.height(12.dp))
+        Surface(
+            onClick = onShowLogs,
+            shape = RoundedCornerShape(10.dp),
+            color = MaterialTheme.colorScheme.surfaceVariant,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Row(
+                Modifier.padding(horizontal = 12.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    T("运行日志（查看 / 导出）", "App logs (view / export)"),
+                    fontSize = 13.sp,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Spacer(Modifier.weight(1f))
+                Text("›", fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+        Spacer(Modifier.height(8.dp))
         Surface(
             onClick = onShowAbout,
             shape = RoundedCornerShape(10.dp),

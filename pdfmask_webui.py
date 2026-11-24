@@ -301,6 +301,34 @@ main{flex:1;min-height:0;display:flex;overflow:hidden}
 .upd-help b{color:var(--ink2)}
 .upd-help ol{margin:6px 0 0;padding-left:18px}
 
+/* ---------- 运行日志（v1.4.9.2） ---------- */
+.log-modal{width:min(680px,100%)}
+.log-tabs{margin:2px 0 10px}
+.log-ctrl{display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap}
+.log-ctrl select,.log-ctrl input{border:1px solid var(--line);border-radius:9px;padding:7px 10px;
+  font:12.5px/1.4 ui-monospace,Consolas,monospace;color:var(--ink);background:#fbfcfd}
+.log-ctrl select:focus,.log-ctrl input:focus{outline:none;border-color:var(--accent);background:#fff}
+.log-ctrl label{font-size:12px;color:var(--ink3)}
+.log-box{margin:0;padding:12px;border:1px solid var(--line2);border-radius:10px;background:#fbfcfe;
+  font:11.5px/1.55 ui-monospace,Consolas,monospace;color:var(--ink);white-space:pre-wrap;
+  word-break:break-all;max-height:300px;min-height:150px;overflow:auto;scrollbar-width:thin}
+.log-box:empty::before{content:attr(data-empty);color:#aab2be}
+.log-actions{display:flex;gap:8px;margin-top:11px;flex-wrap:wrap}
+.log-actions .btn{font-size:12px;padding:7px 13px}
+.btn.danger{color:#c0392b;border-color:#f0c8c2}
+.btn.danger:hover{background:#fff5f4;border-color:#e6a79e}
+.log-fb{margin-top:15px;padding-top:13px;border-top:1px solid var(--line2)}
+.log-fb h4{margin:0 0 7px;font-size:13px}
+.log-fb p{margin:0 0 8px;font-size:12px;color:var(--ink2);line-height:1.7}
+.log-fb ol{margin:0 0 9px;padding-left:20px;font-size:12px;color:var(--ink2);line-height:1.85}
+.log-fb code{background:#f1f3f7;border-radius:5px;padding:1px 5px;font-size:11.5px;
+  font-family:ui-monospace,Consolas,monospace;color:var(--ink);user-select:all;cursor:text}
+.log-fb-links{display:flex;gap:8px;flex-wrap:wrap;margin-top:9px}
+.log-fb-links .btn{font-size:12px;padding:7px 13px}
+.log-tpl{margin-top:9px;padding:10px 12px;background:#f7f9fc;border-radius:9px;
+  font:11.5px/1.7 ui-monospace,Consolas,monospace;color:var(--ink2);white-space:pre-wrap;
+  user-select:text;border:1px solid var(--line2)}
+
 /* ---------- 更新弹窗里的「一句话摘要 + 分平台详细」（v1.4.4） ----------
    摘要来自发布正文里那句「一句话」，控制在 100 字内；下面按 Windows / 安卓
    列出各条目，超出高度先滚动；末尾一条「具体详见 Release 页面」给全文。 */
@@ -544,7 +572,89 @@ main{flex:1;min-height:0;display:flex;overflow:hidden}
       <div class="thanks-cap">点下面的按钮保存这张码</div>
       <div class="thanks-save-row"><button class="btn" id="thanksSave">保存赞赏码</button></div>
     </div>
-    <div class="about-actions"><button class="btn primary" id="aboutOk">知道了</button></div>
+    <div class="about-actions">
+      <button class="btn" id="aboutLogBtn">查看运行日志</button>
+      <button class="btn primary" id="aboutOk">知道了</button>
+    </div>
+  </div>
+</div>
+
+<!-- ---------- 运行日志 ---------- -->
+<div class="modal-mask" id="logMask" hidden>
+  <div class="modal log-modal">
+    <h3>运行日志</h3>
+    <p class="sub">记录应用的运行过程，崩溃时能留下现场。日志只记事件，不记录 PDF 内容、文件名、证件号等隐私。</p>
+    <div class="seg log-tabs" id="logTabs">
+      <button class="seg-btn on" data-logtab="session">本次打开</button>
+      <button class="seg-btn" data-logtab="day">按日期</button>
+      <button class="seg-btn" data-logtab="time">精确定位</button>
+    </div>
+    <div class="log-ctrl" id="logDayRow" hidden>
+      <label>选择日期</label>
+      <select id="logDaySel"></select>
+    </div>
+    <div class="log-ctrl" id="logTimeRow" hidden>
+      <label>从那刻起</label>
+      <input type="date" id="logDate">
+      <input type="time" id="logTime" value="00:00">
+    </div>
+    <pre class="log-box" id="logBox" data-empty="（这一段没有日志）"></pre>
+    <div class="log-actions">
+      <button class="btn" id="logRefresh">刷新</button>
+      <button class="btn" id="logCopy">一键复制</button>
+      <button class="btn" id="logSave">保存为 TXT</button>
+      <button class="btn danger" id="logClear">清除日志…</button>
+    </div>
+
+    <div class="log-fb">
+      <h4>遇到问题？去开源平台反馈</h4>
+      <p>贴日志前，请把下面这些说清楚，作者才定位得到：</p>
+      <ol>
+        <li>版本号：<code id="fbVer">—</code>；机型与系统：<code id="fbOs">—</code></li>
+        <li>发生了什么，一句话说清。</li>
+        <li>复现步骤：① 打开 <code>…</code> ② 点开 <code>…</code> ③ 结果是 <code>…</code></li>
+        <li>实际看到的 <code>…</code> / 你预期的 <code>…</code></li>
+        <li>把上面的日志粘贴进 issue，或把导出的 TXT 传上去。</li>
+      </ol>
+      <div class="log-tpl" id="fbTpl"></div>
+      <div class="log-fb-links">
+        <button class="btn" id="logCopyTpl">复制反馈模板</button>
+        <button class="btn" id="fbGithub">去 GitHub 提 issue</button>
+        <button class="btn" id="fbGitee">去 Gitee 提 issue</button>
+      </div>
+    </div>
+
+    <div class="modal-actions"><button class="btn primary" id="logOk">关闭</button></div>
+  </div>
+</div>
+
+<!-- 清除日志：第一步，选日期范围 -->
+<div class="modal-mask" id="logClearMask" hidden>
+  <div class="modal">
+    <h3>清除日志</h3>
+    <p class="sub">选定要删除的日期范围。只删这个区间内的日志文件，区间外的不动。</p>
+    <div class="log-ctrl">
+      <label>从</label><input type="date" id="clearStart">
+      <label>到</label><input type="date" id="clearEnd">
+    </div>
+    <div class="modal-note" id="clearPreview">—</div>
+    <div class="modal-actions">
+      <button class="btn" id="clearCancel">取消</button>
+      <button class="btn danger" id="clearNext">下一步</button>
+    </div>
+  </div>
+</div>
+
+<!-- 清除日志：第二步，最终确认 -->
+<div class="modal-mask" id="logConfirmMask" hidden>
+  <div class="modal">
+    <h3>再确认一次</h3>
+    <p class="sub" id="confirmText">—</p>
+    <div class="modal-note">删除后无法恢复。</div>
+    <div class="modal-actions">
+      <button class="btn" id="confirmNo">再想想</button>
+      <button class="btn danger" id="confirmYes">确认删除</button>
+    </div>
   </div>
 </div>
 
@@ -662,6 +772,15 @@ main{flex:1;min-height:0;display:flex;overflow:hidden}
         </div>
         <div class="upd-help" id="updHelp" hidden></div>
       </div>
+    </div>
+
+    <div class="set-sec">
+      <label class="field-label">运行日志 / Logs</label>
+      <div class="ver-row">
+        <span class="ver-cur">保留最近 <b>365</b> 天 · 当前占用 <b id="logSize">—</b></span>
+        <button class="btn" id="setLogBtn">查看日志</button>
+      </div>
+      <div class="modal-note" style="margin-top:8px">打开应用即在后台记录运行过程，崩溃时会留下现场。日志只记事件，不含 PDF 内容、文件名或证件号。遇到问题时导出给作者看，定位会快很多。</div>
     </div>
 
     <div class="modal-actions">
@@ -2083,6 +2202,202 @@ $('quitBtn').addEventListener('click', async ()=>{
     + 'font:14px system-ui;color:#5b6472">' +
     T('已退出，可直接关闭此页面。', 'Closed. You can shut this tab now.') + '</div>';
 });
+
+/* ================= 运行日志 ================= */
+const LOG = {tab:'session', text:'', meta:null, clearRange:null};
+
+function logOpen(){
+  $('logMask').hidden = false;
+  logLoadMeta();
+  logSwitchTab('session');
+}
+async function logLoadMeta(){
+  try{
+    LOG.meta = await api('/api/logs/meta');
+    const days = LOG.meta.days || [];
+    const sel = $('logDaySel');
+    sel.innerHTML = '';
+    days.forEach(d=>{
+      const o = document.createElement('option');
+      o.value = d; o.textContent = d;
+      sel.appendChild(o);
+    });
+    if(!days.length){
+      const o = document.createElement('option');
+      o.value = ''; o.textContent = T('（还没有历史日志）', '(no history yet)');
+      sel.appendChild(o);
+    }
+    $('clearStart').value = days.length ? days[days.length-1] : '';
+    $('clearEnd').value = days.length ? days[0] : '';
+    if($('logSize')) $('logSize').textContent = (LOG.meta.sizeKB||0) + ' KB';
+    if($('fbVer')) $('fbVer').textContent = 'v' + (LOG.meta.version || '—');
+    if($('fbOs')) $('fbOs').textContent = navigator.userAgent;
+    renderFbTpl();
+  }catch(e){ toast(e.message, true); }
+}
+function logSwitchTab(tab){
+  LOG.tab = tab;
+  document.querySelectorAll('#logTabs .seg-btn').forEach(b=>{
+    b.classList.toggle('on', b.dataset.logtab === tab);
+  });
+  $('logDayRow').hidden = tab !== 'day';
+  $('logTimeRow').hidden = tab !== 'time';
+  logLoad();
+}
+async function logLoad(){
+  try{
+    let r;
+    if(LOG.tab === 'session'){
+      r = await api('/api/logs/session');
+      LOG.text = r.text || '';
+    }else if(LOG.tab === 'day'){
+      const d = $('logDaySel').value;
+      if(!d){ LOG.text = ''; }
+      else { r = await api('/api/logs/day?date=' + encodeURIComponent(d)); LOG.text = r.text || ''; }
+    }else{
+      const d = $('logDate').value || '';
+      const t = $('logTime').value || '00:00';
+      if(!d){ LOG.text = ''; }
+      else{
+        const p = d.split('-'), hm = t.split(':');
+        const q = '/api/logs/since?y=' + (+p[0]) + '&m=' + (+p[1]) + '&d=' + (+p[2])
+                + '&h=' + (+hm[0]) + '&mi=' + (+(hm[1]||0));
+        r = await api(q);
+        LOG.text = r.text || '';
+      }
+    }
+    $('logBox').textContent = LOG.text;
+  }catch(e){ toast(e.message, true); }
+}
+/* 初始化日期选择器默认值 */
+(function(){
+  const now = new Date();
+  const pad = n=> (n<10?'0':'')+n;
+  const today = now.getFullYear() + '-' + pad(now.getMonth()+1) + '-' + pad(now.getDate());
+  const dEl = $('logDate');
+  if(dEl && !dEl.value) dEl.value = today;
+  const tEl = $('logTime');
+  if(tEl && !tEl.value) tEl.value = pad(now.getHours()) + ':' + pad(now.getMinutes());
+})();
+
+$('logTabs').addEventListener('click', e=>{
+  const b = e.target.closest('.seg-btn');
+  if(b) logSwitchTab(b.dataset.logtab);
+});
+if($('logDaySel')) $('logDaySel').addEventListener('change', logLoad);
+if($('logDate')) $('logDate').addEventListener('change', logLoad);
+if($('logTime')) $('logTime').addEventListener('change', logLoad);
+if($('logRefresh')) $('logRefresh').addEventListener('click', logLoad);
+if($('logOk')) $('logOk').addEventListener('click', ()=> $('logMask').hidden = true);
+if($('logMask')) $('logMask').addEventListener('click', e=>{ if(e.target === $('logMask')) $('logMask').hidden = true; });
+
+if($('logCopy')) $('logCopy').addEventListener('click', ()=>{
+  if(!LOG.text) return toast(T('这一段没有日志', 'Nothing to copy'), true);
+  copyText(LOG.text, T('日志已复制，共 ', 'Log copied: ') + '');
+});
+/* 保存为 TXT：先选目录，再写文件 */
+if($('logSave')) $('logSave').addEventListener('click', async ()=>{
+  if(!LOG.text) return toast(T('这一段没有日志', 'Nothing to save'), true);
+  try{
+    const r = await api('/api/pickdir', {method:'POST', headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({initial:(LOG.meta && LOG.meta.dir) || ''})});
+    if(!r || r.status !== 'ok' || !r.path) {
+      if(r && r.status === 'cancel') return;
+      return toast(T('没有选择目录', 'No folder chosen'), true);
+    }
+    const name = 'pdfmask-log-' + (LOG.tab === 'session' ? (LOG.meta.session||'session')
+      : (LOG.tab === 'day' ? $('logDaySel').value : ($('logDate').value||'log')));
+    const out = await api('/api/logs/export', {method:'POST', headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({dir:r.path, name:name, text:LOG.text})});
+    toast(T('已保存：', 'Saved: ') + out.path);
+  }catch(e){ toast(e.message, true); }
+});
+
+/* ---- 清除日志：两步确认 ---- */
+if($('logClear')) $('logClear').addEventListener('click', ()=>{
+  $('logClearMask').hidden = false;
+  updateClearPreview();
+});
+function updateClearPreview(){
+  const s = $('clearStart').value, e = $('clearEnd').value;
+  const days = (LOG.meta && LOG.meta.days) || [];
+  if(!s || !e){ $('clearPreview').textContent = T('请选择起止日期', 'Pick a date range'); return; }
+  const hi = s > e ? s : e, lo = s > e ? e : s;
+  const hit = days.filter(d=> d >= lo && d <= hi);
+  $('clearPreview').textContent = hit.length
+    ? T('将删除 ' + hit.length + ' 天的日志：' + hit.join('、'), 'Will delete ' + hit.length + ' day(s): ' + hit.join(', '))
+    : T('这个区间内没有日志', 'No logs in this range');
+}
+if($('clearStart')) $('clearStart').addEventListener('change', updateClearPreview);
+if($('clearEnd')) $('clearEnd').addEventListener('change', updateClearPreview);
+if($('clearCancel')) $('clearCancel').addEventListener('click', ()=> $('logClearMask').hidden = true);
+if($('clearNext')) $('clearNext').addEventListener('click', ()=>{
+  const s = $('clearStart').value, e = $('clearEnd').value;
+  if(!s || !e) return toast(T('请选择起止日期', 'Pick a date range'), true);
+  const hi = s > e ? s : e, lo = s > e ? e : s;
+  const days = (LOG.meta && LOG.meta.days) || [];
+  const hit = days.filter(d=> d >= lo && d <= hi);
+  if(!hit.length) return toast(T('这个区间没有日志', 'No logs in range'), true);
+  LOG.clearRange = {start:lo, end:hi, n:hit.length};
+  $('logClearMask').hidden = true;
+  $('logConfirmMask').hidden = false;
+  $('confirmText').textContent = T('将永久删除 ' + hit.length + ' 天的日志（' + lo + ' 至 ' + hi + '），删掉就找不回来了。确定吗？',
+    'Permanently delete ' + hit.length + ' day(s) of logs (' + lo + ' – ' + hi + '). This cannot be undone.');
+});
+if($('confirmNo')) $('confirmNo').addEventListener('click', ()=> $('logConfirmMask').hidden = true);
+if($('confirmYes')) $('confirmYes').addEventListener('click', async ()=>{
+  const r = LOG.clearRange;
+  if(!r) return;
+  try{
+    const out = await api('/api/logs/delete', {method:'POST', headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({start:r.start, end:r.end})});
+    $('logConfirmMask').hidden = true;
+    toast(T('已删除 ' + (out.removed||0) + ' 个日志文件', 'Deleted ' + (out.removed||0) + ' log file(s)'));
+    await logLoadMeta();
+    logLoad();
+  }catch(e){ toast(e.message, true); }
+});
+if($('logConfirmMask')) $('logConfirmMask').addEventListener('click', e=>{ if(e.target === $('logConfirmMask')) $('logConfirmMask').hidden = true; });
+
+/* ---- 反馈引导 ---- */
+function renderFbTpl(){
+  const ver = 'v' + ((LOG.meta && LOG.meta.version) || '?');
+  const os = navigator.userAgent;
+  const tpl = T(
+    '【版本】' + ver + '\n【机型/系统】' + os + '\n\n【问题】一句话说清。\n\n【复现步骤】\n1. 打开 …\n2. 点开 …\n3. 结果 …\n\n【实际看到】…\n【预期】…\n\n【日志】见下方粘贴，或附带导出的 TXT。',
+    '[Version] ' + ver + '\n[Device/OS] ' + os + '\n\n[Problem] One sentence.\n\n[Steps]\n1. Open …\n2. Tap …\n3. Result …\n\n[Actual] …\n[Expected] …\n\n[Logs] Paste below or attach the exported TXT.');
+  $('fbTpl').textContent = tpl;
+}
+if($('logCopyTpl')) $('logCopyTpl').addEventListener('click', ()=>{
+  copyText($('fbTpl').textContent, T('反馈模板已复制', 'Template copied'));
+});
+if($('fbGithub')) $('fbGithub').addEventListener('click', ()=>{
+  openUpdateUrl('https://github.com/neurotracee/pdf-privacy-masker/issues/new');
+});
+if($('fbGitee')) $('fbGitee').addEventListener('click', ()=>{
+  openUpdateUrl('https://gitee.com/bio234/pdf-privacy-masker/issues/new');
+});
+
+/* 入口按钮 */
+if($('setLogBtn')) $('setLogBtn').addEventListener('click', logOpen);
+if($('aboutLogBtn')) $('aboutLogBtn').addEventListener('click', ()=>{
+  $('aboutMask').hidden = true; logOpen();
+});
+
+/* 上次异常结束：首次加载时提示去关于页看日志 */
+(async function checkPrevCrash(){
+  try{
+    const m = await api('/api/logs/meta');
+    if(m && m.prevCrashed){
+      setTimeout(()=>{
+        if(confirm(T('上次运行似乎没有正常关闭，可能崩溃过。\n要去「关于 → 查看运行日志」看看吗？',
+                     'Last session may have crashed.\nOpen About → View logs?'))){
+          $('aboutMask').hidden = false; logOpen();
+        }
+      }, 800);
+    }
+  }catch(e){}
+})();
 </script>
 </body>
 </html>

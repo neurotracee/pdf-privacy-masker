@@ -69,13 +69,14 @@ from pdfengine import (
 from PIL import Image
 
 import pdfmask_update as _upd       # 检查更新：Gitee / GitHub 双通道
+import pdfmask_log as _log          # 运行日志：启动即记、崩溃留痕、按天存档 365 天
 from pdfmask_webui import HTML_UI   # 首页 HTML（含 CSS/JS），与逻辑代码分开放
 from thanks_asset import QR_PNG_B64  # 赞赏码图片（base64 内嵌，单文件打包不丢）
 
 APP_NAME = "PDF 隐私打码工具"
 # 版本号统一四段：主.次.修订.小版本（见 CONTRIBUTING.md「版本号规则」）。
 # 越靠右越细：日常修缺陷、改文案就动第四位；第三位留给成体系的新能力（大版本）。
-VERSION = "1.4.9.1"
+VERSION = "1.4.10.0"
 
 # ---- 署名信息（开源后请勿删除，AGPL-3.0 第 5 条要求保留版权声明） ----
 AUTHOR = "项目创作时为初中生"
@@ -2432,7 +2433,18 @@ def _cleanup_stale():
 
 
 def _hard_exit(code=0):
-    """先清临时文件再退出（os._exit 不会触发 atexit）"""
+    """先清临时文件再退出（os._exit 不会触发 atexit）
+
+    正常退出（code==0）要显式写一行「程序正常退出」——它绕过了 main() 的 finally，
+    不写的话下次启动会把这次「用户关掉页面后自动退出」误判成崩溃。
+    """
+    try:
+        if code == 0:
+            _log.info("程序正常退出")
+        else:
+            _log.warn("程序异常退出，代码 %s" % code)
+    except Exception:
+        pass
     _cleanup_tmp()
     os._exit(code)
 
@@ -3093,6 +3105,47 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 return
             st = DOCS.get(q.get("doc", [""])[0])
             return self._json(_settings_payload(st.path if st else None))
+        # ---- 运行日志：只读接口 ----
+        if u.path == "/api/logs/meta":
+            if not self._authed():
+                return
+            return self._json({
+                "session": _log.session_id(),
+                "days": _log.list_days(),
+                "dir": _log.log_dir(),
+                "keepDays": _log.KEEP_DAYS,
+                "sizeKB": round(_log.total_size() / 1024.0, 1),
+                "version": VERSION,
+                "prevCrashed": _log.prev_crashed(),
+                "prevSession": _log.prev_session(),
+            })
+        if u.path == "/api/logs/session":
+            if not self._authed():
+                return
+            return self._json({"text": "\n".join(_log.session_lines()),
+                               "session": _log.session_id()})
+        if u.path == "/api/logs/day":
+            if not self._authed():
+                return
+            date = (q.get("date", [""])[0] or "").strip()
+            return self._json({"date": date, "text": _log.read_day(date)})
+        if u.path == "/api/logs/range":
+            if not self._authed():
+                return
+            start = (q.get("start", [""])[0] or "").strip()
+            end = (q.get("end", [""])[0] or start).strip()
+            return self._json({"start": start, "end": end,
+                               "text": _log.read_range(start, end)})
+        if u.path == "/api/logs/since":
+            if not self._authed():
+                return
+            try:
+                y = int(q.get("y", ["0"])[0]); mo = int(q.get("m", ["1"])[0])
+                d = int(q.get("d", ["1"])[0]); h = int(q.get("h", ["0"])[0])
+                mi = int(q.get("mi", ["0"])[0])
+            except Exception:
+                return self._err("时间参数无效")
+            return self._json({"text": _log.read_since(y, mo, d, h, mi)})
         if u.path == "/api/preview":
             try:
                 st = DOCS.get(q.get("doc", [""])[0])
@@ -3200,11 +3253,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     res = _build_output(st, data.get("ids", []), out_dir, erasers, job=job)
                 except JobCancelled:
                     job.finish()
+                    _log.warn("用户中止了打码")
                     return self._err("已停止")
                 except Exception:
                     job.finish()
+                    _log.exception("打码导出")
                     raise
                 job.finish()
+                _log.info("打码完成，处理 %d 处，已导出" % len(data.get("ids", [])))
                 # 记住用户这次的选择（勾选项只影响「下次」，不改变本次结果）
                 kw = {}
                 if data.get("remember"):
@@ -3250,6 +3306,37 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     return self._err("链接无效")
                 _browser_open(link)
                 return self._json({"ok": True, "url": link})
+
+            # ---- 运行日志：写操作 ----
+            if u.path == "/api/logs/export":
+                data = json.loads(self._body() or b"{}")
+                text = data.get("text") or ""
+                folder, err = _ensure_dir(data.get("dir") or "")
+                if err:
+                    return self._err(err)
+                name = (data.get("name") or "pdfmask-logs").strip()
+                # 只保留安全字符，避免用户输入变成路径
+                safe = "".join(c for c in name if c.isalnum() or c in "-_ ").strip() or "pdfmask-logs"
+                dst = os.path.join(folder, safe + ".txt")
+                i = 2
+                while os.path.exists(dst):
+                    dst = os.path.join(folder, "%s (%d).txt" % (safe, i))
+                    i += 1
+                _log.export_text(dst, text)
+                _log.info("导出日志到文件")
+                return self._json({"ok": True, "path": dst})
+            if u.path == "/api/logs/delete":
+                data = json.loads(self._body() or b"{}")
+                start = (data.get("start") or "").strip()
+                end = (data.get("end") or start).strip()
+                if not start or not end:
+                    return self._err("日期范围无效")
+                # 允许两参数颠倒
+                if start > end:
+                    start, end = end, start
+                removed = _log.delete_range(start, end)
+                return self._json({"ok": True, "removed": removed,
+                                   "days": _log.list_days()})
 
             if u.path == "/api/copyout":
                 data = json.loads(self._body() or b"{}")
@@ -3309,10 +3396,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self._err("已停止")
         except Exception as e:
             job.finish()
+            _log.exception("解析上传的 PDF")
             return self._err("无法解析这个 PDF：%s" % e)
         job.finish()
         st.doc_id = did
         DOCS[did] = st
+        # 只记页数与识别条数，绝不记文件名与内容
+        _log.info("已导入 PDF，共 %d 页，识别到 %d 处" % (st.doc.page_count, len(st.findings)))
         self._json(st.payload())
 
     def _open_path(self, path):
@@ -3375,8 +3465,14 @@ def _fatal(msg):
 
 def main():
     global BOOT_PATH
-    with SETTINGS_LOCK:
-        SETTINGS.update(_load_settings())
+    # 日志最先起来：之后任何环节崩了都能留痕（含 settings 读取失败）
+    _log.init(APP_NAME, VERSION)
+    try:
+        with SETTINGS_LOCK:
+            SETTINGS.update(_load_settings())
+    except Exception:
+        _log.exception("读取设置")
+        raise
     _cleanup_stale()
     for a in sys.argv[1:]:
         if a.lower().endswith(".pdf") and os.path.exists(a):
@@ -3385,10 +3481,14 @@ def main():
     try:
         srv = QuietServer(("127.0.0.1", 0), Handler)
     except Exception as e:
+        _log.exception("启动本地服务")
         _fatal("启动本地服务失败：%s" % e)
         return
     port = srv.server_address[1]
     url = "http://127.0.0.1:%d/?t=%s" % (port, SERVE_TOKEN[:8])
+    _log.info("本地服务已启动，端口 %d" % port)
+    if BOOT_PATH:
+        _log.info("从命令行/关联打开文件 " + _log.scrub_path(BOOT_PATH))
 
     def _watchdog():
         # 页面关闭后 30 分钟无请求则自动退出，避免后台常驻
@@ -3409,7 +3509,10 @@ def main():
     except KeyboardInterrupt:
         pass
     except Exception as e:
+        _log.exception("主循环")
         _fatal("程序异常：%s" % e)
+    finally:
+        _log.info("程序正常退出")
 
 
 def _open_browser(url):

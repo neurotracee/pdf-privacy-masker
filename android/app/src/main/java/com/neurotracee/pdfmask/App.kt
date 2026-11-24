@@ -30,7 +30,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -47,6 +49,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.neurotracee.pdfmask.ui.AppInfoDialog
+import com.neurotracee.pdfmask.ui.LogDialog
 import com.neurotracee.pdfmask.ui.AutoUpdateGate
 import com.neurotracee.pdfmask.ui.HomeScreen
 import com.neurotracee.pdfmask.ui.JobOverlay
@@ -82,6 +85,12 @@ fun AppRoot(vm: AppViewModel = viewModel()) {
     val snackbar = remember { SnackbarHostState() }
     var showSettings by remember { mutableStateOf(false) }
     var showAbout by remember { mutableStateOf(false) }
+    var showLogs by remember { mutableStateOf(false) }
+    // 上次运行疑似崩溃：首次进入时提示去看日志
+    var showCrashAsk by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        if (LogStore.prevCrashed) showCrashAsk = true
+    }
     var showSaveAsk by remember { mutableStateOf(false) }
     // 手里还有文件时按返回：先问一句，别直接退出应用
     var showLeaveAsk by remember { mutableStateOf(false) }
@@ -220,12 +229,45 @@ fun AppRoot(vm: AppViewModel = viewModel()) {
             onShowAbout = {
                 showSettings = false
                 showAbout = true
+            },
+            onShowLogs = {
+                showSettings = false
+                showLogs = true
             }
         )
     }
 
     if (showAbout) {
-        AppInfoDialog(onClose = { showAbout = false })
+        AppInfoDialog(
+            onClose = { showAbout = false },
+            onShowLogs = {
+                showAbout = false
+                showLogs = true
+            }
+        )
+    }
+
+    if (showLogs) {
+        LogDialog(onClose = { showLogs = false })
+    }
+
+    if (showCrashAsk) {
+        AlertDialog(
+            onDismissRequest = { showCrashAsk = false },
+            title = { Text(T("上次运行可能崩溃过", "Last run may have crashed")) },
+            text = {
+                Text(T("检测到上次没有正常结束，日志里留有现场。要现在去看看吗？",
+                       "The last session ended abnormally. Open the logs to check?"))
+            },
+            confirmButton = {
+                TextButton(onClick = { showCrashAsk = false; showLogs = true }) {
+                    Text(T("查看日志", "View logs"))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showCrashAsk = false }) { Text(T("以后再说", "Later")) }
+            }
+        )
     }
 
     // 手里有文件时，返回（含全面屏手势左右滑）先问一句：

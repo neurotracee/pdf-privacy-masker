@@ -1,14 +1,30 @@
-# 未发布
+# 1.4.10.0（2026-11-24）
 
-**中文** | [English](#unreleased)
+**中文** | [English](#14100)
+
+更新级别：建议（双端新增运行日志，Windows 同时补上 Linux 打包）
+
+> **一句话**：两端都能「记日志、看日志、导日志」了——出问题不用再靠猜，打开设置就能看到当时发生了什么；日志只记事件，不碰你的 PDF 内容。
 
 ## 新增
+
+- **运行日志（Windows + 安卓）**。应用一打开就在后台记录运行过程：启动环境、导入（只记页数与识别条目数）、打码导出（只记处理条数）、中止与异常堆栈。按天分文件（`logs/YYYY-MM-DD.log`，UTF-8），只保留最近 **365 天**，启动时自动清理更早的。
+- **崩溃留痕与提示**。未捕获异常会被日志钩子记下完整堆栈；下次启动若检测到上次是异常结束，会提示用户去「设置 / 关于 → 查看运行日志」看现场。安卓端只按「真·未捕获异常」判定，避免把系统正常回收进程误报成崩溃。
+- **日志查看 / 复制 / 导出**。设置和关于页都有入口：默认看「本次打开」的日志；可按日期查看最近一年，也可选年月日+时分精确定位到当时的错误。支持一键复制，或导出一份 TXT 到用户选定的目录。
+- **按范围清除**。可选起止日期删日志，两步确认（先选范围，再弹窗确认），删完不可恢复。
+- **开源平台反馈引导**。内置反馈模板：版本号、机型系统、问题一句话、复现步骤（① 打开… ② 点开… ③ 结果…）、实际 vs 预期，并给出一键复制模板与 GitHub / Gitee 的 issue 入口。
+- **隐私红线**：日志只记事件，**不记录** PDF 内容、文件名、识别出的证件号 / 手机号 / 姓名 / 地址；另有兜底脱敏（≥11 位连续数字打成 `[数字]`、邮箱打成 `[邮箱]`）。
+
+## 新增（Linux 打包）
 
 - **Linux 版（AppImage）**。新增 `pdfmask-linux.spec`（onedir）与 `dev/build_linux_appimage.sh`，由 `.github/workflows/linux-appimage.yml` 在 ubuntu-22.04 上构建：每次有 tag 的 Release 发布后自动跑，把 `PDFPrivacyMasker-<版本>-x86_64.AppImage` 挂到该 Release。Linux 二进制只能在 Linux 上打，所以这条链路全在 CI 里，本机不参与。
 - **CI 冒烟三关**：`--about` 能打印署名、`--ocr-check` 能定位到包内 OCR 模型、`PDFMASK_NO_OPEN=1` 启动后首页返回 HTTP 200；任一不过就不传包。
 
 ## 内部
 
+- 新增 `pdfmask_log.py`（Windows）与 `LogStore.kt`（安卓）两套等价的日志核心：按天写入、session 前缀、365 天清理、`sys.excepthook` / `Thread.setDefaultUncaughtExceptionHandler` 崩溃捕获、脱敏。
+- `pdfmask.py`：新增 `/api/logs/meta|session|day|range|since|export|delete` 接口；`main()` 最先初始化日志，`srv.serve_forever()` 退出时记「程序正常退出」。
+- `pdfmask_webui.py`：设置与关于页新增「运行日志」入口与日志弹窗（标签页、复制、导出、两级清除确认、反馈模板）。
 - `pdfmask.py`：打开文件/文件夹抽成 `_open_path()`（Windows `os.startfile`，Linux `xdg-open`）；`_fatal` 在非 Windows 下打到 stderr；选文件夹在 Linux 上借 `zenity` / `kdialog`，都没有则回落到页面手填；启动提示加 `flush=True`，否则输出重定向时地址会卡在缓冲区。
 - `pdfmask_update.py`：`UPDATE_ASSET_SUFFIX` 按平台取 `.exe` / `.AppImage`；`PLATFORM_SUFFIXES` 增加 `.appimage`，防止把一个平台的包当成另一个平台的更新。
 - 构建脚本与 spec 在流水线里始终取默认分支（tag 只决定「要构建哪份代码」）：给旧版本补 Linux 包时，不会因为那个 tag 里还没有这些脚本而失败。

@@ -14,6 +14,9 @@ import com.neurotracee.pdfmask.ui.PdfMaskTheme
 class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        // 日志最先起来：之后任何环节崩了都能留痕（含偏好读取失败）
+        LogStore.bindVersion("PDF 隐私打码", BuildConfig.VERSION_NAME)
+        LogStore.init(applicationContext)
         // 偏好要在任何 Compose 之前就绪：语言、主题、保存目录都从这里读
         AppPrefs.init(applicationContext)
         super.onCreate(savedInstanceState)

@@ -379,6 +379,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 }
             }.onSuccess { r ->
                 endJob()
+                LogStore.info("已导入 PDF，共 ${r.pages.size} 页，识别到 ${r.findings.size} 处")
                 val key = r.key
                 docName = r.name
                 docFile = r.file
@@ -442,8 +443,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 stage = Stage.HOME
                 // 用户自己点的「停止」不是失败，不要说成「打开失败」
                 if (it is JobCancelled) {
+                    LogStore.warn("用户中止了导入")
                     toast(tr("已停止", "Stopped"))
                 } else {
+                    LogStore.exception("导入 PDF", it)
                     toast(tr("打开失败：", "Open failed: ") + (it.message ?: tr("未知错误", "unknown error")))
                 }
             }
@@ -675,12 +678,16 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 endJob()
                 savedName = name
                 stage = Stage.DONE
+                LogStore.info("打码完成，处理 ${findings.count { it.id in selected }} 处，已导出")
                 onDone(name)
             }.onFailure {
                 endJob()
                 stage = Stage.READY
-                if (it is JobCancelled) toast(tr("已停止", "Stopped"))
-                else toast(tr("保存失败：", "Save failed: ") + (it.message ?: tr("未知错误", "unknown error")))
+                if (it is JobCancelled) { LogStore.warn("用户中止了打码"); toast(tr("已停止", "Stopped")) }
+                else {
+                    LogStore.exception("打码导出", it)
+                    toast(tr("保存失败：", "Save failed: ") + (it.message ?: tr("未知错误", "unknown error")))
+                }
             }
         }
     }
