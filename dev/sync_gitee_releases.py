@@ -54,6 +54,7 @@ import time
 import sys
 import urllib.parse
 import urllib.request
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 GH_OWNER, GH_REPO = "neurotracee", "pdf-privacy-masker"
 GE_OWNER, GE_REPO = "bio234", "pdf-privacy-masker"
@@ -188,6 +189,56 @@ def size_ok(path, expect):
     return os.path.getsize(path) > 1024 * 1024
 
 
+def download_parallel(url, out, expect_size, parts=8):
+    """大文件单连接只有 10~50 KB/s，用 Range 分块并发拉，再按序拼回。
+
+    服务端必须返回 206 且每块字节数完全对得上，否则整批丢弃走普通下载。
+    """
+    chunk = expect_size // parts
+    spans = [(i * chunk, (i + 1) * chunk - 1) for i in range(parts - 1)]
+    spans.append(((parts - 1) * chunk, expect_size - 1))
+
+    def fetch(idx, start, end):
+        part = "%s.part%d" % (out, idx)
+        cmd = ["curl", "-sk", "--noproxy", "*", "--max-time", "900",
+               "-r", "%d-%d" % (start, end), "-o", part,
+               "-w", "%{http_code}", url]
+        try:
+            r = subprocess.run(cmd, capture_output=True, text=True)
+            ok = ("206" in (r.stdout or "") and os.path.isfile(part)
+                  and os.path.getsize(part) == end - start + 1)
+        except Exception:
+            ok = False
+        return idx, ok
+
+    results = {}
+    with ThreadPoolExecutor(max_workers=parts) as pool:
+        futures = [pool.submit(fetch, i, s, e) for i, (s, e) in enumerate(spans)]
+        for fut in as_completed(futures):
+            idx, ok = fut.result()
+            results[idx] = ok
+    if not all(results.get(i) for i in range(parts)):
+        for i in range(parts):
+            p = "%s.part%d" % (out, i)
+            if os.path.exists(p):
+                os.remove(p)
+        return False
+    try:
+        with open(out, "wb") as dst:
+            for i in range(parts):
+                p = "%s.part%d" % (out, i)
+                with open(p, "rb") as src:
+                    while True:
+                        block = src.read(1024 * 1024)
+                        if not block:
+                            break
+                        dst.write(block)
+                os.remove(p)
+    except Exception:
+        return False
+    return size_ok(out, expect_size)
+
+
 def download(name, tag, out_name, expect_size=0, asset_url=""):
     """下载 GitHub 附件，并按 API 给出的字节数校验。
 
@@ -201,6 +252,15 @@ def download(name, tag, out_name, expect_size=0, asset_url=""):
     if size_ok(out, expect_size):
         print("  已有缓存 %s（%.2f MB）" % (out_name, os.path.getsize(out) / 1048576))
         return out
+    # 大于 20 MB 的包单连接在国内只有 10~50 KB/s，先用 Range 并发拉。
+    if expect_size > 20 * 1024 * 1024:
+        fast = "https://gh-proxy.com/https://github.com/%s/%s/releases/download/%s/%s" % (
+            GH_OWNER, GH_REPO, tag, urllib.parse.quote(name))
+        print("  并行下载 %s（8 路 Range）..." % name, flush=True)
+        if download_parallel(fast, out, expect_size):
+            print("  -> 完成，%.2f MB" % (os.path.getsize(out) / 1048576), flush=True)
+            return out
+        print("  并行下载失败，换普通下载", flush=True)
     tok = gh_token()
     urls = []
     if asset_url and tok:
