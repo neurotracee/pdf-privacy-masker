@@ -43,11 +43,15 @@
 
 目前有 **Windows 版**（单文件 exe）、**安卓版**（arm64 apk）和 **Linux 版**（x86_64 AppImage），三端用同一套识别规则：Windows 与 Linux 是同一份代码，安卓端按同一套规则原生重写，并有跨端一致性测试守着两边不许跑偏。**版本号各自独立**。
 
+---
+
+<h3 align="center">先看效果，打码前后</h3>
+
+<p align="center">一条竖线从左推到右，推过的地方就是打完码的样子。下面那张静态对比图可以放大看细节。</p>
+
 ![打码效果演示：一条竖线推过去，推过的地方就是打码后的样子](docs/img/demo-wipe.gif)
 
 > 这段动图不是画的界面，是把同一份文档打码前后的两页真实结果叠在一起，竖线推过去的地方就是打码后的样子。姓氏保留，名字与所有号码被马赛克盖住；会议日期、金额、车牌、快递单号等普通信息原样保留。
-
-静态对比图（想放大看细节用这张）：
 
 ![打码前后对比](docs/img/comparison.png)
 
@@ -69,7 +73,7 @@
 
 <br>
 
-<h3 align="center">安卓端，换个地方跑，规则还是那套</h3>
+<h3 align="center">安卓端，功能没缩水</h3>
 
 <p align="center">首页选文件、工作区手动框选与橡皮擦、设置里切换语言与主题；识别规则与电脑端逐条对齐——同一份测试文档在两端跑，452 条识别结果全部一致。</p>
 
@@ -472,11 +476,15 @@ Runs entirely on your own machine. No network, no upload, original file untouche
 
 Available for **Windows** (single-file exe), **Android** (arm64 apk) and **Linux** (x86_64 AppImage). All three apply the same detection rules: Windows and Linux run the same code, while Android is a native rewrite of those rules, kept in step by a cross-platform parity test. **Each platform still has its own version number.**
 
+---
+
+<h3 align="center">See the result first: before and after</h3>
+
+<p align="center">A divider sweeps from left to right — wherever it has passed, you are looking at the redacted page. The static comparison below is the one to open if you want to zoom in on details.</p>
+
 ![Redaction demo: a divider sweeps across, and the area it passes is the redacted result](docs/img/demo-wipe-en.gif)
 
 > This is not a mock-up: it is the same English form, before and after, stacked on top of each other. Where the divider has passed, you are looking at the redacted page. Phone numbers, emails and bank cards are covered by mosaic; ordinary info such as dates, job titles and addresses is preserved.
-
-Static comparison, if you want to zoom in on details:
 
 ![Before / After comparison](docs/img/comparison-en.png)
 
@@ -498,7 +506,7 @@ Static comparison, if you want to zoom in on details:
 
 <br>
 
-<h3 align="center">Same rules, just on your phone</h3>
+<h3 align="center">On Android, nothing is cut down</h3>
 
 <p align="center">Pick a file on the home screen, draw boxes or erase them in the work screen, switch language and theme in Settings — the detection rules line up with the desktop build: the same test document, run on both sides, yields the same 452 results.</p>
 
