@@ -14,13 +14,17 @@
 Gitee 附件配额（1 GB / 整个仓库）与版本顺序规范
 ------------------------------------------------
 见 docs/05-构建与发布.md 的 5.4 节。要点：Gitee **同时保留最新版与上一版**
-两个版本的全部安装包（Windows exe + 安卓 apk + Linux AppImage + SHA256SUMS）；
+两个版本的安装包（Windows exe + 安卓 apk + Linux AppImage + SHA256SUMS）；
 再往前的版本附件统一清理、**正文（更新说明）一个字都不能少**，用户仍能在
 Gitee 看到每一版改了什么，安装包则去 GitHub 发布页下载。
 
-**配额没满就照传**：AppImage 不再因为「体积大」被跳过，上传前会先算一遍
+**配额没满就照传**：exe 与 apk 不再因为体积被跳过，上传前会先算一遍
 已占用多少，只有真的装不下（已用 + 本包 > 1 GB）才跳过并说明原因；
 想无视预检硬传用 `--force-quota`。
+
+**AppImage 不归这个脚本管**：用户的习惯是 GitHub 上手动下载、再手动传到
+Gitee，脚本默认跳过它（`--with-appimage` 才代劳），校验时也只提示「等你搬」，
+不算失败。
 
 旧版本附件不逐个删、不逐个改文字，留到 `--prune-old-assets` 一次性批量处理；
 禁止「从旧版开始删附件 → 加新附件 → 回头改旧版文字」的交错操作，因为 Gitee 的
@@ -431,6 +435,11 @@ KEEP_RECENT = 2                  # Gitee 保留最近两个版本（最新版 + 
 # 只要配额没满就都传——不按「哪个平台小就砍哪个」做减法，那是用户该决定的事。
 ASSET_SUFFIXES = (".exe", ".apk", ".appimage")
 
+# AppImage 由本人手动搬运（GitHub 下载 → Gitee 上传），脚本默认不碰它。
+# 这是用户在 2026-11-24 明确要求的：自动取回再传一次多花十分钟，
+# 手动反而更快、更可控。确实想让脚本代劳时加 --with-appimage。
+MANUAL_SUFFIXES = (".appimage",)
+
 HISTORY_NOTE_TEMPLATE = """> **本页是历史版本，安装包已从 Gitee 移除（下面这一版的更新说明完整保留）。** Gitee 仓库的 Release 附件总额度只有 1 GB，只保留**最新版与上一版**两个版本的全部安装包（Windows exe、安卓 apk、Linux AppImage 都留在本站，额度够就会一起传）；更早版本的附件已统一清理，只能麻烦你到 GitHub 发布页查看和下载。
 > 这一版的发布页（三端安装包都在 Assets 区）：
 > https://github.com/neurotracee/pdf-privacy-masker/releases/tag/{tag}
@@ -536,6 +545,7 @@ def verify_order(rels=None, tok=None, quiet=False):
         problems.append("Gitee 列表第一条是 %s，应为 %s（它是最后创建的非预发布 Release）" % (top, want))
 
     cur = next((x for x in ges if x.get("tag_name") == want), None)
+    manual_pending = []
     if not cur:
         problems.append("Gitee 上还没有 %s" % want)
     else:
@@ -543,9 +553,15 @@ def verify_order(rels=None, tok=None, quiet=False):
         expect = {a["name"]: int(a.get("size") or 0) for a in (ghr.get("assets") or [])}
         have = {a["name"]: int(a.get("size") or 0) for a in ge_attach_files(cur["id"], tok)}
         for n, sz in expect.items():
-            if n.lower().endswith(ASSET_SUFFIXES) and n not in have:
-                problems.append("最新版缺少安装包 %s（Gitee 必须各端都留）" % n)
-            elif n in have and have[n] != sz:
+            if not n.lower().endswith(ASSET_SUFFIXES):
+                continue
+            if n not in have:
+                # AppImage 由本人手动搬，没传是「待办」不是「出错」
+                if n.lower().endswith(MANUAL_SUFFIXES):
+                    manual_pending.append(n)
+                else:
+                    problems.append("最新版缺少安装包 %s（Gitee 必须各端都留）" % n)
+            elif have[n] != sz:
                 problems.append("附件 %s 大小不符：Gitee %s / GitHub %s" % (n, have[n], sz))
 
     keep = recent_tags(rels)
@@ -584,6 +600,9 @@ def verify_order(rels=None, tok=None, quiet=False):
         print("  Gitee 保留版本：%s（各端安装包）" % ", ".join(sorted(keep, key=ver_key, reverse=True)))
         if missing_prev and not quiet:
             print("  上一版缺附件（提示，不算失败）：%s" % ", ".join(missing_prev))
+        if manual_pending and not quiet:
+            print("  等你手动搬的附件（不算失败）：%s" % ", ".join(manual_pending))
+            print("    做法：GitHub 那一版的 Assets 里下载 → Gitee 同一版的「上传附件」里传上去。")
         print("  仍带附件的更早版本：%d 个%s（按策略留待一次性批量清理，不是错误）" % (
             len(old_with_assets),
             "：" + ", ".join(old_with_assets) if old_with_assets and not quiet else ""))
@@ -698,6 +717,8 @@ def main():
                     help="配额预检时把全部历史版本都查一遍（默认只查最近几个，快得多）")
     ap.add_argument("--keep-recent", type=int, default=KEEP_RECENT,
                     help="Gitee 保留几个版本的安装包（默认 2：最新版 + 上一版）")
+    ap.add_argument("--with-appimage", action="store_true",
+                    help="连 AppImage 也自动传（默认不传：AppImage 由本人从 GitHub 下载后手动上传）")
     a = ap.parse_args()
 
     if a.keep_recent and a.keep_recent > 0:
@@ -793,6 +814,9 @@ def main():
             rel = create_release(r, tok, a.dry_run)
             if a.dry_run:
                 for asset in (r.get("assets") or []):
+                    if asset["name"].lower().endswith(MANUAL_SUFFIXES) and not a.with_appimage:
+                        print("  [dry-run] %s 留给手动上传，不上传" % asset["name"])
+                        continue
                     print("  [dry-run] 将上传 %s" % asset["name"])
                 continue
             if not rel:
@@ -808,6 +832,9 @@ def main():
             an = asset["name"]
             if an in have or any(h.endswith(an) for h in have):
                 print("  附件 %s 已存在，跳过" % an)
+                continue
+            if an.lower().endswith(MANUAL_SUFFIXES) and not a.with_appimage:
+                print("  跳过 %s：AppImage 按约定留给你手动搬（GitHub 下载 → Gitee 上传）" % an)
                 continue
             expect = int(asset.get("size") or 0)
             path = None

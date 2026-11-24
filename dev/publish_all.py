@@ -54,11 +54,13 @@ def check_gitee(tag):
     need = {
         "Windows": any(n.lower().endswith(".exe") for n in names),
         "Android": any(n.lower().endswith(".apk") for n in names),
-        "Linux": any(n.lower().endswith(".appimage") for n in names),
     }
+    # AppImage 是本人手动搬的（GitHub 下载 → Gitee 上传），没传只是待办，不算失败
+    linux_ok = any(n.lower().endswith(".appimage") for n in names)
     print("\n== Gitee 三端附件核对 ==")
     for k, v in need.items():
         print("  %-8s %s" % (k, "✅" if v else "❌ 缺失"))
+    print("  %-8s %s" % ("Linux", "✅" if linux_ok else "⏳ 等你手动上传（GitHub 下载 → Gitee 上传）"))
     print("  Gitee 发布页：https://gitee.com/bio234/pdf-privacy-masker/releases/tag/%s" % tag)
     return 0 if all(need.values()) else 2
 
