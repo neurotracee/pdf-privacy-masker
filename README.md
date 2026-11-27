@@ -34,7 +34,7 @@
 
 ---
 
-本地离线运行的 PDF 隐私信息自动打码工具，不联网也能用，不用云端大模型。把 PDF 拖进去，自动认出手机号、身份证号、银行卡号、邮箱、姓名、座机、地址、出生日期、性别年龄，用**不可还原的马赛克**盖掉，同时把底层的文字层一并抹除，另存为一个新文件。
+本地离线运行的 PDF 隐私信息自动打码工具，不联网也能用，无需 AI 大模型。把 PDF 拖进去，自动认出手机号、身份证号、银行卡号、邮箱、姓名、座机、地址、出生日期、性别年龄，用**不可还原的马赛克**盖掉，同时把底层的文字层一并抹除，另存为一个新文件。
 
 自动认不出来的部分可以**框选手动打码**，一样是像素级不可还原。
 
@@ -472,7 +472,7 @@ by the Free Software Foundation, either version 3 of the License, or
 
 ---
 
-Offline PDF privacy redaction tool — works with no network and no cloud LLM. Drag a PDF in, it automatically detects phone numbers, ID card numbers, bank card numbers, emails, names, addresses, dates of birth and gender/age, then covers them with **irreversible pixel mosaic** while stripping the underlying text layer, and saves as a new file.
+Offline PDF privacy redaction tool — needs no network and no large AI model. Drag a PDF in, it automatically detects phone numbers, ID card numbers, bank card numbers, emails, names, addresses, dates of birth and gender/age, then covers them with **irreversible pixel mosaic** while stripping the underlying text layer, and saves as a new file.
 
 Parts it can't auto-detect can be manually boxed and redacted, also pixel-level irreversible.
 

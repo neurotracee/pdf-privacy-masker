@@ -49,9 +49,9 @@ HOMEPAGE_GH = "https://gitee.com/bio234/pdf-privacy-masker"
 HOMEPAGE_GT = "https://github.com/neurotracee/pdf-privacy-masker"
 
 DESC = (
-    "本地离线运行、无需 AI 模型的 PDF 隐私信息自动打码工具，可识别手机号、身份证号、"
+    "本地离线运行、无需 AI 大模型的 PDF 隐私信息自动打码工具，可识别手机号、身份证号、"
     "银行卡号、邮箱、姓名、地址、出生日期等，打码后文字层一并抹除，不可还原。"
-    " | Offline PDF redaction (no AI model): detects phone/ID/bank numbers, emails, "
+    " | Offline PDF redaction (no large AI model): detects phone/ID/bank numbers, emails, "
     "names, addresses and wipes the text layer so it cannot be recovered. "
     "Windows + Android."
 )
