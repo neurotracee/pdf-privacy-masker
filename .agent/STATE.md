@@ -1,6 +1,6 @@
 # STATE.md — 当前事实快照
 
-> **自动生成，勿手改**：`python dev/agent_state.py`（2026-11-28 15:06）。
+> **自动生成，勿手改**：`python dev/agent_state.py`（2026-11-28 15:13）。
 > 想要长期有效的信息写 `.agent/CONTEXT.md`，一次性的经过写 `.agent/HANDOVER.md`。
 
 ## 版本
@@ -22,11 +22,11 @@
 ## 最近 5 次提交
 
 ```
+1df5c85  2026-11-28  docs(agent): 去掉 A/B 双线设定——所有工作都是同一个 Agent（当前对话）负责
 52b77ed  2026-11-28  chore(agent): 刷新 STATE 快照
 73d3ffe  2026-11-28  docs(agent): 修正分工表述——两条线并行，README/Release 有明确负责人
 19eeca7  2026-11-28  chore(agent): 刷新 STATE 快照（工作区干净）
 09afbdc  2026-11-28  docs(agent): 建立跨会话/跨平台交接层（AGENTS.md + .agent/ 三件套 + 快照脚本）
-b05b137  2026-11-28  docs(shots): 每张配图压一行小字，讲清截图/代码合成/AI 辅助，并注明以实际为准
 ```
 
 ## CI
