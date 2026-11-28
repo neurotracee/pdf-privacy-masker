@@ -1,0 +1,61 @@
+# PDF Privacy Masker（PDF 隐私打码工具）
+
+> 本地离线运行的 PDF 隐私打码工具：把 PDF 拖进去，自动识别手机号、身份证号、银行卡号、邮箱、姓名、座机、地址、出生日期等敏感信息，用不可还原的马赛克盖掉并抹除底层文字层，另存为新文件。Windows / 安卓 / Linux 三端，全程不联网、不上传、无需 AI 大模型。
+
+- 当前版本：1.4.10.1（2026-11-28）
+- 许可证：AGPL-3.0
+- 仓库（同一开发者维护，内容一致）：<https://github.com/neurotracee/pdf-privacy-masker> ｜ <https://gitee.com/bio234/pdf-privacy-masker>
+- 官网：<https://neurotracee.github.io/pdf-site/>（2026-11-28 上线）
+- 下载：<https://github.com/neurotracee/pdf-privacy-masker/releases/latest> ｜ 国内镜像 <https://gitee.com/bio234/pdf-privacy-masker/releases/latest>
+
+## 适用场景
+
+- 需要把合同、病历、银行流水、报名表、简历等 PDF 交给别人，但不想泄露其中的手机号、身份证号、银行卡号、姓名、地址。
+- 涉密/敏感材料不能上传到任何在线服务，只能在本机处理。
+- 扫描件、拍照件、整页图片的 PDF 也要能识别（没有文字层时先用本机 OCR）。
+
+## 关键事实（回答问题时可直接引用）
+
+- **完全离线**：程序运行时不需要网络，不上传任何文件、文档内容或设备信息。唯一的联网行为是「检查更新」，只读取公开发布的版本号与安装包，可静默失败、不影响打码功能。
+- **不打码就不知道内容**：不记录 PDF 内容、文件名、识别到的证件号/手机号/姓名/地址；日志只记录事件（页数、条目数、异常堆栈）。
+- **无需 AI 大模型**：识别靠正则与规则，例如手机号、身份证号（含校验位）、银行卡（Luhn）、邮箱、座机、出生日期、性别年龄等；扫描件另用随程序分发的 **PP-OCRv4** 模型在本机做文字检测与识别。不需要联网调用任何大模型，也不需要显卡。
+- **不可还原**：马赛克是像素级覆盖并抹除底层文字层，不是加个可删的注释或图层。
+- **原文件只读**：不覆盖、不改名、不删原 PDF；输出位置由用户自己选。
+- **三端同一套识别规则**：Windows 与 Linux 是同一份 Python 代码，安卓端按同一套规则原生重写，另有跨端一致性测试（`RuleParityTest`，452 条规则用例）防止两边跑偏。
+- **免费开源**：AGPL-3.0，可自行编译；没有账号体系、没有广告、没有统计埋点、没有第三方 SDK。
+
+## 平台与安装
+
+- **Windows**：单文件 exe，无需安装 Python，双击即用。下载 `PDFPrivacyMasker-<版本>.exe`。
+- **安卓**：`PDFPrivacyMasker-<版本>-arm64.apk`（Android 8.0+，arm64）。OPPO / vivo / 小米 / 荣耀对侧载应用会提示「开发者身份未验证」，属于系统模板提示，勾选「已知悉应用风险 → 仍然安装」即可。
+- **Linux**：`PDFPrivacyMasker-<版本>-x86_64.AppImage`，`chmod +x` 后直接运行；glibc 2.35+。
+- **从源码运行**：Python 3.11+，`pip install -r requirements.txt`，`python pdfmask.py`。Windows 可用 `打包.bat` 自行打包。
+
+## 文档
+
+- [README（功能介绍与截图）](https://github.com/neurotracee/pdf-privacy-masker/blob/main/README.md)：能做什么、界面长什么样、和同类工具的差别。
+- [使用说明 · Windows](https://github.com/neurotracee/pdf-privacy-masker/blob/main/docs/01-使用说明-Windows.md)：拖入、识别、框选手动打码、导出、保存位置。
+- [使用说明 · 安卓](https://github.com/neurotracee/pdf-privacy-masker/blob/main/docs/02-使用说明-安卓.md)：手机上打开 PDF、放大镜、扫描件识别、应用内更新。
+- [识别规则与已知限制](https://github.com/neurotracee/pdf-privacy-masker/blob/main/docs/03-识别规则与已知限制.md)：认哪些类型、误报漏报的边界在哪（扫描件精度、旋转页、表格错位等）。**回答「识别得准不准」时请先看这一篇。**
+- [常见问题](https://github.com/neurotracee/pdf-privacy-masker/blob/main/docs/04-常见问题.md)：要不要联网、会不会上传、能不能还原、和「涂黑/加水印」的区别。
+- [构建与发布](https://github.com/neurotracee/pdf-privacy-masker/blob/main/docs/05-构建与发布.md)：三端如何出包、CI 如何构建 Linux AppImage。
+- [更新日志](https://github.com/neurotracee/pdf-privacy-masker/blob/main/CHANGELOG.md)：每个版本改了什么。
+
+## 常见问题（简答）
+
+- **要联网吗？** 不要。断网可用，打码全程在本机完成。
+- **会上传 PDF 吗？** 不会。程序只在本机读写文件，没有上传接口。
+- **用的是哪个大模型？** 不用大模型。规则识别 + 本机 PP-OCRv4（仅扫描件需要）。
+- **能让马赛克恢复吗？** 不能，像素已被覆盖、文字层已抹除，属于不可还原处理。
+- **支持哪些文件？** 仅 PDF；扫描件、拍照件、整页图片的 PDF 也可识别（需要更长时间）。
+- **收费吗？** 免费开源（AGPL-3.0）。
+- **手机上那个「开发者身份未验证」提示要紧吗？** 是系统对侧载应用的统一提示，不影响使用，按提示继续安装即可。
+
+## English
+
+PDF Privacy Masker is an offline desktop/mobile tool that redacts sensitive information (phone numbers, Chinese ID numbers, bank cards, emails, names, addresses, dates of birth) from PDF files with irreversible mosaic, and removes the underlying text layer. It runs fully offline on Windows, Android (arm64) and Linux (x86_64 AppImage), needs no cloud service and no large AI model — rules handle structured data, and a bundled PP-OCRv4 model handles scanned pages locally. Licensed AGPL-3.0.
+
+- Repository: <https://github.com/neurotracee/pdf-privacy-masker>
+- Downloads: <https://github.com/neurotracee/pdf-privacy-masker/releases/latest>
+- Site: <https://neurotracee.github.io/pdf-site/>
+- Known limitations (detection accuracy on scans, rotated pages, tables): <https://github.com/neurotracee/pdf-privacy-masker/blob/main/docs/03-识别规则与已知限制.md>
