@@ -15,7 +15,12 @@
   本地离线运行的 PDF 隐私打码工具。把 PDF 拖进去，自动认出手机号、身份证号、银行卡、姓名等敏感信息，用不可还原的马赛克盖掉；三端用同一套识别规则，全程不联网、不上传。  
 </p>
 
+<p align="center">
+  <b>官方网站：<a href="https://neurotracee.github.io/pdf-site/">neurotracee.github.io/pdf-site</a></b>
+</p>
+
 <p align="center">  
+  <a href="https://neurotracee.github.io/pdf-site/"><img alt="官方网站" src="https://img.shields.io/badge/%E5%AE%98%E6%96%B9%E7%BD%91%E7%AB%99-pdf--site-2563EB?style=flat-square&labelColor=1E293B"></a>  
   <a href="https://github.com/neurotracee/pdf-privacy-masker/blob/main/LICENSE"><img alt="许可证 AGPL-3.0" src="https://img.shields.io/badge/%E8%AE%B8%E5%8F%AF%E8%AF%81-AGPL--3.0-2563EB?style=flat-square\&labelColor=1E293B"></a>  
   <a href="https://github.com/neurotracee/pdf-privacy-masker/releases/latest"><img alt="最新版本" src="https://img.shields.io/github/v/release/neurotracee/pdf-privacy-masker?label=%E6%9C%80%E6%96%B0%E7%89%88%E6%9C%AC\&color=2563EB\&labelColor=1E293B\&style=flat-square"></a>  
   <a href="https://github.com/neurotracee/pdf-privacy-masker/releases"><img alt="总下载量" src="https://img.shields.io/github/downloads/neurotracee/pdf-privacy-masker/total?label=%E4%B8%8B%E8%BD%BD\&color=2563EB\&labelColor=1E293B\&style=flat-square"></a>  
@@ -455,6 +460,11 @@ by the Free Software Foundation, either version 3 of the License, or
 </p>
 
 <p align="center">
+  <b>Official site: <a href="https://neurotracee.github.io/pdf-site/">neurotracee.github.io/pdf-site</a></b>
+</p>
+
+<p align="center">
+  <a href="https://neurotracee.github.io/pdf-site/"><img alt="Official site" src="https://img.shields.io/badge/Official%20site-pdf--site-2563EB?style=flat-square&labelColor=1E293B"></a>
   <a href="https://github.com/neurotracee/pdf-privacy-masker/blob/main/LICENSE"><img alt="License AGPL-3.0" src="https://img.shields.io/badge/%E8%AE%B8%E5%8F%AF%E8%AF%81-AGPL--3.0-2563EB?style=flat-square&labelColor=1E293B"></a>
   <a href="https://github.com/neurotracee/pdf-privacy-masker/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/neurotracee/pdf-privacy-masker?label=latest&color=2563EB&labelColor=1E293B&style=flat-square"></a>
   <a href="https://github.com/neurotracee/pdf-privacy-masker/releases"><img alt="Downloads" src="https://img.shields.io/github/downloads/neurotracee/pdf-privacy-masker/total?label=downloads&color=2563EB&labelColor=1E293B&style=flat-square"></a>

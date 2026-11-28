@@ -8,8 +8,8 @@
 """首页 UI：一整页 HTML（含 CSS 与前端 JS），与后端逻辑分开维护。
 
 这个字符串里出现的 __TOKEN__ / __VERSION__ / __URL__ / __URLGITEE__ /
-__CREDIT__ / __URLSHORT__ / __URLSHORT_GITEE__ / __THANKS__ 占位符
-由 pdfmask.Handler 在返回页面时替换。
+__SITE__ / __CREDIT__ / __URLSHORT__ / __URLSHORT_GITEE__ / __SITE_SHORT__ /
+__THANKS__ 占位符，由 pdfmask.Handler 在返回页面时替换。
 """
 
 HTML_UI = r"""<html lang="zh-CN">
@@ -444,6 +444,7 @@ main{flex:1;min-height:0;display:flex;overflow:hidden}
         <span>__CREDIT__</span>
         <span class="credit-url" id="footUrl" data-url="__URL__" title="点击复制原项目地址">原项目地址：__URLSHORT__</span>
         <span class="credit-url" id="footUrlGitee" data-url="__URLGITEE__" title="点击复制 Gitee 镜像地址">Gitee: __URLSHORT_GITEE__</span>
+        <span class="credit-url" id="footSite" data-url="__SITE__" title="点击打开官网">官网: __SITE_SHORT__</span>
       </div>
     </section>
 
@@ -537,6 +538,7 @@ main{flex:1;min-height:0;display:flex;overflow:hidden}
       <dt>开源协议</dt><dd>__LICENSE__</dd>
       <dt>原项目地址</dt><dd class="url" id="aboutUrl" data-url="__URL__" title="点击复制">__URL__</dd>
       <dt>Gitee 镜像</dt><dd class="url" id="aboutUrlGitee" data-url="__URLGITEE__" title="点击复制">__URLGITEE__</dd>
+      <dt>官方网站</dt><dd class="url site" id="aboutSite" data-url="__SITE__" title="点击打开官网">__SITE_SHORT__</dd>
     </dl>
     <p class="about-note" data-en-html='<b>Maintenance:</b> I don’t usually have enough time or energy, so I only check in once every month or two — replies will be slow, don’t expect instant answers. All the code is public: if something doesn’t work for you, feel free to fix it or keep building on it. Commercial use is fine too — no fee, no need to ask me, just follow the three points below.'>
       <b>关于维护：</b>我平时没有充足的时间和精力，大概一两个月才上来看一两次，
@@ -2190,6 +2192,17 @@ if (aboutStarBtn) aboutStarBtn.onclick = async ()=>{
   if (!url) return;
   if (!await openUpdateUrl(url)) copyText(url, T('已复制仓库地址：', 'Repository URL copied: '));
 };
+/* 项目地址：点一下就复制，方便二次开发者把来源留在自己版本里 */
+/* 官网：点击直接开浏览器；开不了就退回复制 */
+['aboutSite', 'footSite'].forEach(id=>{
+  const el = $(id);
+  if (!el) return;
+  el.style.cursor = 'pointer';
+  el.addEventListener('click', async ()=>{
+    const url = el.dataset.url;
+    if (!await openUpdateUrl(url)) copyText(url, T('已复制官网地址：', 'Site URL copied: '));
+  });
+});
 /* 项目地址：点一下就复制，方便二次开发者把来源留在自己版本里 */
 ['aboutUrl', 'aboutUrlGitee', 'footUrl', 'footUrlGitee'].forEach(id=>{
   const el = $(id);

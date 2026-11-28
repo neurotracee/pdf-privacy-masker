@@ -85,6 +85,8 @@ DEVELOPER = "腾讯 WorkBuddy × DeepSeek-V4.1-Flash"
 DEVELOPER_NOTE = "说明：常用、惯用、主要是 DeepSeek-V4.1-Flash——大多数场景和功能维护升级都由它作核心骨架；偶尔也会用其他模型，如 GLM 5.3 Flash、Hy4 Flash。"
 LICENSE_NAME = "AGPL-3.0-or-later"
 PROJECT_URL = "https://github.com/neurotracee/pdf-privacy-masker"
+# 官网（GitHub Pages，纯静态介绍页）：界面「关于」与页脚都给这个地址
+SITE_URL = "https://neurotracee.github.io/pdf-site"
 
 # ---- 检查更新（只读一个版本号，不上传任何本地内容） ----
 # 通道顺序与证书校验在 pdfmask_update.py：简体中文环境优先 Gitee、其次 GitHub。
@@ -100,6 +102,7 @@ CREDIT_LINE = "指导作者：%s · 由 %s 开发 · %s 开源" % (
 URL_SHORT = PROJECT_URL.replace("https://", "").replace("http://", "")
 # Gitee 镜像：国内访问更稳，和 GitHub 地址并列展示（声明里两个都给，任一个都能追溯来源）
 URL_SHORT_GITEE = GITEE_URL.replace("https://", "").replace("http://", "")
+URL_SHORT_SITE = SITE_URL.replace("https://", "").replace("http://", "")
 ATTRIB_NOTICE = ("二次开发或商用必须保留作者署名，并在程序中标注原项目地址：%s"
                  % PROJECT_URL)
 FORK_NOTICE = ("本程序基于 %s 修改（镜像：%s），非原作者发布。"
@@ -3076,6 +3079,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 "__LICENSE__", LICENSE_NAME).replace(
                 "__URL__", PROJECT_URL).replace(
                 "__URLGITEE__", GITEE_URL).replace(
+                "__SITE__", SITE_URL).replace(
+                "__SITE_SHORT__", URL_SHORT_SITE).replace(
                 "__CREDIT__", CREDIT_LINE).replace(
                 "__URLSHORT__", URL_SHORT).replace(
                 "__URLSHORT_GITEE__", URL_SHORT_GITEE).replace(

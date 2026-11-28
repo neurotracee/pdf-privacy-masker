@@ -1,10 +1,16 @@
 package com.neurotracee.pdfmask.ui
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
@@ -45,6 +51,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -67,6 +74,9 @@ fun AppInfoDialog(onClose: () -> Unit, onShowLogs: () -> Unit = {}) {
     }
 }
 
+/** 官网（GitHub Pages 静态介绍页） */
+private const val OFFICIAL_SITE = "https://neurotracee.github.io/pdf-site"
+
 /** 关于面板本体（不含 Dialog 外壳，方便单独渲染与截图） */
 @Composable
 fun AboutPanel(
@@ -77,6 +87,24 @@ fun AboutPanel(
     onShowLogs: () -> Unit = {}
 ) {
     val dark = isSystemInDarkTheme()
+    val ctx = LocalContext.current
+    // 官网是纯静态介绍页，点一下直接交给浏览器；没有浏览器就退回复制地址
+    fun openOfficialSite() {
+        try {
+            ctx.startActivity(
+                Intent(Intent.ACTION_VIEW, Uri.parse(OFFICIAL_SITE))
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            )
+        } catch (e: Exception) {
+            val cm = ctx.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+            cm?.setPrimaryClip(ClipData.newPlainText("official-site", OFFICIAL_SITE))
+            Toast.makeText(
+                ctx,
+                t("官网地址已复制，粘到浏览器里打开", "Site URL copied — paste it into your browser"),
+                Toast.LENGTH_SHORT
+            ).show()
+        }
+    }
     Column(
         Modifier
             .heightIn(max = maxHeight)
@@ -127,6 +155,11 @@ fun AboutPanel(
         InfoRow(T("原项目地址", "Upstream"), "github.com/neurotracee/pdf-privacy-masker")
         // 国内访问 GitHub 常被拦，声明里再给一个 Gitee 镜像，方便追溯来源
         InfoRow(T("镜像地址", "Mirror"), "gitee.com/bio234/pdf-privacy-masker")
+        InfoRow(
+            T("官方网站", "Official site"),
+            "neurotracee.github.io/pdf-site",
+            onClick = { openOfficialSite() }
+        )
 
         Spacer(Modifier.height(14.dp))
         Note(T("隐私", "Privacy"))
@@ -401,8 +434,13 @@ private fun ThanksBlock(onLongPressOverride: (() -> Unit)? = null) {
 }
 
 @Composable
-private fun InfoRow(k: String, v: String) {
-    Row(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+private fun InfoRow(k: String, v: String, onClick: (() -> Unit)? = null) {
+    val rowMod = if (onClick == null) {
+        Modifier.fillMaxWidth().padding(vertical = 4.dp)
+    } else {
+        Modifier.fillMaxWidth().clickable { onClick() }.padding(vertical = 4.dp)
+    }
+    Row(rowMod) {
         Text(
             k,
             fontSize = 12.5.sp,
@@ -412,9 +450,12 @@ private fun InfoRow(k: String, v: String) {
         Text(
             v,
             fontSize = 12.5.sp,
-            color = MaterialTheme.colorScheme.onSurface,
+            // 可点击的（官网、仓库地址）用主题色 + 下划线，让人看得出能点
+            color = if (onClick != null) MaterialTheme.colorScheme.primary
+            else MaterialTheme.colorScheme.onSurface,
             fontWeight = FontWeight.Medium,
             lineHeight = 18.sp,
+            textDecoration = if (onClick != null) TextDecoration.Underline else null,
             modifier = Modifier.weight(1f)
         )
     }
