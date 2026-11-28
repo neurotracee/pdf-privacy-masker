@@ -28,6 +28,10 @@ README 里原来放的是纯界面截图（Windows 1120×720、安卓 1080×2400
     python dev/make_readme_shots.py            # 全部生成
     python dev/make_readme_shots.py --win      # 只重出 Windows 截图
     python dev/make_readme_shots.py --frames   # 只重新套壳（复用已有截图）
+
+每张图底部都会压一行小字（真实截图 / 代码合成 / 内容 AI 辅助 / 以实际为准），
+文案和折行在 dev/shot_note.py 里，改一次所有图统一生效；纯截图那几张用
+`python dev/shot_note.py --raw <图片>` 单独加。
 """
 import base64
 import glob
@@ -46,6 +50,8 @@ for p in (ROOT, HERE):
         sys.path.insert(0, p)
 
 from PIL import Image, ImageDraw, ImageFilter, ImageFont  # noqa: E402
+
+from shot_note import stamp  # noqa: E402
 
 OUT = os.path.join(ROOT, "docs", "img", "shot")
 TMP = os.path.join(HERE, "_ui", "win")
@@ -98,11 +104,13 @@ THEMES = {
     ),
 }
 TH = THEMES["light"]
+THEME_NAME = "light"
 
 
 def set_theme(name):
-    global TH
+    global TH, THEME_NAME
     TH = THEMES[name]
+    THEME_NAME = name
 
 
 # ----------------------------------------------------------------- 字体 / 图标
@@ -529,8 +537,12 @@ def fit(img, max_w=None, max_h=None):
     return img
 
 
-def save(img, name, width=2400, quality=90):
+def save(img, name, width=2400, quality=90, lang=None, credit=None):
     os.makedirs(OUT, exist_ok=True)
+    if lang:
+        # 每张图底部压一行小字：哪部分是真实截图、哪部分是代码叠的、内容是 AI
+        # 辅助生成的、具体以实际为准。文字和排版统一在 dev/shot_note.py 里。
+        img = stamp(img, lang=lang, credit=credit, theme=THEME_NAME)
     if img.width > width:
         ratio = width / float(img.width)
         img = img.resize((width, int(img.height * ratio)), Image.LANCZOS)
@@ -625,16 +637,15 @@ HERO = {
         sub=["自动认出手机号、身份证号、银行卡、姓名等敏感信息，",
              "用不可还原的马赛克盖掉，全程在本机完成。"],
         pill="Windows  ·  Android  ·  不联网也能用",
-        note="示意图为 AI 生成，仅供创意参考，具体以实际界面为准  ·  版式思路借鉴 DSH Go 项目",
-        repo="详细见 GitHub：ccch1mneyyy/dsh-go"),
+        # 首页横幅的版式思路来自 DSH Go，这行署名不能删
+        credit="版式思路借鉴 DSH Go 项目　·　详细见 GitHub：ccch1mneyyy/dsh-go"),
     "en": dict(
         title=["PDF Privacy", "Masker"],
         sub=["Detects phone numbers, ID numbers, bank cards,",
              "names and more — then covers them all with",
              "irreversible mosaic. Nothing leaves your device."],
         pill="Windows  ·  Android  ·  Works offline",
-        note="AI-generated illustration, for reference only — the actual UI may differ  ·  layout inspired by DSH Go",
-        repo="Details on GitHub: ccch1mneyyy/dsh-go"),
+        credit="Layout inspired by the DSH Go project  ·  details: github.com/ccch1mneyyy/dsh-go"),
 }
 
 
@@ -680,11 +691,8 @@ def hero(lang):
     d.text((140 + 34, y + 54 + 19), HERO[lang]["pill"],
            font=font(33, en=(lang == "en")), fill=TH["pill_text"])
 
-    # 左下角两行小字：第一行说明这张图是合成示意、并注明版式借鉴来源，
-    # 第二行只写仓库路径（不带 https，越短越好）。整块离底边留出约两厘米。
-    fn = font(26, en=(lang == "en"))
-    d.text((140, H - 150), HERO[lang]["note"], font=fn, fill=TH["fine"])
-    d.text((140, H - 106), HERO[lang]["repo"], font=font(26, en=(lang == "en")), fill=TH["fine"])
+    # 底部的小字（真实截图 / 代码合成 / AI 辅助 / 以实际为准）由 save() 统一
+    # 用 dev/shot_note.py 压上去，这里不再单独画，免得两处文字对不上。
     return cv
 
 
@@ -730,11 +738,12 @@ def main():
         print("套壳出图 · %s" % theme)
         for lang in ("zh", "en"):
             suf = "%s-%s.webp" % (lang, theme)
-            save(single_window(lang, "work"), "win-work-" + suf)
-            save(single_window(lang, "settings"), "win-settings-" + suf)
-            save(phone_feature(lang), "phone-feature-" + suf)
-            save(hero(lang), "hero-" + suf)
-            save(lang_compare(), "lang-" + suf)
+            save(single_window(lang, "work"), "win-work-" + suf, lang=lang)
+            save(single_window(lang, "settings"), "win-settings-" + suf, lang=lang)
+            save(phone_feature(lang), "phone-feature-" + suf, lang=lang)
+            save(hero(lang), "hero-" + suf, lang=lang,
+                 credit=HERO[lang]["credit"])
+            save(lang_compare(), "lang-" + suf, lang=lang)
 
 
 if __name__ == "__main__":
