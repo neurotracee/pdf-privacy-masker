@@ -19,6 +19,11 @@
 
 ---
 
+## 2026-11-28 · 新增 llms.txt
+- 做了什么：按 llmstxt.org 约定加 `llms.txt`（61 行）：一句话定位、适用场景、可直接引用的事实（离线/无需大模型/不可还原/三端同规则/原文件只读/AGPL-3.0）、三端安装方式、文档索引、常见问题简答、英文摘要。
+- 怎么验证的：GitHub contents API 取到 6213 字节；Gitee raw 302 正常跳转。
+- 本次未做，留待下次：README 未加指向 llms.txt 的链接（避免动首页排版），需要时再说。
+
 ## 2026-11-28 · 发版 v1.4.10.1（三端官网入口）
 - 做了什么：补丁版 1.4.10.1 三端出包并发布：GitHub Release 3 包 + 2 校验文件；CI 出 AppImage 后经 akams 加速站分段取回（44 秒 / 校验通过）→ 上传 Gitee，Gitee 三端附件核对 ✅。
 - 改了哪些文件：`pdfmask.py`、`android/app/build.gradle.kts`、`version_info.txt`（三处 1.4.10.1）、`CHANGELOG.md`、`release/v1.4.10.1/RELEASE-NOTES.md`（gitignore 外的产物不入库）。
