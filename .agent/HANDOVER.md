@@ -19,6 +19,12 @@
 
 ---
 
+## 2026-11-28 · 加入官网入口（README + 三端界面）
+- 做了什么：官网 `https://neurotracee.github.io/pdf-site` 写进 README 顶部（中英双语 badge + 文字链接）、Windows/Linux 的「关于」窗与首页页脚、安卓关于面板（可点击开浏览器，失败退回复制）。
+- 改了哪些文件：`README.md`、`pdfmask.py`（`SITE_URL` + `__SITE__`/`__SITE_SHORT__` 占位符）、`pdfmask_webui.py`、`android/.../ui/AppInfoDialog.kt`、`docs/01`、`docs/02`。
+- 怎么验证的：`dev/selfcheck.py` 全通过；`gradle assembleRelease` 通过；用 Edge headless 渲染「关于」窗截图确认排版对齐。
+- 本次未做，留待下次：本地 exe / apk 未重新打包安装（要出新包应随下次发版，避免和已发布的 1.4.10.0 混淆）。
+
 ## 2026-11-28 · 确定责任人：主对话全包，其他会话一律不处理
 - 做了什么：删掉「A 线 / B 线分属两条会话」的设定。改为：全部工作（功能、bug、README / 配图、Release / 版本号 / 发版）由**用户主对话**负责；**其他 Agent 对话一律不处理**（不是只处理某一部分）；不确定自己是不是主对话就按"不是"处理，只读不改。
 - 改了哪些文件：`AGENTS.md`（新增第 0 节「谁负责」）、`.agent/CONTEXT.md`、`.agent/HANDOVER.md`、`CLAUDE.md`、`.github/copilot-instructions.md`、工作区 `AGENTS.md`、工作区 `MEMORY.md`。
