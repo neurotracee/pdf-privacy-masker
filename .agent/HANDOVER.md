@@ -19,6 +19,12 @@
 
 ---
 
+## 2026-11-28 · 发版 v1.4.10.1（三端官网入口）
+- 做了什么：补丁版 1.4.10.1 三端出包并发布：GitHub Release 3 包 + 2 校验文件；CI 出 AppImage 后经 akams 加速站分段取回（44 秒 / 校验通过）→ 上传 Gitee，Gitee 三端附件核对 ✅。
+- 改了哪些文件：`pdfmask.py`、`android/app/build.gradle.kts`、`version_info.txt`（三处 1.4.10.1）、`CHANGELOG.md`、`release/v1.4.10.1/RELEASE-NOTES.md`（gitignore 外的产物不入库）。
+- 怎么验证的：本机 exe 属性 1.4.10.1/1.4.10.1；手机 versionName=1.4.10.1；两处 Release 附件齐全。
+- 本次未做，留待下次：无（本机 exe 与手机 apk 均已装入 1.4.10.1）。
+
 ## 2026-11-28 · 重打 Windows 包并替换本机副本
 - 做了什么：按当前源码重打 `dist/PDF隐私打码工具.exe`（含官网入口），同步到 `C://Users//YB//PDF隐私打码工具//PDF隐私打码工具.exe`，旧版存 `_old\PDF隐私打码工具-1.4.9.1.exe`。
 - 怎么验证的：从 exe 内解出 `pdfmask_webui` 模块常量，含 2 个 `__SITE__`、`aboutSite`、`footSite`、「官方网站」；文件属性 FileVersion / ProductVersion 均为 1.4.10.0。
