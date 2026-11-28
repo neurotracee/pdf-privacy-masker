@@ -103,7 +103,7 @@
 
 
 <p align="center">  
-  <sub>截图取自程序真实渲染，非示意图。安卓端的放大镜、扫描件识别、应用内更新实拍图见 <a href="docs/02-使用说明-安卓.md">使用说明 · 安卓</a>。</sub>  
+  <sub>截图取自程序真实渲染，非示意图。桌面端外面那层是<strong>浏览器窗口</strong>：程序在本机起一个服务，再用系统默认浏览器（Edge / Chrome 等）打开 <code>127.0.0.1</code> 的本地页面，不是独立安装的桌面窗口程序。安卓端的放大镜、扫描件识别、应用内更新实拍图见 <a href="docs/02-使用说明-安卓.md">使用说明 · 安卓</a>。</sub>  
 </p>
 
 ---
@@ -537,7 +537,7 @@ Available for **Windows** (single-file exe), **Android** (arm64 apk) and **Linux
 <br>
 
 <p align="center">
-  <sub>Captured from the real UI, not mock drawings. More Android shots (loupe, scanned-PDF recognition, in-app update) are in <a href="docs/02-使用说明-安卓.md">the Android guide</a>.</sub>
+  <sub>Captured from the real UI, not mock drawings. On desktop, the frame around it is a <strong>browser window</strong>: the program serves the page locally and opens <code>127.0.0.1</code> in your default browser (Edge / Chrome …) — it is not a standalone desktop window app. More Android shots (loupe, scanned-PDF recognition, in-app update) are in <a href="docs/02-使用说明-安卓.md">the Android guide</a>.</sub>
 </p>
 
 ---

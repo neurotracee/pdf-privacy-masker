@@ -9,8 +9,10 @@ README 里原来放的是纯界面截图（Windows 1120×720、安卓 1080×2400
 1. **出图**：Windows 端拿程序真正在浏览器里跑的那一页（pdfmask.HTML_UI），
    喂一份真实 PDF 的检测结果（真跑 pdfmask.detect，不是编的），用无头 Edge
    截成 2 倍图；安卓端直接用 Robolectric 的界面截图（app/build/ui-shots）。
-2. **套壳**：Windows 窗口（标题栏 + 最小化/最大化/关闭）、手机（圆角边框 +
-   挖孔 + 侧键）都用 PIL 画出来，配柔和渐变底和投影，仿 DSH Go 的 README。
+2. **套壳**：Windows 端套的是**浏览器窗口**（标签页 + 地址栏 + 窗口按钮），
+   因为程序本来就是用系统默认浏览器打开 127.0.0.1 的本地页面，套成独立桌面
+   程序的标题栏会让人误以为它是原生窗口程序；手机只套圆角边框 + 挖孔 + 侧键。
+   外壳都用 PIL 画出来，配柔和渐变底和投影，仿 DSH Go 的 README。
 
 产物（docs/img/shot/）
     win-work-{zh,en}.webp        单个 Windows 窗口
@@ -31,6 +33,7 @@ import base64
 import glob
 import io
 import json
+import math
 import os
 import re
 import subprocess
@@ -72,6 +75,10 @@ THEMES = {
         shadow=(15, 23, 42), shadow_k=1.0,
         chrome=(246, 247, 250), titlebar=(245, 246, 249),
         edge=(214, 218, 228), win_text=(40, 44, 54), win_btn=(72, 78, 92),
+        # 浏览器外壳（标签页条 / 工具条 / 地址栏）
+        bx_tabbar=(229, 232, 239), bx_tab=(249, 250, 253),
+        bx_toolbar=(246, 247, 251), bx_pill=(232, 235, 242),
+        bx_text=(48, 53, 64), bx_icon=(92, 98, 113), bx_edge=(210, 214, 225),
         title=(22, 26, 36), sub=(96, 102, 118), brand=(90, 96, 112),
         pill=(255, 255, 255, 210), pill_edge=(214, 220, 232, 255),
         pill_text=(60, 66, 82), fine=(148, 154, 168),
@@ -82,6 +89,9 @@ THEMES = {
         shadow=(0, 0, 0), shadow_k=1.9,
         chrome=(34, 38, 47), titlebar=(38, 42, 52),
         edge=(58, 63, 76), win_text=(224, 228, 237), win_btn=(196, 202, 216),
+        bx_tabbar=(24, 27, 34), bx_tab=(45, 49, 59),
+        bx_toolbar=(38, 42, 51), bx_pill=(28, 31, 39),
+        bx_text=(226, 230, 238), bx_icon=(178, 185, 199), bx_edge=(58, 63, 76),
         title=(238, 241, 248), sub=(148, 156, 174), brand=(138, 146, 164),
         pill=(30, 34, 44, 220), pill_edge=(58, 64, 80, 255),
         pill_text=(202, 210, 226), fine=(118, 126, 144),
@@ -316,38 +326,103 @@ def shadow(canvas, box, radius, blur, alpha, offset=(0, 18)):
     canvas.alpha_composite(layer)
 
 
-def frame_window(shot_path, title, scale_title=1.0):
-    """把网页截图放进 Windows 11 风格的窗口里（含标题栏与窗口按钮）。"""
+def frame_window(shot_path, title, scale_title=1.0, url="127.0.0.1:49812"):
+    """把网页截图放进浏览器窗口里。
+
+    Windows 端本来就是「程序起一个本地服务 → 用系统默认浏览器打开
+    127.0.0.1 的页面」，所以外壳必须画成浏览器（标签页条 + 地址栏 + 窗口按钮），
+    不能画成独立桌面程序的标题栏——那会让人以为双击开的是个原生窗口程序。
+    """
     src = Image.open(shot_path).convert("RGB")
     s = 2  # 截图是 2 倍图
-    bar_h = 38 * s
-    radius = 12 * s
+    tab_h = 40 * s
+    tool_h = 44 * s
+    bar_h = tab_h + tool_h
+    radius = 10 * s
     W, H = src.size
     win = Image.new("RGBA", (W, H + bar_h), (0, 0, 0, 0))
     d = ImageDraw.Draw(win)
-    chrome = TH["chrome"] + (255,)
-    titlebar = TH["titlebar"] + (255,)
-    d.rounded_rectangle([0, 0, W - 1, win.height - 1], radius=radius, fill=chrome)
-    # 标题栏
-    d.rounded_rectangle([0, 0, W - 1, bar_h + radius], radius=radius, fill=titlebar)
-    d.rectangle([0, bar_h - radius, W - 1, bar_h], fill=titlebar)
-    d.line([0, bar_h, W - 1, bar_h], fill=TH["edge"] + (255,), width=max(1, s // 2))
-    # 图标 + 标题
-    ic = app_icon(int(18 * s * scale_title))
-    win.alpha_composite(ic, (14 * s, (bar_h - ic.height) // 2))
-    f = font(int(13 * s * scale_title), en=False)
-    d.text((14 * s + ic.width + 10 * s, (bar_h - int(13 * s * 1.35)) // 2),
-           title, font=f, fill=TH["win_text"] + (255,))
-    # 窗口按钮：最小化 / 最大化 / 关闭
+    icon_col = TH["bx_icon"] + (255,)
+    text_col = TH["bx_text"] + (255,)
+    edge_col = TH["bx_edge"] + (255,)
+    lw = max(1, int(1.4 * s))
+
+    # 标签页条 + 工具条
+    d.rounded_rectangle([0, 0, W - 1, win.height - 1], radius=radius,
+                        fill=TH["bx_tabbar"] + (255,))
+    d.rectangle([0, tab_h, W - 1, bar_h - 1], fill=TH["bx_toolbar"] + (255,))
+    d.line([0, bar_h - 1, W - 1, bar_h - 1], fill=edge_col, width=lw)
+
+    # —— 标签页条：一个活动标签（图标 + 标题 + 关闭），像真的开着这一页
+    tab_x0, tab_x1 = 10 * s, 10 * s + int(min(310 * s, W * 0.30))
+    d.rounded_rectangle([tab_x0, 5 * s, tab_x1, tab_h + 6 * s], radius=9 * s,
+                        fill=TH["bx_tab"] + (255,))
+    d.rectangle([tab_x0, tab_h - 8 * s, tab_x1, tab_h + 5 * s],
+                fill=TH["bx_tab"] + (255,))
+    ic = app_icon(int(16 * s))
+    win.alpha_composite(ic, (tab_x0 + 12 * s, 5 * s + (tab_h - 5 * s - ic.height) // 2))
+    tx = tab_x0 + 12 * s + ic.width + 9 * s
+    f_tab = font(int(12.5 * s * scale_title))
+    d.text((tx, 5 * s + (tab_h - 5 * s - int(12.5 * s * 1.35)) // 2), title,
+           font=f_tab, fill=TH["win_text"] + (255,))
+    cx = tab_x1 - 20 * s
+    cy = 5 * s + (tab_h - 5 * s) // 2
+    r = 4 * s
+    d.line([cx - r, cy - r, cx + r, cy + r], fill=icon_col, width=lw)
+    d.line([cx - r, cy + r, cx + r, cy - r], fill=icon_col, width=lw)
+
+    # —— 窗口按钮：最小化 / 最大化 / 关闭
     bx = W - 20 * s
-    cy = bar_h // 2
-    lw = max(1, int(1.2 * s))
-    col = TH["win_btn"] + (255,)
-    d.line([bx - 34 * s, cy, bx - 24 * s, cy], fill=col, width=lw)          # —
+    cy = tab_h // 2
+    d.line([bx - 34 * s, cy, bx - 24 * s, cy], fill=icon_col, width=lw)
     d.rectangle([bx - 16 * s, cy - 5 * s, bx - 6 * s, cy + 5 * s],
-                outline=col, width=lw)                                       # □
-    d.line([bx + 4 * s, cy - 5 * s, bx + 14 * s, cy + 5 * s], fill=col, width=lw)   # ✕
-    d.line([bx + 4 * s, cy + 5 * s, bx + 14 * s, cy - 5 * s], fill=col, width=lw)
+                outline=icon_col, width=lw)
+    d.line([bx + 4 * s, cy - 5 * s, bx + 14 * s, cy + 5 * s], fill=icon_col, width=lw)
+    d.line([bx + 4 * s, cy + 5 * s, bx + 14 * s, cy - 5 * s], fill=icon_col, width=lw)
+
+    # —— 工具条：后退 / 前进 / 刷新，然后地址栏
+    ty = tab_h + tool_h // 2
+    ar = 6 * s
+    ax = 30 * s
+    for i in range(2):
+        px = ax + i * 38 * s
+        sgn = -1 if i == 0 else 1          # 后退朝左、前进朝右
+        tip = px + sgn * ar
+        tail = px - sgn * ar
+        d.line([tail, ty - ar, tip, ty], fill=icon_col, width=lw)
+        d.line([tail, ty + ar, tip, ty], fill=icon_col, width=lw)
+    px = ax + 76 * s
+    d.arc([px - ar, ty - ar, px + ar, ty + ar], 40, 320, fill=icon_col, width=lw)
+    d.polygon([(px + ar, ty - ar - 2 * s), (px + ar + 5 * s, ty - ar + 6 * s),
+               (px + ar - 5 * s, ty - ar + 6 * s)], fill=icon_col)
+
+    pill_x0 = ax + 118 * s
+    pill_x1 = W - 132 * s
+    ph = 30 * s
+    d.rounded_rectangle([pill_x0, ty - ph // 2, pill_x1, ty + ph // 2],
+                        radius=ph // 2, fill=TH["bx_pill"] + (255,),
+                        outline=edge_col, width=lw)
+    # 小锁 / 信息点 + 地址：「127.0.0.1:端口」是本地地址，不是外网
+    lx = pill_x0 + 22 * s
+    d.ellipse([lx - 5 * s, ty - 5 * s, lx + 5 * s, ty + 5 * s], outline=icon_col, width=lw)
+    d.line([lx, ty - 1 * s, lx, ty + 3 * s], fill=icon_col, width=lw)
+    d.line([lx - 1, ty - 4 * s, lx + 1, ty - 4 * s], fill=icon_col, width=max(1, int(2 * s)))
+    d.text((pill_x0 + 36 * s, ty - int(12.5 * s * 0.68)), url,
+           font=font(int(12.5 * s), en=True), fill=text_col)
+    # 右侧：收藏星 + 菜单
+    sx = W - 96 * s
+    star_r = 7 * s
+    pts = []
+    for k in range(10):
+        ang = -math.pi / 2 + k * math.pi / 5
+        rr = star_r if k % 2 == 0 else star_r * 0.45
+        pts.append((sx + rr * math.cos(ang), ty + rr * math.sin(ang)))
+    d.polygon(pts, outline=icon_col, width=lw)
+    mx = W - 50 * s
+    for k in (-1, 0, 1):
+        d.ellipse([mx - 2 * s, ty + k * 7 * s - 2 * s,
+                   mx + 2 * s, ty + k * 7 * s + 2 * s], fill=icon_col)
+
     # 页面内容
     win.paste(src, (0, bar_h))
     # 圆角裁切
@@ -633,7 +708,15 @@ def lang_compare():
 def main():
     args = set(sys.argv[1:])
     load_phone_src()
-    if args & {"--win", "--all", ""} or not args:
+    frames_only = "--frames" in args
+    if frames_only:
+        # 只换外壳：复用 dev/_ui/win 里已有的 2 倍图，不重跑检测、不开浏览器
+        miss = [p for p in (shot_window_png(l, s) for l in ("zh", "en")
+                            for s in ("work", "settings")) if not os.path.exists(p)]
+        if miss:
+            raise SystemExit("缺少原始截图，先跑一次全量生成：%s" % miss[0])
+        print("复用已有截图")
+    elif not args or args & {"--win", "--all"}:
         print("Windows 截图")
         for lang in ("zh", "en"):
             for scene in ("work", "settings"):
