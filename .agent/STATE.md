@@ -1,6 +1,6 @@
 # STATE.md — 当前事实快照
 
-> **自动生成，勿手改**：`python dev/agent_state.py`（2026-11-28 17:14）。
+> **自动生成，勿手改**：`python dev/agent_state.py`（2026-11-28 17:22）。
 > 想要长期有效的信息写 `.agent/CONTEXT.md`，一次性的经过写 `.agent/HANDOVER.md`。
 
 ## 版本
@@ -22,11 +22,11 @@
 ## 最近 5 次提交
 
 ```
+529ce4b  2026-11-28  docs(readme): 标注官网上线日期（2026 年 11 月 28 日）
 474f0a3  2026-11-28  chore(agent): 记录官网入口改动与快照
 e0e734d  2026-11-28  feat(site): 加入官网 neurotracee.github.io/pdf-site
 81cdd36  2026-11-28  docs(agent): 责任规则改为「主对话全包，其他会话一律不处理」
 1df5c85  2026-11-28  docs(agent): 去掉 A/B 双线设定——所有工作都是同一个 Agent（当前对话）负责
-52b77ed  2026-11-28  chore(agent): 刷新 STATE 快照
 ```
 
 ## CI

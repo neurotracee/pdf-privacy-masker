@@ -19,6 +19,11 @@
 
 ---
 
+## 2026-11-28 · 重打 Windows 包并替换本机副本
+- 做了什么：按当前源码重打 `dist/PDF隐私打码工具.exe`（含官网入口），同步到 `C://Users//YB//PDF隐私打码工具//PDF隐私打码工具.exe`，旧版存 `_old\PDF隐私打码工具-1.4.9.1.exe`。
+- 怎么验证的：从 exe 内解出 `pdfmask_webui` 模块常量，含 2 个 `__SITE__`、`aboutSite`、`footSite`、「官方网站」；文件属性 FileVersion / ProductVersion 均为 1.4.10.0。
+- 注意：本机原先那份是 1.4.9.1，这次顺带把 `version_info.txt` 的固定版本号修对了。
+- 本次未做，留待下次：Linux AppImage 仍为 11-24 旧包（本机无 Linux/WSL/Docker，只能在 CI 打），需下次发版或补丁版重出。
 ## 2026-11-28 · 加入官网入口（README + 三端界面）
 - 做了什么：官网 `https://neurotracee.github.io/pdf-site` 写进 README 顶部（中英双语 badge + 文字链接）、Windows/Linux 的「关于」窗与首页页脚、安卓关于面板（可点击开浏览器，失败退回复制）。
 - 改了哪些文件：`README.md`、`pdfmask.py`（`SITE_URL` + `__SITE__`/`__SITE_SHORT__` 占位符）、`pdfmask_webui.py`、`android/.../ui/AppInfoDialog.kt`、`docs/01`、`docs/02`。
