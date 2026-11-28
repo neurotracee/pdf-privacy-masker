@@ -16,17 +16,17 @@
 
 ## 仓库
 
-- 分支：`main`　工作区：5 个未提交改动
+- 分支：`main`　工作区：干净
 - 最新 tag：`v1.4.10.0`
 
 ## 最近 5 次提交
 
 ```
+73d3ffe  2026-11-28  docs(agent): 修正分工表述——两条线并行，README/Release 有明确负责人
 19eeca7  2026-11-28  chore(agent): 刷新 STATE 快照（工作区干净）
 09afbdc  2026-11-28  docs(agent): 建立跨会话/跨平台交接层（AGENTS.md + .agent/ 三件套 + 快照脚本）
 b05b137  2026-11-28  docs(shots): 每张配图压一行小字，讲清截图/代码合成/AI 辅助，并注明以实际为准
 b3e0963  2026-11-28  docs(shots): Windows 截图外框改为浏览器窗口，README 讲清是 127.0.0.1 本地页面
-fa73deb  2026-11-28  fix(version): version_info 固定版本号改为 1.4.10.0，与 VERSION/安卓一致
 ```
 
 ## CI
